@@ -1,0 +1,283 @@
+# Product Requirements Document: JudicialSync
+
+**Project Acronym:** JudicialSync
+**Document Type:** PRD (Product Requirements Document)
+**Status:** Draft
+**Last Updated:** 2026-10-06
+
+---
+
+## 1. Executive Summary
+
+JudicialSync is a demonstration of Pivota acting as the operational memory of the courtroom — a single system that gives judges, chambers staff, courtroom deputies, clerks, and attorneys immediate, trustworthy awareness of exhibit status, rulings, custody, and next actions during a live trial. It replaces the spreadsheets, paper logs, emails, and personal notes courtroom staff currently rely on to answer exhibit questions, and it does so through a conversational assistant that can answer any authorized user's natural-language question with an accurate, cited answer in real time.
+
+This is a sales/demo project, not a production case management system. Its purpose is to prove to court customers — judges, chambers staff, deputies, clerks, and court administrators — that Pivota behaves as an **assistant to the people in the courtroom**, not "yet another system to learn."
+
+---
+
+## 2. Problem Statement
+
+Courtroom staff currently track exhibit status, objections, rulings, and custody across a patchwork of spreadsheets, paper exhibit logs, email threads, and individual handwritten notes. This fragmented record-keeping creates real operational risk during live proceedings, when a judge or attorney needs an instant, authoritative answer and there is no time to reconcile five different sources of truth.
+
+Specific pain points this demo targets:
+
+- **No single source of truth.** A courtroom deputy may know an exhibit's status from memory or a sticky note, but there is no shared, queryable record that chambers staff, the clerk, and attorneys can all trust simultaneously.
+- **Slow, manual lookups under time pressure.** When a judge asks "what exhibits were admitted yesterday?" or "is Exhibit 14 in the jury package?", the answer today requires someone to manually flip through logs or cross-reference notes — unacceptable during live proceedings.
+- **Silent discrepancies.** An exhibit can be marked "admitted" while its custody record is incomplete, or can end up in a jury package despite an unresolved objection — and nobody notices until it becomes a problem, sometimes after the fact.
+- **No chain-of-custody confidence.** Physical and digital exhibits change hands throughout a trial; without a structured, timestamped chain-of-custody record, courts cannot confidently answer "who has this right now" or "where has this been."
+- **Fragmented history.** Reconstructing "what happened to Exhibit 14" — every status change, objection, and ruling — currently means assembling fragments from multiple people and documents.
+
+---
+
+## 3. Product Vision
+
+**Vision Statement:** JudicialSync shows that Pivota can be the operational memory of a courtroom — instantly answering any authorized question about exhibit status, custody, or rulings with a trustworthy, cited answer, so that no judge, deputy, or attorney is ever left waiting on a manual search during live proceedings.
+
+**Strategic Goals:**
+
+- Prove the core value proposition end-to-end: a natural-language question about an exhibit gets an immediate, accurate, well-supported answer. If this fails, nothing else about the demo matters.
+- Position Pivota as an **assistant augmenting existing courtroom workflows**, never as a replacement case management system — every screen and interaction should reinforce this framing.
+- Demonstrate operational awareness that no adjacent product category offers today: neither digital evidence management (DEMS) tools nor trial-presentation software (e.g., TrialPad, ExhibitView) provide conversational, cross-domain awareness spanning exhibit status, objections/rulings, and custody simultaneously.
+- Make discrepancies impossible to miss — flag mismatches (e.g., admitted-but-no-custodian, unresolved-objection-in-jury-package) automatically rather than relying on manual review.
+- Run a complete, realistic, end-to-end demo scenario (a courtroom deputy managing a trial while a judge asks live questions) using seeded data, with zero reliance on manual data entry during the walkthrough.
+
+---
+
+## 4. Technical Architecture
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend/Full-stack framework | Next.js 16 + TypeScript | Single codebase for all 5 screens plus API routes |
+| Database | Postgres (Neon) | Relational store for exhibits, events, custody, rulings |
+| ORM | Prisma | Type-safe queries over the exhibit/objection/ruling/custody graph |
+| AI/Assistant | Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`) | Tool-calling + streaming chat for the Pivota Assistant |
+| Validation | zod | Validates tool-call arguments and API payloads before they reach Prisma |
+| UI components | shadcn/ui + Tailwind CSS | Consistent, accessible component layer across screens |
+| Client state/data | @tanstack/react-query, zustand | Server-state caching and lightweight client state |
+| Data model pattern | Append-only event ledger + current-state projection | Ground-truth history (status/objection/ruling/custody changes) with fast-read derived views |
+| Service layer | Single typed service module (`getExhibits`, `getCustodian`, `getUnresolvedObjections`, `recordEvent`, etc.) | Sole entry point for both UI screens and assistant tool wrappers — no parallel retrieval path |
+
+**Explicitly avoided:** vector databases/embeddings (data is structured and small, not a document corpus requiring semantic search), full OAuth/production auth hardening (out of scope for a demo — seeded users + role switcher instead), and LangChain-style agent frameworks (unnecessary abstraction for a fixed, small tool set).
+
+**Architectural principle:** Every UI screen and every assistant answer reads through the same service layer and the same event-sourced data model. This is what makes assistant citations trustworthy — the assistant cannot state anything the dashboards don't also show.
+
+---
+
+## 5. Feature Requirements
+
+### F0: Exhibit Workspace (Data Model)
+**Description:** The foundational data model maintaining a complete record of every exhibit associated with a case — identity, description, source, and all state derived from an append-only event ledger rather than mutable fields.
+
+**Capabilities:**
+- Unique exhibit identity (ID, description, source, associated witness/party)
+- Append-only event ledger recording every status change, objection, ruling, and custody transfer with timestamps
+- Current-state projection derived from the ledger for fast reads by UI and assistant alike
+- Seed data representing a realistic multi-exhibit trial, including deliberately planted edge cases (an unresolved objection, a custody gap, a jury-package discrepancy) so the demo can showcase discrepancy detection without manual setup
+
+**Priority:** P0 (Critical — MVP requirement; every other feature depends on this foundation)
+
+---
+
+### F1: Exhibit Status Display
+**Description:** At-a-glance view of each exhibit's current lifecycle state, derived from the event ledger, so any authorized user can instantly see where an exhibit stands.
+
+**Capabilities:**
+- Status values covering the full admission lifecycle: marked, offered, objected, admitted, excluded, withdrawn
+- Visual status indicators consistent across all screens (Command Center, Case Workspace, Exhibit Detail, Jury Package)
+- Status always reflects the latest event in the ledger — no stale or conflicting state across screens
+
+**Priority:** P0 (Critical — core to "immediate awareness" value proposition)
+
+---
+
+### F2: Objection and Ruling Tracking
+**Description:** Logs objections raised during proceedings, links each to its specific exhibit, and records judicial rulings with timestamps, so the full objection/ruling history for any exhibit is always retrievable.
+
+**Capabilities:**
+- Log an objection against a specific exhibit, including objecting party and grounds
+- Record a ruling (sustained, overruled, reserved) tied to the objection, with timestamp
+- Support querying "what objections remain unresolved" across the whole case
+- Feed directly into discrepancy detection (e.g., unresolved objection blocking jury-package inclusion)
+
+**Priority:** P0 (Critical — required for core demo scenario questions)
+
+---
+
+### F3: Custody Tracking
+**Description:** Records the current custodian/location of each physical or digital exhibit and maintains the full chain-of-custody history as an auditable, timestamped sequence of transfers.
+
+**Capabilities:**
+- Record custody transfers (who, when, from/to) as discrete ledger events, not a single mutable "current holder" field
+- Instant lookup of "who currently has custody of Exhibit X"
+- Full chain-of-custody history retrievable for any exhibit
+- Feed into discrepancy detection (e.g., admitted exhibit with no recorded custodian)
+
+**Priority:** P0 (Critical — required for core demo scenario questions)
+
+---
+
+### F4: Exhibit Search
+**Description:** Fast lookup of exhibits using multiple criteria so any user can locate relevant evidence without scanning a full list.
+
+**Capabilities:**
+- Search/filter by exhibit ID, description/keyword, status, associated witness, or date
+- Combinable filters (e.g., "admitted exhibits from witness Smith")
+- Results surface in both the Case Workspace screen and as an assistant tool
+
+**Priority:** P1 (High — materially improves usability of the core scenario, but Q&A/status features can demo without it)
+
+---
+
+### F5: Jury-Ready Exhibit List Generation
+**Description:** Produces the authoritative, exportable list of admitted exhibits eligible for the jury package, gated by discrepancy detection so no flagged exhibit is silently included.
+
+**Capabilities:**
+- Compute jury-eligible exhibit set from current-state projection (admitted status, no unresolved objection, complete custody record)
+- Discrepancy check runs and must be resolved/acknowledged **before** a jury package is finalized — detection gates generation, it does not follow it
+- Exportable/curated view suitable for handoff (Jury Package Workspace screen)
+
+**Priority:** P0 (Critical — named core demo scenario: "build a jury package")
+
+---
+
+### F6: Discrepancy Identification
+**Description:** Automatically flags mismatches between what a case record shows and what it should logically show, surfacing operational risks before they become problems.
+
+**Capabilities:**
+- Detect admitted exhibit with missing or incomplete custody information
+- Detect exhibit included in (or eligible for) the jury package despite an unresolved objection
+- Rule set is extensible beyond these two named cases as additional discrepancy patterns are identified during implementation planning
+- Discrepancies surface visibly on relevant screens (Case Workspace, Jury Package Workspace) and are answerable via the assistant
+
+**Priority:** P0 (Critical — core differentiator; this is the "operational awareness" thesis made concrete)
+
+---
+
+### F7: Pivota Assistant (Natural-Language Q&A)
+**Description:** A conversational assistant that answers natural-language courtroom questions about exhibit status, custody, rulings, and jury eligibility, with supporting citations for every factual claim. This is the single feature the entire demo's success depends on.
+
+**Capabilities:**
+- Answer questions such as: "What exhibits were admitted yesterday?", "What objections remain unresolved?", "Is Exhibit 14 in the jury package?", "Who currently has custody of Exhibit 7?", "What happened to Exhibit 14?"
+- Every factual claim resolves to a specific record/event in the ledger and is presented with supporting context/citation — never an ungrounded or fabricated answer
+- Explicit "I don't have that information" fallback is a valid and expected response when no record supports an answer
+- Implemented via tool-calling (not retrieval-augmented generation/embeddings) — the assistant's tools are thin 1:1 wrappers around the same service-layer functions the UI screens call, guaranteeing the assistant can never state something a dashboard doesn't also show
+- Streaming chat interface (via Vercel AI SDK `useChat`/`streamText`)
+- Role-scoped retrieval: assistant answers respect the same role-based visibility rules as the UI (e.g., sealed/sidebar information is not surfaced to an unauthorized role)
+
+**Priority:** P0 (Critical — explicitly the core value proposition: "If this fails, nothing else about the demo matters.")
+
+---
+
+### F8: Trial Command Center Screen
+**Description:** A high-level, ambient live view of trial/exhibit activity designed for a judge or deputy to glance at during proceedings without needing to configure or drill into anything.
+
+**Capabilities:**
+- Live-updating summary of exhibit activity across the current trial (recent status changes, pending objections, recent rulings)
+- At-a-glance indicators of outstanding discrepancies
+- Designed for passive monitoring during active proceedings, not data entry
+
+**Priority:** P1 (High — reinforces the "ambient awareness" positioning but is sequenced after core data/assistant features)
+
+---
+
+### F9: Case Workspace Screen
+**Description:** The case-level view listing all exhibits, parties, and statuses in one place — the primary screen for browsing and searching the full exhibit set.
+
+**Capabilities:**
+- Full exhibit list for the case with current status, party, and witness association
+- Integrated search/filter (F4)
+- Surfaces discrepancy flags (F6) inline per exhibit
+- Entry point to drill into an individual Exhibit Detail View (F10)
+
+**Priority:** P0 (Critical — primary browsing surface for the demo scenario)
+
+---
+
+### F10: Exhibit Detail View Screen
+**Description:** The full history for a single exhibit — every status change, objection, ruling, and custody transfer — presented as a chronological timeline reconstructed directly from the event ledger.
+
+**Capabilities:**
+- Chronological timeline of all events for the exhibit (status changes, objections raised, rulings recorded, custody transfers)
+- Answers "what happened to this exhibit" without assembling fragments from multiple sources
+- Current status, current custodian, and any active discrepancy flags shown prominently
+
+**Priority:** P0 (Critical — directly supports the named demo scenario "explain what happened to an exhibit")
+
+---
+
+### F11: Jury Package Workspace Screen
+**Description:** A curated, exportable workspace presenting the jury-eligible exhibit list (F5) alongside any discrepancy warnings, serving as the authoritative handoff view for jury package preparation.
+
+**Capabilities:**
+- Displays the computed jury-ready exhibit list
+- Surfaces discrepancy warnings prominently and blocks/flags finalization until addressed
+- Export/curated presentation suitable for handoff to the next step in the trial process
+
+**Priority:** P0 (Critical — named core demo scenario: "build a jury package")
+
+---
+
+## 6. Non-Functional Requirements
+
+- **Trustworthiness over fluency:** Every assistant answer must be traceable to a specific ledger record; the system must never generate a plausible-sounding but unsupported claim (analogous to real-world sanctions over fabricated AI legal citations).
+- **Single source of truth:** UI screens and the assistant must read through the identical service layer — no parallel data path that could produce diverging answers between a screen and the assistant.
+- **Auditability:** All status, objection/ruling, and custody changes are recorded as immutable, timestamped events — never overwritten or deleted, supporting full historical reconstruction at any point.
+- **Role-appropriate visibility:** Assistant and UI must apply the same role-based scoping, so no user — including via the assistant — sees information outside their authorized role (e.g., sealed or sidebar matters).
+- **Responsiveness for live use:** Screens and assistant responses must feel immediate during live proceedings; status/data changes should propagate across open screens without manual refresh (polling-based live sync is acceptable for this demo).
+- **Demo reliability:** The seeded demo scenario must run start-to-finish without manual data entry or environment fragility, since it will be presented live or recorded for court customers.
+- **Non-technical usability:** All screens and assistant interactions must be understandable to non-technical judges and court staff — clarity and trustworthiness of answers matter more than technical sophistication or feature density.
+- **Realistic seed data complexity:** Seed data must include deliberate edge cases (unresolved objections, custody gaps, jury-package discrepancies) — overly clean seed data would make discrepancy detection undemonstrable.
+
+---
+
+## 7. Success Metrics
+
+- **Core scenario completion:** The courtroom-deputy-manages-a-trial / judge-asks-live-questions scenario runs end-to-end, live or recorded, without manual data entry or breakage, in a single walkthrough session.
+- **Assistant answer accuracy:** 100% of the assistant's answers to the five named example questions ("what exhibits were admitted yesterday," "what objections remain unresolved," "is Exhibit 14 in the jury package," "who currently has custody of Exhibit 7," "what happened to Exhibit 14") are correct and cited against seed data.
+- **Zero ungrounded answers:** 0 instances of the assistant producing a factual claim that cannot be traced to a ledger record during demo review/testing.
+- **Discrepancy detection recall:** 100% of the deliberately seeded discrepancy edge cases (unresolved-objection-in-jury-package, admitted-no-custodian) are correctly flagged by the system without manual intervention.
+- **Jury package integrity:** 0 discrepant exhibits appear in a finalized jury package during testing — discrepancy gating works on every generation attempt.
+- **Cross-screen consistency:** 100% agreement between what any UI screen displays and what the assistant states for the same exhibit, in spot-check testing across all 5 screens.
+- **Stakeholder comprehension:** Non-technical reviewers (simulating judges/court staff) can, after a single walkthrough, correctly describe what the product does and why it differs from "another case management system."
+
+---
+
+## 8. Risks & Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Assistant generates a fluent but ungrounded or fabricated answer | Critical — directly undermines the core value proposition and echoes real-world AI-hallucination court sanctions | Enforce tool-calling architecture where every assistant claim resolves to a service-layer query result; system prompt requires cite-or-decline; no free-generation fallback for factual claims |
+| Jury package includes a discrepant exhibit (e.g., unresolved objection) | Critical — the exact failure mode the demo exists to prevent | Discrepancy detection runs as a hard gate before jury package generation/finalization, not as a post-hoc check |
+| Status/custody modeled as mutable "current state" fields instead of an event log | High — breaks all history questions and is the costliest retrofit if discovered late | Lock in append-only event ledger as the foundational data model in Phase 1, before any status UI is built |
+| Seed data is too clean to demonstrate discrepancy detection | High — a headline differentiator becomes unverifiable in the demo | Deliberately author seed data with at least one unresolved objection, one custody gap, and one jury-package discrepancy |
+| Assistant surfaces information outside a user's authorized role (e.g., sealed/sidebar matters) | Medium-High — trust and positioning risk with legal audience | Apply identical role-based scoping to assistant tool calls as to UI queries; no separate, unscoped retrieval path |
+| Demo positioning drifts toward "new system to learn" instead of "assistant augmenting existing workflow" | Medium — undermines the explicit sales positioning goal | Favor conversational/assistive UX over heavy data-entry forms on every screen; review each screen against the "assistant, not system" framing |
+| Live multi-screen sync (e.g., Command Center vs. Exhibit Detail) feels laggy or inconsistent during a live walkthrough | Medium — undercuts "immediate awareness" claim | Use polling-based live sync tuned against realistic demo pacing; revisit SSE/WebSocket only if polling proves visibly insufficient |
+
+---
+
+## 9. Feature Index
+
+| ID | Feature | Category | Priority |
+|---|---|---|---|
+| F0 | Exhibit Workspace (Data Model) | Data Foundation | P0 |
+| F1 | Exhibit Status Display | Status Tracking | P0 |
+| F2 | Objection and Ruling Tracking | Status Tracking | P0 |
+| F3 | Custody Tracking | Status Tracking | P0 |
+| F4 | Exhibit Search | Usability | P1 |
+| F5 | Jury-Ready Exhibit List Generation | Differentiator | P0 |
+| F6 | Discrepancy Identification | Differentiator | P0 |
+| F7 | Pivota Assistant (Natural-Language Q&A) | Differentiator / Core Value | P0 |
+| F8 | Trial Command Center Screen | UI Screen | P1 |
+| F9 | Case Workspace Screen | UI Screen | P0 |
+| F10 | Exhibit Detail View Screen | UI Screen | P0 |
+| F11 | Jury Package Workspace Screen | UI Screen | P0 |
+
+**Priority Summary:**
+- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11 — 10 features
+- **P1 (High):** F4, F8 — 2 features
+- **P2 / P3:** None at this stage — all defined features are considered necessary for a credible end-to-end demo
+
+---
+
+*This PRD serves as the foundational document for FRD (Functional Requirements Document), TechArch (Technical Architecture Document), and UserStories generation for JudicialSync.*
