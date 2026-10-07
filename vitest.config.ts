@@ -15,5 +15,13 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["src/**/*.{test,spec}.ts", "tests/**/*.{test,spec}.ts"],
+    // Every suite here is an INTEGRATION test against the one shared Postgres,
+    // and the seed-dependent suites (seed/history/rebuild) all rebuild the SAME
+    // fixed-caseNumber demo case via runSeed(). Running test FILES in parallel
+    // workers lets two of them reset-and-rebuild that single case concurrently,
+    // which races into foreign-key violations (P2003) during resetSeedCase().
+    // Serialize file execution so the shared-database fixture is never contended.
+    // (Tests within a file already run sequentially.)
+    fileParallelism: false,
   },
 });
