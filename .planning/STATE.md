@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-06-PLAN.md
-last_updated: "2026-10-07T08:35:48.726Z"
-last_activity: "2026-10-07 — Completed 02-06-PLAN.md (Case Workspace /case: useExhibitList single-query-path hook — getExhibits/searchExhibits on filter state, role-keyed for immediate refetch, 4s polling; ExhibitTable with StatusBadge per row + row-click → /exhibit/:id + structural discrepancy column; SearchFilterBar keyword/status/witness/date + removable chips + inline empty-search hint; 11/11 Playwright pass (5 new + 02-05 app-shell), build clean). [Wave 3, ran in parallel with 02-07.]"
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-10-07T08:59:25.466Z"
+last_activity: "2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06 — phase 2 complete.]"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 14
-  completed_plans: 13
-  percent: 20
+  completed_plans: 14
+  percent: 40
 ---
 
 # Project State
@@ -26,10 +26,10 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 2 of 5 (Core Screens)
-Status: In progress (wave 3, parallel execution)
-Last activity: 2026-10-07 — Completed 02-06-PLAN.md (Case Workspace /case: useExhibitList single-query-path hook — getExhibits/searchExhibits on filter state, role-keyed for immediate refetch, 4s polling; ExhibitTable with StatusBadge per row + row-click → /exhibit/:id + structural discrepancy column; SearchFilterBar keyword/status/witness/date + removable chips + inline empty-search hint; 11/11 Playwright pass (5 new + 02-05 app-shell), build clean). [Wave 3, ran in parallel with 02-07.]
+Status: All 7 plans complete (wave 3 02-06 + 02-07 both done) — ready for phase transition / verify
+Last activity: 2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 02-core-screens P04 | 8 min | 2 tasks | 7 files |
 | Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
 | Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
+| Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Recent decisions affecting current work:
 - [Phase 02-05]: StatusBadge is the single shared status representation (dot+label+aria-label, all 6 statuses + null); both 02-06/02-07 import it identically (US-1.2 structural guarantee)
 - [Phase 02-core-screens]: [02-06]: Case Workspace follows a one-hook + presentational-components pattern — useExhibitList is the screen's single query path (getExhibits vs searchExhibits on filter state), keyed on role so a switch forces a fresh server-enforced query (threat T-02-15); zero screen-local status/custody derivation
 - [Phase 02-core-screens]: [02-06]: Empty-search guarded client-side (all-empty filters route to the unfiltered list, inline hint, never a hard error); the API's 422 EMPTY_SEARCH_CRITERIA remains defense-in-depth for other callers
+- [Phase 02-07]: Exhibit Detail (/exhibit/:id): useExhibitHistory throws typed NotFoundError on 404 (retry disabled → no sealed-probe timing side-channel), role in query key for immediate re-fetch; ExhibitNotFound is the single shared render for missing AND sealed-unauthorized (byte-identical, anti-enumeration); Timeline renders getExhibitHistory summaries verbatim (F7 text-parity precondition)
+- [Phase 02-07]: 02-07 Playwright drives the unauthorized sealed probe via page.route X-User-Role header injection (in-memory zustand session resets to JUDGE on full navigation, so a UI role switch can't survive page.goto); cross-screen parity asserted against the shared /api/cases/:id/exhibits service mapped through StatusBadge labels, decoupled from 02-06's DOM
 
 ### Pending Todos
 
@@ -124,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T08:35:48.725Z
-Stopped at: Completed 02-06-PLAN.md
+Last session: 2026-10-07T08:59:17.286Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None
