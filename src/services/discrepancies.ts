@@ -1,7 +1,8 @@
-import type { DiscrepancyFlag, ExhibitEvent, Prisma, PrismaClient } from '@prisma/client';
+import type { DiscrepancyFlag, ExhibitEvent, Prisma, PrismaClient, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { NotFoundError, RoleNotPermittedError, UnprocessableError } from '@/lib/errors';
 import { recordEvent } from '@/services/events';
+import { canViewSealed } from '@/services/visibility';
 
 // F6 — Discrepancy Identification (automatic cross-domain flagging).
 //
@@ -152,10 +153,23 @@ export async function evaluateDiscrepancies(
  * All active (OPEN or ACKNOWLEDGED) discrepancy flags case-wide, oldest first.
  * RESOLVED flags are history and are excluded — they surface only in the
  * timeline. THE shared query for F9 / F11 / Command Center.
+ *
+ * Sealed-aware (Sealed-Exhibit Invisibility, threat T-03-09): for a role that
+ * cannot view sealed exhibits, flags whose exhibit is sealed are excluded via a
+ * relational `exhibit: { isSealed: false }` predicate — mirroring getExhibits —
+ * so a sealed exhibit's existence and defect never leak through the case-wide
+ * feed (sidebar count pill / jury screen).
  */
-export async function getDiscrepancies(caseId: string): Promise<DiscrepancyFlag[]> {
+export async function getDiscrepancies(
+  caseId: string,
+  requestingUserRole: Role,
+): Promise<DiscrepancyFlag[]> {
   return prisma.discrepancyFlag.findMany({
-    where: { caseId, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
+    where: {
+      caseId,
+      status: { in: ['OPEN', 'ACKNOWLEDGED'] },
+      ...(canViewSealed(requestingUserRole) ? {} : { exhibit: { isSealed: false } }),
+    },
     orderBy: { detectedAt: 'asc' },
   });
 }

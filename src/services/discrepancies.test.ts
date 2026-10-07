@@ -271,7 +271,7 @@ describe('discrepancy engine', () => {
     const { caseId, exhibitId, deputyId } = fx;
     await admit(exhibitId, deputyId);
 
-    let active = await getDiscrepancies(caseId);
+    let active = await getDiscrepancies(caseId, 'JUDGE');
     expect(active.length).toBeGreaterThanOrEqual(1);
 
     // Record custody → ADMITTED_NO_CUSTODIAN resolves → drops out of the list.
@@ -282,7 +282,33 @@ describe('discrepancy engine', () => {
       actorUserId: deputyId,
     });
     await evaluateDiscrepancies(exhibitId);
-    active = await getDiscrepancies(caseId);
+    active = await getDiscrepancies(caseId, 'JUDGE');
     expect(active.some((f) => f.ruleCode === 'ADMITTED_NO_CUSTODIAN')).toBe(false);
+  });
+
+  it('getDiscrepancies hides sealed-exhibit flags from roles that cannot view sealed', async () => {
+    const { caseId, deputyId } = fx;
+    // A sealed, ADMITTED exhibit with no custody row → an OPEN
+    // ADMITTED_NO_CUSTODIAN flag that must never surface to an unauthorized role.
+    const sealed = await prisma.exhibit.create({
+      data: {
+        caseId,
+        exhibitLabel: `SEAL-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        description: 'Sealed, admitted, custody-less',
+        offeringParty: 'PROSECUTION',
+        isSealed: true,
+      },
+    });
+    await recordStatusChange({ exhibitId: sealed.id, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId: sealed.id, toStatus: 'OFFERED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId: sealed.id, toStatus: 'ADMITTED', actorUserId: deputyId });
+
+    // JUDGE (sealed-visible) sees the sealed exhibit's flag...
+    const asJudge = await getDiscrepancies(caseId, 'JUDGE');
+    expect(asJudge.some((f) => f.exhibitId === sealed.id)).toBe(true);
+
+    // ...but ATTORNEY (not sealed-visible) must not — no leak of its existence.
+    const asAttorney = await getDiscrepancies(caseId, 'ATTORNEY');
+    expect(asAttorney.some((f) => f.exhibitId === sealed.id)).toBe(false);
   });
 });
