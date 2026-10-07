@@ -65,6 +65,7 @@ Plans:
 
 ### Phase 3: Jury Package + Discrepancy Detection
 **Goal**: The system automatically flags operational risks the moment they occur — an admitted exhibit with no recorded custodian, or an admitted exhibit with a still-unresolved objection — and a deputy/clerk/admin can build a jury package that structurally cannot be finalized while an open discrepancy remains on any included exhibit.
+**Status**: In progress
 **Depends on**: Phase 2
 **Requirements**: F5, F6, F11
 **Success Criteria** (what must be TRUE):
@@ -115,6 +116,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 0/TBD | Complete | 2026-10-07 |
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
-| 3. Jury Package + Discrepancy Detection | 0/TBD | Not started | - |
+| 3. Jury Package + Discrepancy Detection | 0/TBD | In progress | - |
 | 4. Pivota Assistant | 0/5 | Planned | - |
 | 5. Trial Command Center + Live Sync | 0/TBD | Not started | - |
