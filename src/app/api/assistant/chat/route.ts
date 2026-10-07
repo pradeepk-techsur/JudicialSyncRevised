@@ -233,23 +233,54 @@ export async function POST(request: NextRequest): Promise<Response> {
 /** The system prompt's required decline phrasing (systemPrompt.ts: "respond with
  *  a brief, plain decline of the form 'I don't have that information'"; FRD §F07
  *  line 8/41/67/69 — "I don't have that information" or an equivalent explicit
- *  statement). A case-insensitive substring match against this exact phrase is
- *  the same signal the existing test suite already asserts on (route.test.ts
- *  lines 217/246/255), so this gate is consistent with what the prompt already
- *  enforces and what tests already assume — no new behavior invented.
+ *  statement).
  *
  *  CRITICAL (criterion 2 / 04-UAT.md test 7): a tool call returning rows THIS
  *  TURN does not make the answer grounded — only the model's own final text
- *  deciding to state a fact grounded in those rows does. When the model's text
- *  is a Decline (because, e.g., the returned rows don't actually answer the
+ *  deciding to state a fact grounded in those rows does. When the model's ENTIRE
+ *  text is a Decline (because, e.g., the returned rows don't actually answer the
  *  literal question — no date-filter support in searchExhibits is the proven
  *  repro), citations MUST be forced to [] even though extractCitations(steps)
  *  would otherwise derive one per returned row. This keeps the wire contract's
  *  "a Decline carries citations: []" promise (04-03 SUMMARY) true in EVERY
  *  case, not just the no-tool-call case, which is what 04-04's purely
- *  citations.length-keyed outcome classifier depends on. */
+ *  citations.length-keyed outcome classifier depends on.
+ *
+ *  WHOLE-ANSWER CHECK (not a bare substring match): the system prompt explicitly
+ *  permits a single turn to mix a grounded fact about one record with a decline
+ *  about a different record (its own example: "I don't have that information
+ *  about Exhibit 22's custody record" read as a sentence that could follow a
+ *  grounded sentence about a different exhibit). A naive "does the phrase appear
+ *  anywhere in the text" check would force citations: [] on that WHOLE turn,
+ *  silently stripping the legitimate citation off the grounded half. So this
+ *  checks every sentence of the answer: the text counts as a Decline ONLY when
+ *  EVERY sentence contains the decline phrase — i.e. the answer is wholly a
+ *  decline, not merely mentions one. A purely grounded answer (no sentence
+ *  matches) is unaffected, same as before. A mixed answer (some sentences match,
+ *  some don't) is treated as NOT a full decline, so extractCitations(steps) is
+ *  used as-is — which already naturally yields no citation for the declined
+ *  half (its tool call returned null/empty) while preserving the grounded
+ *  half's real citation. */
 export function isDeclineText(text: string): boolean {
-  return text.toLowerCase().includes("i don't have that information");
+  const sentences = splitIntoSentences(text);
+  if (sentences.length === 0) return false;
+  return sentences.every((sentence) => sentenceIsDecline(sentence));
+}
+
+function sentenceIsDecline(sentence: string): boolean {
+  return sentence.toLowerCase().includes("i don't have that information");
+}
+
+/** Naive sentence splitter: break on a sentence-ending punctuation mark followed
+ *  by whitespace, keeping the punctuation on the preceding sentence. Good enough
+ *  for the model's plain, courtroom-register prose (systemPrompt.ts: "Be
+ *  confident, brief, and factual") — this is a heuristic gate, not a full NLP
+ *  sentence boundary detector. */
+function splitIntoSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
 /** Extract the plain text of the latest USER message from a useChat UI-message
