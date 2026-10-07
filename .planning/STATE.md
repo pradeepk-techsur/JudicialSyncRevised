@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-10-07T08:11:55.912Z"
-last_activity: "2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass)."
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-10-07T08:20:04.156Z"
+last_activity: "2026-10-07 — Completed 02-04-PLAN.md (exhibit list + search data layer: ExhibitListRow shared row shape, getExhibits upgraded to the enriched shape with role-based sealed exclusion + CASE_NOT_FOUND, new searchExhibits + /search route with AND-semantics filtering and three 422 codes; 29 tests pass, tsc + next build clean)."
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 12
   percent: 20
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 2 of 5 (Core Screens)
-Status: In progress (wave 1, parallel execution)
-Last activity: 2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass).
+Status: In progress (wave 2, parallel execution)
+Last activity: 2026-10-07 — Completed 02-04-PLAN.md (exhibit list + search data layer: ExhibitListRow shared row shape, getExhibits upgraded to the enriched shape with role-based sealed exclusion + CASE_NOT_FOUND, new searchExhibits + /search route with AND-semantics filtering and three 422 codes; 29 tests pass, tsc + next build clean).
 
 Progress: [██░░░░░░░░] 20%
 
@@ -64,6 +64,8 @@ Progress: [██░░░░░░░░] 20%
 | Phase 02-core-screens P03 | 8 min | 2 tasks | 7 files |
 | Phase 02-core-screens P02 | 9 min | 2 tasks | 12 files |
 | Phase 02 P01 | 10 min | 3 tasks | 15 files |
+| Phase 02-core-screens P04 | 8 min | 2 tasks | 7 files |
+| Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -102,6 +104,11 @@ Recent decisions affecting current work:
 - [Phase 02-core-screens]: [02-02]: parseRequestingRole fails CLOSED to ATTORNEY (least-privileged) on missing/invalid X-User-Role; both exhibit routes return byte-identical 404s for sealed-unauthorized vs genuinely-missing (anti-enumeration, deep-equal asserted at HTTP layer)
 - [Phase 02-01]: Dropped shadcn's injected next/font/google (Geist) from layout.tsx to keep a minimal provider-only layout and avoid build-time font fetches; typography deferred to app-shell plan 02-05
 - [Phase 02-01]: Phase 2 UI tooling (Tailwind v4 + shadcn/ui, @tanstack/react-query + QueryClientProvider, zustand, @playwright/test pinned to PIVOTA_PLAYWRIGHT_VERSION) installed once here so every later UI plan shares one config
+- [Phase 02-core-screens]: [02-04]: ExhibitListRow (src/lib/types.ts) is the single shared composite row shape both getExhibits and searchExhibits return via one shared toListRow mapper — list and search can never drift; the Case Workspace (02-06) renders it with zero query logic
+- [Phase 02-core-screens]: [02-04]: getExhibits sort key changed from createdAt to exhibitLabel ascending so F9 and F4 share one default order; assertCaseExists adds CASE_NOT_FOUND 404 (first consumer); searchExhibits enforces EMPTY_SEARCH_CRITERIA/INVALID_DATE_RANGE/VALIDATION_ERROR and nests date filters on currentState.lastStatusAt (auto-excludes never-statused exhibits)
+- [Phase 02-05]: App shell role switcher uses a native <select> (keyboard/SR-accessible, simple to test) over the portal-rendering shadcn/Radix Select; richer shadcn primitives reserved for the two screens' filter controls
+- [Phase 02-05]: useRoleStore is the demo's entire client-side session (zustand); apiFetch reads it via getState() to attach X-User-Role to every request — no cookie/session infra
+- [Phase 02-05]: StatusBadge is the single shared status representation (dot+label+aria-label, all 6 statuses + null); both 02-06/02-07 import it identically (US-1.2 structural guarantee)
 
 ### Pending Todos
 
@@ -114,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T08:11:30.090Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-10-07T08:20:04.155Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None
