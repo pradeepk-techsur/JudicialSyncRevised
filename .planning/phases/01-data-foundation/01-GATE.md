@@ -3,7 +3,7 @@ phase: 01
 gate_status: passed_with_warnings
 build_command: "npm run build"
 test_command: "npm test"
-last_updated: 2026-10-07T02:56:25Z
+last_updated: 2026-10-07T03:03:24Z
 tests_disabled_during_fixes: none
 shadowed_sources: 0
 waves:
@@ -20,6 +20,10 @@ waves:
     tests: pass
     fix_attempts: 0
   - wave: 4
+    build: pass
+    tests: pass
+    fix_attempts: 0
+  - wave: 5
     build: pass
     tests: pass
     fix_attempts: 0
@@ -242,5 +246,80 @@ Route (app)
 [2m      Tests [22m [1m[32m59 passed[39m[22m[90m (59)[39m
 [2m   Start at [22m 02:56:18
 [2m   Duration [22m 1.37s[2m (transform 172ms, setup 0ms, collect 802ms, tests 1.02s, environment 1ms, prepare 288ms)[22m
+```
+
+## Wave 5
+
+- Build: `npm run build` → pass
+- Tests: `npm test` → pass
+- Fix attempts: 0/3 — final phase-1 wave; history + projection-rebuild integrity; build + 67/67 tests clean
+
+### Gate output
+
+```
+> judicialsync@0.1.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 12ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 88ms
+  Running TypeScript ...
+  Finished TypeScript in 1013ms ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/4) ...
+  Generating static pages using 1 worker (1/4) 
+  Generating static pages using 1 worker (2/4) 
+  Generating static pages using 1 worker (3/4) 
+✓ Generating static pages using 1 worker (4/4) in 57ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/cases/[id]/exhibits
+├ ƒ /api/cases/[id]/objections
+├ ƒ /api/exhibits
+├ ƒ /api/exhibits/[id]
+├ ƒ /api/exhibits/[id]/custodian
+├ ƒ /api/exhibits/[id]/custody-history
+├ ƒ /api/exhibits/[id]/events/custody
+├ ƒ /api/exhibits/[id]/events/objection
+├ ƒ /api/exhibits/[id]/events/status
+├ ƒ /api/exhibits/[id]/history
+├ ƒ /api/exhibits/[id]/status
+└ ƒ /api/objections/[id]/ruling
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> judicialsync@0.1.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/daytona/project[39m
+
+ [32m✓[39m src/data/seed.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 226[2mms[22m[39m
+ [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 186[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
+[2m   Start at [22m 03:03:11
+[2m   Duration [22m 2.43s[2m (transform 98ms, setup 0ms, collect 472ms, tests 1.08s, environment 1ms, prepare 316ms)[22m
 ```
 
