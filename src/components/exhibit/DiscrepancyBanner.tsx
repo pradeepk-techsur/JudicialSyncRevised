@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Role } from '@prisma/client';
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { useRoleStore } from '@/stores/roleStore';
-import { useJuryPackage, JuryPackageError } from '@/hooks/useJuryPackage';
+import { useAcknowledgeDiscrepancy, JuryPackageError } from '@/hooks/useAcknowledgeDiscrepancy';
 import { useDiscrepancyCount, resolveFlagId } from '@/hooks/useDiscrepancyCount';
 import { AcknowledgeInline } from '@/components/jury/AcknowledgeInline';
 
@@ -26,7 +26,7 @@ export function DiscrepancyBanner({
 }) {
   const role = useRoleStore((s) => s.role);
   const canAcknowledge = ACK_ROLES.includes(role);
-  const { acknowledge } = useJuryPackage();
+  const acknowledge = useAcknowledgeDiscrepancy();
   const { flags: caseFlags } = useDiscrepancyCount();
 
   const [openRule, setOpenRule] = useState<string | null>(null);

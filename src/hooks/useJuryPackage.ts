@@ -5,8 +5,12 @@ import type { JuryPackage } from '@prisma/client';
 import { apiFetch } from '@/lib/apiClient';
 import { useRoleStore } from '@/stores/roleStore';
 import type { JuryPackageExhibitView } from '@/services/juryPackage';
+import { JuryPackageError, parseError, type BlockingExhibit } from '@/hooks/juryPackageError';
+import { useAcknowledgeDiscrepancy } from '@/hooks/useAcknowledgeDiscrepancy';
 
 export type { JuryPackageExhibitView } from '@/services/juryPackage';
+// Re-export so existing consumers that import these from this hook keep working.
+export { JuryPackageError, type BlockingExhibit };
 
 // Serialized JuryPackage as it crosses the wire (NextResponse.json turns the
 // Date fields into ISO strings). We keep the Prisma JuryPackage shape but relax
@@ -19,46 +23,6 @@ export interface JuryPackageDto extends Omit<JuryPackage, 'createdAt' | 'finaliz
 export interface JuryPackageResponse {
   juryPackage: JuryPackageDto | null;
   exhibits: JuryPackageExhibitView[];
-}
-
-// An entry in the finalize 409's blocking-exhibit list (error.details) surfaced
-// by the server so the Draft view can name the blockers inline (ROADMAP crit 3).
-export interface BlockingExhibit {
-  exhibitId: string;
-  exhibitLabel: string;
-  ruleCodes: string[];
-}
-
-// A typed error carrying the parsed server error envelope so callers can branch
-// on the code (e.g. JURY_PACKAGE_DISCREPANCIES_OPEN) and read details.
-export class JuryPackageError extends Error {
-  code: string;
-  details?: { blockingExhibits?: BlockingExhibit[] };
-  status: number;
-  constructor(
-    code: string,
-    message: string,
-    status: number,
-    details?: { blockingExhibits?: BlockingExhibit[] },
-  ) {
-    super(message);
-    this.code = code;
-    this.status = status;
-    this.details = details;
-  }
-}
-
-async function parseError(res: Response): Promise<JuryPackageError> {
-  let body: { error?: { code?: string; message?: string; details?: unknown } } = {};
-  try {
-    body = await res.json();
-  } catch {
-    /* non-JSON error body */
-  }
-  const code = body.error?.code ?? 'UNKNOWN_ERROR';
-  const message = body.error?.message ?? `Request failed (${res.status})`;
-  const details = body.error?.details as { blockingExhibits?: BlockingExhibit[] } | undefined;
-  return new JuryPackageError(code, message, res.status, details);
 }
 
 // THE single query + mutation path for the Jury Package Workspace (F11). Follows
@@ -135,23 +99,9 @@ export function useJuryPackage() {
     onSettled: invalidateAll,
   });
 
-  const acknowledge = useMutation({
-    mutationFn: async (args: { flagId: string; justification: string }) => {
-      const res = await apiFetch(`/api/discrepancies/${args.flagId}/acknowledge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorUserId: activeUserId,
-          justification: args.justification,
-        }),
-      });
-      if (!res.ok) {
-        throw await parseError(res);
-      }
-      return res.json();
-    },
-    onSuccess: invalidateAll,
-  });
+  // Reuse the standalone acknowledge mutation (same invalidation set) so the
+  // jury screen and the Exhibit Detail banner share one acknowledge path.
+  const acknowledge = useAcknowledgeDiscrepancy();
 
   return { ...query, initiate, finalize, acknowledge };
 }
