@@ -82,7 +82,7 @@ Plans:
 
 ### Phase 4: Pivota Assistant
 **Goal**: Any authorized courtroom user can ask a natural-language question about an exhibit's status, custody, rulings, or jury eligibility during live proceedings and receive an immediate, cited answer grounded in the same data the dashboards show — or an explicit decline — and is never given a fabricated claim.
-**Status**: In progress
+**Status**: Awaiting verify
 **Depends on**: Phase 3
 **Requirements**: F7
 **Success Criteria** (what must be TRUE):
@@ -123,5 +123,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Data Foundation | 0/TBD | Complete | 2026-10-07 |
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
-| 4. Pivota Assistant | 0/5 | In progress | - |
+| 4. Pivota Assistant | 0/5 | Awaiting verify | - |
 | 5. Trial Command Center + Live Sync | 0/3 | Planned | - |
