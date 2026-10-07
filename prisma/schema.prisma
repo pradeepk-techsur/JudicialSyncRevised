@@ -10,8 +10,10 @@
 // Prisma-side names are PascalCase/camelCase; @map/@@map pin the Postgres
 // table/column names to snake_case per TechArch §3.8 ORM mapping.
 //
-// Out of Phase 1 scope (added by later phases): DiscrepancyFlag, JuryPackage,
-// JuryPackageExhibit, Assistant* models.
+// Phase 3 (F5/F6/F11) adds: DiscrepancyFlag, JuryPackage, JuryPackageExhibit
+// (+ discrepancy_status / jury_package_status / jury_exhibit_discrepancy_status
+// enums) — the cross-domain discrepancy engine and jury-package tables. Still
+// out of scope (later phases): Assistant* models.
 
 generator client {
   provider = "prisma-client-js"
@@ -70,6 +72,28 @@ enum EventType {
   @@map("event_type")
 }
 
+enum DiscrepancyStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+
+  @@map("discrepancy_status")
+}
+
+enum JuryPackageStatus {
+  DRAFT
+  FINALIZED
+
+  @@map("jury_package_status")
+}
+
+enum JuryExhibitDiscrepancyStatus {
+  CLEAN
+  FLAGGED
+
+  @@map("jury_exhibit_discrepancy_status")
+}
+
 model Case {
   id         String   @id @default(uuid())
   caseNumber String   @unique @map("case_number")
@@ -77,8 +101,10 @@ model Case {
   court      String
   createdAt  DateTime @default(now()) @map("created_at")
 
-  users    User[]
-  exhibits Exhibit[]
+  users            User[]
+  exhibits         Exhibit[]
+  discrepancyFlags DiscrepancyFlag[]
+  juryPackages     JuryPackage[]
 
   @@map("cases")
 }
@@ -91,9 +117,11 @@ model User {
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
-  case               Case                  @relation(fields: [caseId], references: [id])
-  actedEvents        ExhibitEvent[]        @relation("EventActor")
-  custodyAssignments CustodyCurrentState[] @relation("CurrentCustodian")
+  case                   Case                  @relation(fields: [caseId], references: [id])
+  actedEvents            ExhibitEvent[]        @relation("EventActor")
+  custodyAssignments     CustodyCurrentState[] @relation("CurrentCustodian")
+  acknowledgedFlags      DiscrepancyFlag[]     @relation("DiscrepancyAcknowledger")
+  finalizedJuryPackages  JuryPackage[]         @relation("JuryPackageFinalizer")
 
   @@index([caseId, role])
   @@map("users")
@@ -110,11 +138,13 @@ model Exhibit {
   isSealed          Boolean       @default(false) @map("is_sealed")
   createdAt         DateTime      @default(now()) @map("created_at")
 
-  case         Case                    @relation(fields: [caseId], references: [id])
-  events       ExhibitEvent[]
-  currentState ExhibitCurrentState?
-  custodyState CustodyCurrentState?
-  objections   ObjectionCurrentState[]
+  case             Case                    @relation(fields: [caseId], references: [id])
+  events           ExhibitEvent[]
+  currentState     ExhibitCurrentState?
+  custodyState     CustodyCurrentState?
+  objections       ObjectionCurrentState[]
+  discrepancyFlags DiscrepancyFlag[]
+  juryPackageRows  JuryPackageExhibit[]
 
   @@unique([caseId, exhibitLabel])
   @@index([caseId])
@@ -137,6 +167,9 @@ model ExhibitEvent {
 
   exhibit Exhibit @relation(fields: [exhibitId], references: [id])
   actor   User    @relation("EventActor", fields: [actorUserId], references: [id])
+
+  acknowledgedFlags DiscrepancyFlag[] @relation("DiscrepancyAckEvent")
+  resolvedFlags     DiscrepancyFlag[] @relation("DiscrepancyResolveEvent")
 
   @@unique([exhibitId, sequenceNo])
   @@index([exhibitId, recordedAt])
@@ -192,4 +225,69 @@ model CustodyCurrentState {
   custodian User    @relation("CurrentCustodian", fields: [currentCustodianUserId], references: [id])
 
   @@map("custody_current_state")
+}
+
+/// Phase 3 (F6). A cross-domain discrepancy detected by the rule engine
+/// (src/services/discrepancies.ts), keyed by (exhibitId, ruleCode). Created
+/// OPEN the instant an exhibit's derived state crosses a rule threshold, moved
+/// to RESOLVED in the same write when the condition clears, or ACKNOWLEDGED by
+/// an authorized user via an auditable DISCREPANCY_ACKNOWLEDGED ledger event.
+/// `details` captures the mismatch snapshot at detection time.
+model DiscrepancyFlag {
+  id                 String            @id @default(uuid())
+  caseId             String            @map("case_id")
+  exhibitId          String            @map("exhibit_id")
+  ruleCode           String            @map("rule_code")
+  status             DiscrepancyStatus @default(OPEN)
+  detectedAt         DateTime          @default(now()) @map("detected_at")
+  details            Json
+  acknowledgedAt     DateTime?         @map("acknowledged_at")
+  acknowledgedBy     String?           @map("acknowledged_by")
+  acknowledgedEventId String?          @map("acknowledged_event_id")
+  resolvedAt         DateTime?         @map("resolved_at")
+  resolvedByEventId  String?           @map("resolved_by_event_id")
+
+  case              Case          @relation(fields: [caseId], references: [id])
+  exhibit           Exhibit       @relation(fields: [exhibitId], references: [id])
+  acknowledgedByUser User?        @relation("DiscrepancyAcknowledger", fields: [acknowledgedBy], references: [id])
+  acknowledgedEvent ExhibitEvent? @relation("DiscrepancyAckEvent", fields: [acknowledgedEventId], references: [id])
+  resolvedByEvent   ExhibitEvent? @relation("DiscrepancyResolveEvent", fields: [resolvedByEventId], references: [id])
+
+  @@index([caseId, status], map: "idx_discrepancy_flags_case_status")
+  @@index([exhibitId, ruleCode], map: "idx_discrepancy_flags_exhibit_rule")
+  @@map("discrepancy_flags")
+}
+
+/// Phase 3 (F5). A jury-ready package for a case. Starts DRAFT; finalizing it
+/// snapshots the eligible exhibits into JuryPackageExhibit rows (plan 03-02).
+model JuryPackage {
+  id          String            @id @default(uuid())
+  caseId      String            @map("case_id")
+  status      JuryPackageStatus @default(DRAFT)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  finalizedAt DateTime?         @map("finalized_at")
+  finalizedBy String?           @map("finalized_by")
+
+  case           Case                 @relation(fields: [caseId], references: [id])
+  finalizedByUser User?               @relation("JuryPackageFinalizer", fields: [finalizedBy], references: [id])
+  exhibits       JuryPackageExhibit[]
+
+  @@index([caseId, status], map: "idx_jury_packages_case_status")
+  @@map("jury_packages")
+}
+
+/// Phase 3 (F5). One exhibit's membership in a jury package, with the
+/// discrepancy posture captured at finalize time (CLEAN vs FLAGGED).
+model JuryPackageExhibit {
+  id                String                       @id @default(uuid())
+  juryPackageId     String                       @map("jury_package_id")
+  exhibitId         String                       @map("exhibit_id")
+  discrepancyStatus JuryExhibitDiscrepancyStatus @map("discrepancy_status")
+  addedAt           DateTime                     @default(now()) @map("added_at")
+
+  juryPackage JuryPackage @relation(fields: [juryPackageId], references: [id])
+  exhibit     Exhibit     @relation(fields: [exhibitId], references: [id])
+
+  @@unique([juryPackageId, exhibitId], map: "uq_jury_package_exhibit")
+  @@map("jury_package_exhibits")
 }
