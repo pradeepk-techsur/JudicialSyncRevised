@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-10-07T08:08:33.837Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-10-07T08:11:55.912Z"
 last_activity: "2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass)."
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 9
+  completed_plans: 10
   percent: 20
 ---
 
@@ -63,6 +63,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01-data-foundation P7 | 4 min | 2 tasks | 6 files |
 | Phase 02-core-screens P03 | 8 min | 2 tasks | 7 files |
 | Phase 02-core-screens P02 | 9 min | 2 tasks | 12 files |
+| Phase 02 P01 | 10 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -99,6 +100,8 @@ Recent decisions affecting current work:
 - [Phase 02-03]: GET /api/case returns the full 6-persona roster unfiltered (accepted risk T-02-07: synthetic personas, no real PII; the role switcher needs the whole roster)
 - [Phase 02-core-screens]: [02-02]: Sealed-exhibit visibility centralized in src/services/visibility.ts (canViewSealed + parseRequestingRole); applied as a findFirst WHERE predicate in getExhibit and inherited by getExhibitHistory — never a post-query filter, never duplicated per-route
 - [Phase 02-core-screens]: [02-02]: parseRequestingRole fails CLOSED to ATTORNEY (least-privileged) on missing/invalid X-User-Role; both exhibit routes return byte-identical 404s for sealed-unauthorized vs genuinely-missing (anti-enumeration, deep-equal asserted at HTTP layer)
+- [Phase 02-01]: Dropped shadcn's injected next/font/google (Geist) from layout.tsx to keep a minimal provider-only layout and avoid build-time font fetches; typography deferred to app-shell plan 02-05
+- [Phase 02-01]: Phase 2 UI tooling (Tailwind v4 + shadcn/ui, @tanstack/react-query + QueryClientProvider, zustand, @playwright/test pinned to PIVOTA_PLAYWRIGHT_VERSION) installed once here so every later UI plan shares one config
 
 ### Pending Todos
 
@@ -107,9 +110,10 @@ None yet.
 ### Blockers/Concerns
 
 - npm audit reports 6 dev-tooling-only advisories (vitest/tinypool, @prisma/config/deepmerge-ts). `npm audit fix --force` only offers breaking downgrades to older versions — not applied. Revisit when upstream ships forward fixes. Not a runtime risk.
+- Concurrent execution (config parallelization:true) ran plans 02-01 and 02-02 against one shared working tree, causing a transient build break and an accidental revert of 02-02's uncommitted work (since recovered — 02-02 committed in full). Recommend per-plan git worktrees or serialized intra-phase execution.
 
 ## Session Continuity
 
-Last session: 2026-10-07T08:08:19.831Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-10-07T08:11:30.090Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
