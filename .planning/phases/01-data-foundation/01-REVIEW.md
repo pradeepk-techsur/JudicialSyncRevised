@@ -1,37 +1,80 @@
 ---
 phase: 1
-status: issues_found
-blockers: 2
-warnings: 3
-files_reviewed: 24
+status: clean
+blockers: 0
+warnings: 0
+files_reviewed: 6
 files_reviewed_list:
-  - prisma/schema.prisma
-  - prisma/migrations/20261007022934_init/migration.sql
-  - src/lib/errors.ts
-  - src/lib/apiError.ts
-  - src/lib/validation/eventPayloads.ts
-  - src/services/events.ts
-  - src/services/exhibits.ts
-  - src/services/status.ts
-  - src/services/objections.ts
+  - src/lib/advisoryLock.ts
   - src/services/custody.ts
-  - src/services/history.ts
-  - src/services/rebuild.ts
-  - src/data/seed.ts
-  - src/app/api/exhibits/route.ts
-  - src/app/api/exhibits/[id]/route.ts
-  - src/app/api/exhibits/[id]/status/route.ts
-  - src/app/api/exhibits/[id]/history/route.ts
-  - src/app/api/exhibits/[id]/custodian/route.ts
-  - src/app/api/exhibits/[id]/custody-history/route.ts
-  - src/app/api/exhibits/[id]/events/status/route.ts
-  - src/app/api/exhibits/[id]/events/objection/route.ts
+  - src/services/objections.ts
+  - src/services/status.ts
+  - src/services/events.ts
   - src/app/api/exhibits/[id]/events/custody/route.ts
-  - src/app/api/objections/[id]/ruling/route.ts
-  - src/app/api/cases/[id]/objections/route.ts
-reviewed_at: 2026-10-07T03:05:01Z
-iteration: 1
+reviewed_at: 2026-10-07T04:10:00Z
+iteration: 2
 ---
+
+> **Iteration 2 (re-review) — verdict: CLEAN.** Both iteration-1 BLOCKERs are
+> genuinely resolved (verified by reading the fixer's code, not the commit
+> messages); no fix-introduced regressions found. Scope: fixer-touched files
+> (5d0c2f0 + 002293e) plus their seams. W1–W3 from iteration 1 were deferred by
+> the fix pass and are **not re-raised here** — per the fix-pass note, B1's lock
+> incidentally closed W1 for the custody path; W1 (objection path), W2, and W3
+> remain open as low-risk follow-ups but do not block the phase. The
+> iteration-1 report below is retained verbatim for history.
+>
+> ## Iteration 2 — BLOCKER verification
+>
+> **B1 (custody concurrency) — RESOLVED (5d0c2f0).** `recordCustodyTransfer`
+> (custody.ts:82–136) now wraps the current-custodian read (95–96), the chain
+> check (103–105), the `recordEvent` ledger write (110–118), and the projection
+> upsert (120–133) in a single `prisma.$transaction` whose first statement is
+> `pg_advisory_xact_lock(advisoryLockKey(exhibitId))` (91). The custodian is
+> re-read *inside* the lock, so the iteration-1 interleaving (two concurrent
+> A→B / A→C both passing the check) is now serialized per exhibit on the same
+> lock key as `recordStatusChange`. The `advisoryLockKey` helper was extracted
+> to `src/lib/advisoryLock.ts`; the old inline copy in status.ts was deleted
+> (confirmed via `git show 5d0c2f0 -- src/services/status.ts` — the function is
+> removed, not duplicated), and both services import the shared helper (grep:
+> exactly one definition, two import sites). P2034/P2028 map to a 409
+> `CUSTODY_CONFLICT` (137–152), mirroring the status path. **Refutation
+> checked:** the pre-transaction reads left outside the lock (exhibit existence
+> 55–61, no-op input 65–67, target-user active 72–78) are all *stable* inputs,
+> not functions of the exhibit's custody row, so leaving them outside the lock
+> reintroduces no race — the chain invariant depends only on the in-lock read at
+> 95–96. Domain errors thrown in-transaction (`CustodyChainBrokenError` etc.)
+> are `AppError`s, not `PrismaClientKnownRequestError`, so the catch block
+> re-throws them unchanged (`throw err`, 151) and `errorResponse` maps them by
+> code/status — no error-swallowing regression.
+>
+> **B2 (objection/ruling atomicity) — RESOLVED (002293e).** `recordObjection`
+> (objections.ts:114–138) and `recordRuling` (181–211) each now run the
+> `recordEvent` call and the `objectionCurrentState` create/update inside one
+> `prisma.$transaction`, passing `tx` into `recordEvent`. The ledger event and
+> its projection row can no longer land in separate transactions, closing both
+> iteration-1 divergence windows (OBJECTION_RAISED with no projection row;
+> RULING_RECORDED with the thread still UNRESOLVED). **Refutation checked:** the
+> RESERVED early-return (197–199) returns the `objectionState` read *before* the
+> transaction (154–156); this is read-only and semantically identical to the
+> pre-fix behavior — the ledger event still commits inside the tx and the thread
+> correctly stays UNRESOLVED, no stale-write divergence. The pre-tx validation
+> reads (exhibit existence, objectable status, thread existence, judge role) sit
+> outside the tx as before; they gate entry and are unaffected by the atomicity
+> fix.
+>
+> ## Iteration 2 — fix-introduced regression sweep
+> - Shared `advisoryLockKey`: one definition, identical 32-bit hash, same key
+>   used by status + custody → they contend correctly. OK.
+> - `recordEvent` tx composition: both new callers pass `tx`; `recordEvent`'s
+>   `client?` branch (events.ts:87–90) runs the append in the caller's tx. OK.
+> - custody try/catch does not mask domain errors (AppError re-thrown). OK.
+> - `CUSTODY_CONFLICT`/`STATUS_CONFLICT` map via generic `AppError` path in
+>   `errorResponse` — no route change needed. OK.
+> - `tsc --noEmit`: exit 0, clean. Suite reported 67/67 green by orchestrator.
+>
+> ---
+> _Iteration 1 report retained below._
 
 # Phase 1 Code Review
 
