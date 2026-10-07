@@ -1,0 +1,23 @@
+{
+  "duration_secs": 1665.0,
+  "token_usage": {
+    "input": 282,
+    "output": 95697,
+    "total": 27540324,
+    "cache_read": 26955840,
+    "cache_write": 488505,
+    "cost": 7.569964500000002
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".pivota/dev-script.meta.json",
+    ".pivota/start-dev.sh",
+    ".planning/phases/01-data-foundation/01-UAT.md",
+    ".planning/phases/01-data-foundation/01-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 2,
+  "created_at": "2026-10-07T03:13:19.504776+00:00",
+  "completed_at": "2026-10-07T03:41:04.896347288+00:00"
+}

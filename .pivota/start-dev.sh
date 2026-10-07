@@ -20,6 +20,21 @@
 #   - run_install has an npm ERESOLVE fallback (--legacy-peer-deps) + a FATAL
 #     marker (D-12.1) — a scaffold with a lagging peer range must not silently
 #     leave node_modules empty and hang the preview on "Waiting to bind".
+#
+# Multi-match (D-05/D-06): this project's root carries BOTH a compose file
+# (docker-compose.yml, services: db + app) AND a Next.js manifest
+# (package.json + next.config.ts), so it matched the `compose` entry and the
+# `react-next` entry at once. Per D-05 that is agent fallback, not a
+# mechanical merge. The classification question the `compose` catalog entry
+# asks first (#668) — does this compose file run the app, or only its
+# datastores? — resolves to Shape A here: the `app` service has a `build:`
+# directive and its own Dockerfile runs the generated code, so compose owns
+# the whole stack and `docker compose up --build` is the wrapper's entire
+# exec command, exactly as the `compose` entry's Shape A prescribes. The
+# `react-next` entry's env preamble / pre-exec config patch do not apply:
+# the app container runs `next start` (production mode, see Dockerfile CMD),
+# not `next dev`, so there is no dev-server allowedDevOrigins / HMR host
+# concern to patch.
 
 set -euo pipefail
 
@@ -45,13 +60,11 @@ fi
 # === Already-up fast path (#219) ===
 # The flock above stops two invocations racing. It does NOT stop the far more
 # common SEQUENTIAL double-boot: in one verify run the platform starts the
-# stack (card_execution_service b.5), the init-dev-server boot-smoke starts it
-# again and then kills it, and verify-work's step 1 finds the dead port and
-# starts it a third time. Each `docker compose up --build` destroys and
-# recreates every container, so mid-verify the app's ports go down for ~3s —
-# which reads as an app crash to whoever is watching the preview, and lets the
-# boot-smoke run against a still-churning stack (observed on PermitFlow phases
-# 4 and 5: `kill -> die -> destroy -> create -> start` with RestartCount=0).
+# stack, the init-dev-server boot-smoke starts it again and then kills it, and
+# verify-work's step 1 finds a dead port and starts it a third time. Each
+# `docker compose up --build` destroys and recreates every container, so
+# mid-verify the app's ports go down for ~3s — which reads as an app crash to
+# whoever is watching the preview.
 #
 # So: if this project's ready ports are already answering AND nothing has
 # changed that a restart would pick up, the boot is already done. Exit 0 and
@@ -60,11 +73,9 @@ fi
 # "Nothing has changed" is TWO facts, and both are load-bearing:
 #   * the resolved compose config is byte-identical, and
 #   * git HEAD has not moved.
-# HEAD is what keeps this from re-introducing the stale-preview class: a
-# compose app whose image bakes the source serves the OLD code until it is
-# rebuilt, so a new commit MUST fall through to the full boot below. Within a
-# single verify run HEAD does not move, which is precisely where the redundant
-# boots are.
+# HEAD is what keeps this from re-introducing the stale-preview class: the
+# compose app's image bakes the source and serves the OLD code until it is
+# rebuilt, so a new commit MUST fall through to the full boot below.
 #
 # Escape hatch: PIVOTA_DEV_FORCE_RESTART=1 always does the full boot.
 READY_PORTS="3000"
@@ -112,35 +123,28 @@ if [[ "${PIVOTA_DEV_FORCE_RESTART:-}" != "1" ]] \
 fi
 
 # === D-11.4: tee stdout/stderr to /tmp/pivota-dev.log AND pass through ===
-# Researcher resolved log destination: /tmp/pivota-dev.log (always writable,
-# matches existing convention). SSE chat panel sees output live AND a file
-# exists for scrollback / replay.
+# SSE chat panel sees output live AND a file exists for scrollback / replay.
 mkdir -p /tmp
 exec > >(tee -a /tmp/pivota-dev.log) 2>&1
 echo "[pivota] $(date -Iseconds) start-dev.sh begin (catalog: agent-synthesized)"
 
 # === D-11.1 + D-11.2: per-stack 0.0.0.0 binding + host allowlist relaxation ===
-# NOTE: env vars do NOT cover every stack. Vite / webpack-dev-server / Next.js
-# allowedHosts require CLI flags or config-file overlays — those live in
-# EXEC_CMD or PRE_EXEC_SNIPPET below, not here.
-# No application manifest exists yet at the repo root (Step 1 inspection
-# found zero matched_globs) — this project is still in the planning stage
-# (.planning/STATE.md: Phase 1 "Data Foundation", status "Ready to plan", 0
-# plans executed). The declared target stack is Next.js 16
-# (project_specs/TechArch/05-tech-stack.md §6.1), so HOSTNAME/HOST are
-# pre-set for when code lands; they are no-ops until then.
-export HOSTNAME=0.0.0.0
-export HOST=0.0.0.0
+# Compose services control their own bind addresses via the `ports:` block in
+# docker-compose.yml — there is no env-var lever the wrapper can pull to force
+# 0.0.0.0 binding for child containers, and this project's `app` service
+# already publishes `3000:3000` (not loopback-restricted), so the preview
+# proxy can reach it. The per-stack env block is intentionally EMPTY here.
 
 # === D-11.3: .env.example -> .env seed (platform-injection-safe) ===
 # Seed .env from .env.example for first boot, but NEVER let an .env.example
 # placeholder shadow a variable the platform already injected into the sandbox
-# environment. The motivating bug: .env.example shipped a dead
-# `DATABASE_URL=postgresql://user:pass@localhost/...` that overrode the injected
-# sidecar DATABASE_URL, so Prisma `db push`/`$connect()` failed. Any KEY already
-# set in the environment (DATABASE_URL, POSTGRES_*/MYSQL_*, REDIS_URL, PIVOTA_*,
-# plus PORT/NODE_ENV from the preamble above) is dropped from the copy so the
-# injected value wins. See references/runtime-environment.md §3.
+# environment. Any KEY already set in the environment (DATABASE_URL,
+# POSTGRES_*/MYSQL_*, REDIS_URL, PIVOTA_*, plus PORT/NODE_ENV from the preamble
+# above) is dropped from the copy so the injected value wins. See
+# references/runtime-environment.md §3. NOTE: this project's own
+# docker-compose.yml already sets DATABASE_URL on the `app` service pointing at
+# the compose `db` service name, so the seeded .env (used only by anything run
+# natively outside compose, e.g. `prisma generate`) never needs to win over it.
 if [[ ! -f .env && -f .env.example ]]; then
   echo "[pivota] seeding .env from .env.example (preserving platform-injected vars)"
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -153,21 +157,13 @@ if [[ ! -f .env && -f .env.example ]]; then
       printf '# [pivota] %s omitted — provided by platform environment\n' "$key"
       continue
     fi
-    # D-11.5: sanitize the copied assignment. Documented .env.example files
-    # column-align inline `# comments` after values, and docker compose's .env
-    # parser passes those through as part of the value (motivating bug:
-    # `LDAP_URL=   # LDAP server URL, e.g. ldap://…` made a Spring app treat
-    # LDAP as enabled and crash-loop on boot, so the compose frontend behind a
-    # `service_healthy` dependency never started). Strip them from unquoted
-    # values only — a `#` inside quotes is part of the value.
+    # D-11.5: sanitize the copied assignment. Strip unquoted inline `#`
+    # comments (docker compose's own .env parser passes them through as part
+    # of the value) and replace CHANGE_ME-style placeholders with a generated
+    # 48-char secret.
     if [[ "$line" != *\"* && "$line" != *\'* ]]; then
       line="$(printf '%s' "$line" | sed -E 's/[[:space:]]+#.*$//')"
     fi
-    # Replace CHANGE_ME placeholder secrets with generated values. Placeholders
-    # are landmines at runtime, not just cosmetics: jjwt hard-rejects HMAC keys
-    # under 256 bits, so `JWT_SECRET=CHANGE_ME_BASE64_256BIT_SECRET` (240 bits)
-    # 500s every login. Same generated value is seen by every compose service
-    # reading this .env, so cross-service credentials stay consistent.
     value="${line#*=}"
     value_lc="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
     if [[ "$value_lc" == change_me* || "$value_lc" == changeme* ]]; then
@@ -181,20 +177,10 @@ if [[ ! -f .env && -f .env.example ]]; then
 fi
 
 # === D-11.6 (#510): load .env into THIS process's environment ===
-# The seed above WRITES .env; it does not put it in the environment. A compose
-# app does not notice (docker compose reads the file itself), but a native run
-# does — and every wrapper that hand-rolled this got it wrong the same way:
-# `export "$line"` passes `KEY="value"` as a SINGLE word, so the quotes become
-# part of the value. `DATABASE_URL` then arrives as `"postgresql://…"` and
-# Prisma rejects it with `P1012: the URL must start with postgresql://` while
-# the variable is demonstrably set — a genuinely confusing place to land, and
-# one that cost a whole boot-smoke fix attempt (of two).
-#
-# `set -a` + `.` is POSIX, handles quoting, escapes and `export `-prefixes
-# correctly, and cannot be got wrong. Platform-injected values still win: the
-# keys the file defines are snapshotted first and re-applied after, and ONLY
-# those keys — replaying the whole environment would try to reassign readonly
-# shell internals (SHELLOPTS/BASHOPTS) and `set -e` would kill the boot.
+# `set -a` + `.` is POSIX, handles quoting/escapes correctly, and cannot be
+# got wrong the way a hand-rolled `export "$line"` parser can (quotes land
+# inside the value). Platform-injected values still win: the keys the file
+# defines are snapshotted first and re-applied after, and ONLY those keys.
 if [[ -f .env ]]; then
   echo "[pivota] loading .env into the environment"
   PIVOTA_ENV_KEEP="$(mktemp)"
@@ -215,40 +201,36 @@ if [[ -f .env ]]; then
 fi
 
 # === D-11.7 (#510): workspace-hoisted binaries on PATH ===
-# npm workspaces hoist every package's bin to the ROOT node_modules/.bin, so a
-# child package's `tsx`/`vite`/`nest` is NOT on PATH when the wrapper runs from
-# the repo root — `bash: tsx: command not found`, the other half of the boot
-# failure above. Harmless when the directory does not exist yet (install runs
-# below), and ahead of the system PATH so the project's pinned version wins.
+# npm workspaces hoist every package's bin to the ROOT node_modules/.bin.
+# Harmless when the directory does not exist yet (this project is a single
+# package anyway, but this is templated behavior shared by every wrapper).
 export PATH="$PWD/node_modules/.bin:$PATH"
 
-# === Optional pre-exec snippet (JDK install, rustup, golang one-shot setup) ===
-# Catalog entries with PRE_EXEC_SNIPPET inject heavyweight one-time installs
-# here. Empty string when not needed.
-# (none — no application manifest exists yet to derive a pre-exec ritual from)
+# === Pre-exec snippet ===
+# None needed: this is a Shape A compose project — the app's own Dockerfile
+# installs deps, generates the Prisma client and builds inside the image
+# build step, and the compose service's own `command` runs
+# `prisma migrate deploy && tsx src/data/seed.ts && next start` (idempotent
+# seed per references/runtime-environment.md §3). No host-side install or
+# config patch belongs in the wrapper.
 
 # === D-12: idempotent install via lockfile hash + presence check ===
+# None for compose (D-12 n/a): compose images come pre-built via the `build:`
+# directive, and docker's own layer cache handles incremental rebuilds. No
+# lockfile hash / sentinel branch applies here — this section intentionally
+# falls through with both LOCK_FILE_PATH and INSTALL_CMD empty.
 SENTINEL="/tmp/pivota-setup-sentinel"
 LOCK_FILE_PATH=""
 INSTALL_PRESENCE_CHECK=""
-INSTALL_CMD=''   # single-quoted: catalog must escape internal quotes correctly
+INSTALL_CMD=''   # empty: docker compose up --build handles the image build
 
 run_install() {
   echo "[pivota] running install: $INSTALL_CMD"
   local rc=0
-  bash -c "$INSTALL_CMD" || rc=$?   # capture directly; `if …; then` would reset $? to 0 on the no-else path
+  bash -c "$INSTALL_CMD" || rc=$?
   if (( rc == 0 )); then
     return 0
   fi
-  # D-12.1: npm peer-dependency (ERESOLVE) fallback + loud failure.
-  # A fresh scaffold can pin a transitive lib whose peer range lags the
-  # project's react/next major (observed: react-leaflet@4 wants react@18 under
-  # a react@19 project). npm 7+ aborts `npm ci`/`npm install` with ERESOLVE and
-  # writes NO node_modules — so EXEC_CMD below never binds a port and the
-  # preview panel hangs on "Waiting for dev server to bind…" with no surfaced
-  # error. Retry once with --legacy-peer-deps so boot can proceed, but log
-  # LOUDLY: a force-resolved peer range can install a runtime-incompatible tree
-  # (the offending component may crash when rendered — surface it at UAT).
   if [[ "$INSTALL_CMD" == *"npm "* ]]; then
     echo "[pivota] WARN install failed (exit=$rc) — retrying with --legacy-peer-deps (peer conflict force-resolved; runtime incompatibility possible)"
     local rc2=0
@@ -259,8 +241,6 @@ run_install() {
     fi
     rc=$rc2
   fi
-  # Emit a greppable marker so the platform surfaces "install failed" instead of
-  # letting the dev server silently never bind. `set -e` still aborts the script.
   echo "[pivota] FATAL install failed (exit=$rc) — dev server cannot start; resolve the dependency conflict in the manifest" >&2
   return "$rc"
 }
@@ -269,9 +249,6 @@ if [[ -n "$LOCK_FILE_PATH" && -f "$LOCK_FILE_PATH" ]]; then
   CURRENT_HASH=$(sha256sum "$LOCK_FILE_PATH" | cut -d' ' -f1)
   PREVIOUS_HASH=$(cat "$SENTINEL" 2>/dev/null || echo "")
 
-  # lockfile-unchanged is necessary but not sufficient —
-  # the install-output directory must also exist (sentinel survives but
-  # node_modules / .venv / target might not on a fresh sandbox tmpfs).
   PRESENCE_OK=1
   if [[ -n "$INSTALL_PRESENCE_CHECK" && ! -e "$INSTALL_PRESENCE_CHECK" ]]; then
     PRESENCE_OK=0
@@ -289,7 +266,6 @@ if [[ -n "$LOCK_FILE_PATH" && -f "$LOCK_FILE_PATH" ]]; then
     echo "$CURRENT_HASH" > "$SENTINEL"
   fi
 elif [[ -n "$INSTALL_CMD" ]]; then
-  # No lockfile to compare; honor any sentinel mismatch by running install once per sandbox.
   if [[ ! -f "$SENTINEL" ]]; then
     run_install
     touch "$SENTINEL"
@@ -301,24 +277,19 @@ fi
 # fixed 1, so the caller (platform / Daytona) can distinguish "wrapper bug"
 # from "user command failed with N".
 #
-# EXEC_CMD is a diagnostic, not an invented framework launch: Step 1
-# inspection found zero matched_globs (no package.json, requirements.txt,
-# pyproject.toml, Cargo.toml, go.mod, pom.xml/build.gradle*, or compose file at
-# the repo root) and zero existing_scripts — there is no project-declared dev
-# command to defer to (D-18 forbids inventing one). It re-checks for a
-# manifest at run time so a regen is not required just to discover the
-# project has since been scaffolded; the REAL fix is to run init-dev-server
-# again once real source code lands so catalog match can pick the right entry
-# (react-next is the closest match for the stack TechArch declares —
-# project_specs/TechArch/05-tech-stack.md §6.1).
-EXEC_CMD='if [ -f package.json ] || [ -f requirements.txt ] || [ -f pyproject.toml ] || [ -f setup.py ] || [ -f Cargo.toml ] || [ -f go.mod ] || [ -f pom.xml ] || ls build.gradle* >/dev/null 2>&1 || [ -f docker-compose.yml ] || [ -f docker-compose.yaml ] || [ -f compose.yml ] || [ -f compose.yaml ]; then echo "[pivota] FATAL an application manifest now exists but this synthesized wrapper predates it -- regenerate .pivota/start-dev.sh (Workspace Settings -> Regenerate) so catalog match can run against the real stack" >&2; else echo "[pivota] FATAL no application manifest at repo root -- this project has no scaffolded code yet (.planning/STATE.md: Phase 1 Data Foundation, status Ready to plan). There is nothing for a dev server to start. Re-run init-dev-server once Phase 1 lands source code (planned stack: Next.js 16, see project_specs/TechArch/05-tech-stack.md)." >&2; fi; exit 1'
+# `--build` is load-bearing, not an optimization: pivota projects are
+# actively modified between boots (execute phases, gap-closure fixes). A
+# plain `docker compose up` reuses the cached image whenever one exists, so a
+# source fix that is already committed keeps crash-looping in a stale
+# container. Docker's layer cache keeps the rebuild cheap when nothing changed.
+EXEC_CMD='docker compose up --build'
 
 # #219: record what this boot is FOR, so the fast path at the top of the file
 # can tell "already running the same thing" from "running something stale".
-# Written before exec, not after: exec blocks for the life of the server, and a
-# state file that only appears on shutdown is a state file that never appears.
-# Writing it early cannot cause a bad adopt — the fast path also requires the
-# ready ports to answer, which a failed boot never satisfies.
+# Written before exec, not after: exec blocks for the life of the server, and
+# a state file that only appears on shutdown is a state file that never
+# appears. Writing it early cannot cause a bad adopt — the fast path also
+# requires the ready ports to answer, which a failed boot never satisfies.
 dev_boot_state > "$DEV_STATE" 2>/dev/null || true
 
 ATTEMPT=1

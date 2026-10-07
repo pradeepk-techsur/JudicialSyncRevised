@@ -1,6 +1,30 @@
 {
   "generator_version": "init-dev-server@1",
   "catalog_entry": null,
+  "generated_at": "2026-10-07T03:22:54Z",
+  "inspection_inputs_hash": "e0eb41402ae60fce399241c32c6b1dfdb78209e818a48673cf8d5afcfbc4a988",
+  "inspection_inputs": {
+    "matched_globs": [
+      "docker-compose.yml",
+      "next.config.ts",
+      "package.json"
+    ],
+    "manifest_signatures": [
+      "package.json:dependencies:next@16.4.0",
+      "package.json:dependencies:react@19.3.0",
+      "package.json:dev-script:next dev",
+      "package.json:script:build=next build",
+      "package.json:script:dev=next dev",
+      "package.json:script:lint=next lint",
+      "package.json:script:prisma:generate=prisma generate",
+      "package.json:script:prisma:migrate=prisma migrate deploy",
+      "package.json:script:seed=tsx src/data/seed.ts",
+      "package.json:script:start=next start",
+      "package.json:script:test=vitest run"
+    ],
+    "existing_scripts": []
+  }
+}
   "generated_at": "2026-10-07T03:27:50Z",
   "inspection_inputs_hash": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
   "inspection_inputs": {
