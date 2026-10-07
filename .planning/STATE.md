@@ -2,10 +2,9 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 01-07-PLAN.md
-last_updated: "2026-10-07T03:02:38.495Z"
-last_activity: "2026-10-07 — Completed 01-07-PLAN.md (ledger replay: getExhibitHistory full timeline + rebuildProjections read-only projection-integrity check, both verified against the real seed incl. negative control). Phase 1 complete (7/7)."
+status: planning
+last_updated: "2026-10-07T03:59:14.811Z"
+last_activity: "2026-10-07 — Phase 1 complete"
 progress:
   total_phases: 5
   completed_phases: 1
