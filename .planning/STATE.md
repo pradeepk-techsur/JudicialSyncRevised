@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-10-07T02:33:06.088Z"
-last_activity: 2026-10-07 — Completed 01-01-PLAN.md (project scaffold, event-ledger schema, Docker Compose dev stack)
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-10-07T02:39:36.814Z"
+last_activity: 2026-10-07 — Completed 01-02-PLAN.md (recordEvent ledger writer, exhibit identity CRUD, API routes, context-boot test)
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 1
-  percent: 14
+  completed_plans: 2
+  percent: 29
 ---
 
 # Project State
@@ -26,36 +26,37 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 1 of 5 (Data Foundation)
-Plan: 1 of 7 complete in current phase
+Plan: 2 of 7 complete in current phase
 Status: In progress
-Last activity: 2026-10-07 — Completed 01-01-PLAN.md (project scaffold, event-ledger schema, Docker Compose dev stack)
+Last activity: 2026-10-07 — Completed 01-02-PLAN.md (recordEvent ledger writer, exhibit identity CRUD, API routes, context-boot test)
 
-Progress: [█░░░░░░░░░] 14%
+Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 1
-- Average duration: 4 min
-- Total execution time: ~0.1 hours
+- Total plans completed: 2
+- Average duration: 4.5 min
+- Total execution time: ~0.15 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01    | 1     | 7     | 4 min    |
+| 01    | 2     | 7     | 4.5 min  |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (4 min)
-- Trend: -
+- Last 5 plans: 01-01 (4 min), 01-02 (5 min)
+- Trend: steady
 
 *Updated after each plan completion*
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 4 min | 3 tasks | 15 files |
+| Phase 01 P02 | 5 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [01-01]: Pinned next@16.4.0 / react@19.3.0 (current latest, matches TechArch); kept prisma@6.x / vitest@3.x at current versions rather than npm-audit's downgrade suggestions (dev-tooling-only advisories).
 - [01-01]: Prisma models use @map/@@map to snake_case Postgres names (TechArch §3.8); schema holds zero mutable status/custody fields on identity tables — all such state is derived from the ExhibitEvent ledger.
 - [01-01]: Dockerfile CMD runs migrate deploy -> next start; seed step deferred to Plan 6 once the seed loader exists.
+- [01-02]: recordEvent() is the single ledger-write chokepoint — only call site of prisma.exhibitEvent.create (grep-enforced); all later status/objection/custody plans record history through it.
+- [01-02]: Added a typed error layer (src/lib/errors.ts) + envelope helper (src/lib/apiError.ts) so services throw code-bearing errors and routes stay thin — satisfies the plan's own service/route contract.
+- [01-02]: Sealed-exhibit role-based visibility filtering deferred to Phase 2 (first role-scoped consumer); GET /api/cases/:id/exhibits returns raw identity rows until projection reads land.
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T02:33:06.087Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-10-07T02:39:36.812Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
