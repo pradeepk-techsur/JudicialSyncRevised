@@ -81,9 +81,19 @@ export async function recordObjection(args: {
     throw new ValidationError('grounds must be a non-empty string');
   }
 
-  // 2. The exhibit must currently be OFFERED or OBJECTED. An exhibit with no
-  //    ExhibitCurrentState row (never offered — still only MARKED or
-  //    unrecorded) or one in a terminal status cannot be objected to.
+  // 2. The exhibit must exist (404 EXHIBIT_NOT_FOUND per Y1-api.md §Objections)
+  //    — distinct from "exists but is in a non-objectable status" (422 below).
+  const exhibit = await prisma.exhibit.findUnique({
+    where: { id: exhibitId },
+    select: { id: true },
+  });
+  if (!exhibit) {
+    throw new NotFoundError('EXHIBIT_NOT_FOUND', 'No exhibit found with the given ID');
+  }
+
+  // 3. The exhibit must currently be OFFERED or OBJECTED. An exhibit with no
+  //    ExhibitCurrentState row (never offered — still only MARKED) or one in a
+  //    terminal status cannot be objected to.
   const currentState = await prisma.exhibitCurrentState.findUnique({
     where: { exhibitId },
     select: { currentStatus: true },
@@ -92,10 +102,10 @@ export async function recordObjection(args: {
     throw new InvalidObjectionTargetError();
   }
 
-  // 3. Generate the thread id shared by this raise event and its future ruling.
+  // 4. Generate the thread id shared by this raise event and its future ruling.
   const objectionId = randomUUID();
 
-  // 4. Append the ledger event (sole writer), then 5. create the projection row.
+  // 5. Append the ledger event (sole writer), then 6. create the projection row.
   const event = await recordEvent({
     exhibitId,
     eventType: 'OBJECTION_RAISED',
