@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
-import { createExhibit, getExhibit, getExhibits } from '@/services/exhibits';
-import { ConflictError, ValidationError } from '@/lib/errors';
+import { createExhibit, getExhibit, getExhibits, searchExhibits } from '@/services/exhibits';
+import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import { DEMO_CASE_NUMBER } from '@/lib/constants';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
 
@@ -45,12 +46,24 @@ describe('exhibits service', () => {
     expect(created.offeringParty).toBe('PROSECUTION');
     expect(created.isSealed).toBe(false);
 
-    const fetched = await getExhibit(created.id);
+    const fetched = await getExhibit(created.id, 'JUDGE');
     expect(fetched).not.toBeNull();
     expect(fetched?.id).toBe(created.id);
 
-    const list = await getExhibits(caseId);
-    expect(list.map((e) => e.id)).toContain(created.id);
+    const list = await getExhibits(caseId, 'JUDGE');
+    // getExhibits now returns the composite ExhibitListRow shape keyed by
+    // exhibitId, not raw Exhibit rows.
+    const row = list.find((e) => e.exhibitId === created.id);
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({
+      exhibitId: created.id,
+      exhibitLabel: `Exhibit ${suffix}`,
+      offeringParty: 'PROSECUTION',
+      associatedWitness: 'Det. Rivera',
+      currentStatus: null,
+      currentCustodianName: null,
+      discrepancyFlags: [],
+    });
   });
 
   it('rejects a duplicate exhibitLabel within the same case with EXHIBIT_LABEL_CONFLICT', async () => {
@@ -96,7 +109,218 @@ describe('exhibits service', () => {
   });
 
   it('getExhibit returns null for a nonexistent id (not a throw)', async () => {
-    const result = await getExhibit('00000000-0000-0000-0000-000000000000');
+    const result = await getExhibit('00000000-0000-0000-0000-000000000000', 'JUDGE');
     expect(result).toBeNull();
+  });
+
+  describe('getExhibit sealed-exhibit role-based visibility', () => {
+    let sealedId: string;
+
+    beforeEach(async () => {
+      const { caseId, suffix } = fixture;
+      const sealed = await createExhibit({
+        caseId,
+        exhibitLabel: `Sealed ${suffix}`,
+        description: 'A sealed exhibit — restricted visibility',
+        offeringParty: 'PROSECUTION',
+        isSealed: true,
+      });
+      sealedId = sealed.id;
+    });
+
+    it('returns the sealed row for every role that can view sealed exhibits', async () => {
+      for (const role of ['JUDGE', 'CHAMBERS_STAFF', 'ADMIN'] as const) {
+        const fetched = await getExhibit(sealedId, role);
+        expect(fetched, `role ${role} should see the sealed exhibit`).not.toBeNull();
+        expect(fetched?.id).toBe(sealedId);
+        expect(fetched?.isSealed).toBe(true);
+      }
+    });
+
+    it('returns null for a sealed exhibit read by every role that cannot view sealed exhibits', async () => {
+      for (const role of ['ATTORNEY', 'DEPUTY', 'CLERK'] as const) {
+        const fetched = await getExhibit(sealedId, role);
+        expect(fetched, `role ${role} must NOT see the sealed exhibit`).toBeNull();
+      }
+    });
+  });
+
+  describe('getExhibits (ExhibitListRow list)', () => {
+    let sealedId: string;
+    let visibleId: string;
+
+    beforeEach(async () => {
+      const { caseId, suffix } = fixture;
+      const visible = await createExhibit({
+        caseId,
+        exhibitLabel: `A-Visible ${suffix}`,
+        description: 'An ordinary visible exhibit',
+        offeringParty: 'DEFENSE',
+      });
+      visibleId = visible.id;
+      const sealed = await createExhibit({
+        caseId,
+        exhibitLabel: `Z-Sealed ${suffix}`,
+        description: 'A sealed exhibit — restricted visibility',
+        offeringParty: 'PROSECUTION',
+        isSealed: true,
+      });
+      sealedId = sealed.id;
+    });
+
+    it('includes a sealed exhibit for a role that can view sealed exhibits (JUDGE)', async () => {
+      const list = await getExhibits(fixture.caseId, 'JUDGE');
+      const ids = list.map((e) => e.exhibitId);
+      expect(ids).toContain(sealedId);
+      expect(ids).toContain(visibleId);
+    });
+
+    it('excludes a sealed exhibit for a role that cannot (ATTORNEY) — absent, not redacted', async () => {
+      const list = await getExhibits(fixture.caseId, 'ATTORNEY');
+      const ids = list.map((e) => e.exhibitId);
+      expect(ids).not.toContain(sealedId);
+      expect(ids).toContain(visibleId);
+    });
+
+    it('throws CASE_NOT_FOUND for a nonexistent caseId', async () => {
+      await expect(
+        getExhibits('00000000-0000-0000-0000-000000000000', 'JUDGE'),
+      ).rejects.toSatisfy(
+        (err: unknown) => err instanceof NotFoundError && err.code === 'CASE_NOT_FOUND',
+      );
+    });
+  });
+});
+
+// searchExhibits runs against the deterministic Phase 1 seed (DEMO_CASE_NUMBER),
+// whose known fixtures anchor the AND-combination assertions:
+//   - P-3 "Lab report — DNA match analysis", witness "Dr. Amara Finch", ADMITTED
+//   - S-1 "Chambers sidebar note", isSealed:true, ADMITTED (role-scoped)
+// `npm run seed` must have populated the DB (the plan's verify step runs it).
+describe('searchExhibits (F4)', () => {
+  let demoCaseId: string;
+
+  beforeEach(async () => {
+    const kase = await prisma.case.findUnique({
+      where: { caseNumber: DEMO_CASE_NUMBER },
+      select: { id: true },
+    });
+    if (!kase) {
+      throw new Error(
+        `Demo case ${DEMO_CASE_NUMBER} not seeded — run \`npx tsx src/data/seed.ts\` first`,
+      );
+    }
+    demoCaseId = kase.id;
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('rejects an empty request with 422 EMPTY_SEARCH_CRITERIA', async () => {
+    await expect(
+      searchExhibits({ caseId: demoCaseId, requestingUserRole: 'JUDGE' }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof UnprocessableError && err.code === 'EMPTY_SEARCH_CRITERIA',
+    );
+  });
+
+  it('rejects dateFrom after dateTo with 422 INVALID_DATE_RANGE', async () => {
+    await expect(
+      searchExhibits({
+        caseId: demoCaseId,
+        requestingUserRole: 'JUDGE',
+        dateFrom: '2026-12-31',
+        dateTo: '2026-01-01',
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof UnprocessableError && err.code === 'INVALID_DATE_RANGE',
+    );
+  });
+
+  it('rejects an invalid status value with 422 VALIDATION_ERROR', async () => {
+    await expect(
+      searchExhibits({
+        caseId: demoCaseId,
+        requestingUserRole: 'JUDGE',
+        status: 'NOT_A_STATUS',
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_ERROR',
+    );
+  });
+
+  it('witness=Finch matches only P-3', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+    });
+    expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
+  });
+
+  it('AND-combination: witness=Finch & status=ADMITTED still matches P-3', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+      status: 'ADMITTED',
+    });
+    expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
+  });
+
+  it('AND-combination narrows to zero: witness=Finch & status=MARKED matches nothing', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+      status: 'MARKED',
+    });
+    expect(results).toHaveLength(0);
+  });
+
+  it('returns the ExhibitListRow shape with enriched currentStatus/custodian', async () => {
+    const [p3] = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+    });
+    expect(p3).toMatchObject({
+      exhibitLabel: 'P-3',
+      associatedWitness: 'Dr. Amara Finch',
+      currentStatus: 'ADMITTED',
+      discrepancyFlags: [],
+    });
+    // P-3's custody chain ends at the clerk (seed) — custodian name is resolved.
+    expect(p3.currentCustodianName).toBeTruthy();
+  });
+
+  it('results are ordered by exhibitLabel ascending', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      status: 'ADMITTED',
+    });
+    const labels = results.map((r) => r.exhibitLabel);
+    expect(labels).toEqual([...labels].sort());
+    expect(labels.length).toBeGreaterThan(1);
+  });
+
+  it('excludes a sealed exhibit from results for an unauthorized role even on a matching keyword', async () => {
+    // S-1 is sealed (keyword "sidebar" matches its description). JUDGE sees it,
+    // ATTORNEY must not — T-02-10.
+    const judgeResults = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      keyword: 'sidebar',
+    });
+    expect(judgeResults.map((r) => r.exhibitLabel)).toContain('S-1');
+
+    const attorneyResults = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'ATTORNEY',
+      keyword: 'sidebar',
+    });
+    expect(attorneyResults.map((r) => r.exhibitLabel)).not.toContain('S-1');
   });
 });

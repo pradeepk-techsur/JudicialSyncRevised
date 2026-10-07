@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import type { Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { DEMO_CASE_NUMBER } from '@/lib/constants';
 import { AppError } from '@/lib/errors';
 import { createExhibit } from '@/services/exhibits';
 import { recordStatusChange } from '@/services/status';
@@ -30,7 +31,10 @@ import { recordCustodyTransfer } from '@/services/custody';
 // present; if any is missing it throws SeedIntegrityError and rolls back the
 // whole seed (via an explicit cleanup) rather than leaving partial data.
 
-const SEED_CASE_NUMBER = '2026-CR-0142';
+// Single source of truth for the demo case number lives in @/lib/constants —
+// aliased locally to keep the diff against every other SEED_CASE_NUMBER
+// reference in this file minimal.
+const SEED_CASE_NUMBER = DEMO_CASE_NUMBER;
 
 /** 500 — the seeded demo case is missing a required planted edge case. */
 export class SeedIntegrityError extends AppError {
@@ -125,6 +129,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       description: string,
       offeringParty: 'PLAINTIFF' | 'PROSECUTION' | 'DEFENSE',
       associatedWitness?: string,
+      options?: { isSealed?: boolean },
     ): Promise<string> => {
       const ex = await createExhibit({
         caseId,
@@ -132,6 +137,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
         description,
         offeringParty,
         associatedWitness,
+        isSealed: options?.isSealed ?? false,
       });
       return ex.id;
     };
@@ -324,6 +330,37 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       actorUserId: deputy,
     });
 
+    // --- Sealed exhibit: chambers-only sidebar material (Phase 2's first
+    // role-based-visibility fixture) — fully fleshed out with its own status
+    // and custody history so the Case Workspace / Exhibit Detail screens have
+    // real content to render for JUDGE/CHAMBERS_STAFF/ADMIN, and a real row to
+    // prove absent for DEPUTY/CLERK/ATTORNEY. ---
+    const exSealed = await makeExhibit(
+      'S-1',
+      'Chambers sidebar note — ex parte submission',
+      'PROSECUTION',
+      undefined,
+      { isSealed: true },
+    );
+    await recordStatusChange({
+      exhibitId: exSealed,
+      toStatus: 'MARKED',
+      actorUserId: users.CHAMBERS_STAFF,
+    });
+    await recordStatusChange({
+      exhibitId: exSealed,
+      toStatus: 'OFFERED',
+      actorUserId: users.CHAMBERS_STAFF,
+    });
+    await recordStatusChange({ exhibitId: exSealed, toStatus: 'ADMITTED', actorUserId: judge });
+    await recordCustodyTransfer({
+      exhibitId: exSealed,
+      fromCustodianUserId: null,
+      toCustodianUserId: users.CHAMBERS_STAFF,
+      reason: 'chambers intake',
+      actorUserId: users.CHAMBERS_STAFF,
+    });
+
     const exhibitCount = await prisma.exhibit.count({ where: { caseId } });
 
     // Step 5 — post-seed assertion (fail-fast). If any required edge case is
@@ -343,8 +380,9 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
 }
 
 /**
- * Verify the three deliberately-planted edge cases are present. Each must hold
- * ≥1 or the seed is rejected (SeedIntegrityError → caller rolls back).
+ * Verify the deliberately-planted fixtures are present: the three Phase 1 edge
+ * cases plus Phase 2's sealed-exhibit role-based-visibility fixture. Each must
+ * hold ≥1 or the seed is rejected (SeedIntegrityError → caller rolls back).
  */
 async function assertSeedIntegrity(caseId: string): Promise<void> {
   // 1. At least one unresolved objection exists case-wide.
@@ -383,6 +421,14 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
   if (admittedWithUnresolved.length < 1) {
     throw new SeedIntegrityError(
       'Seed integrity check failed: expected ≥1 ADMITTED exhibit with an unresolved objection, found 0',
+    );
+  }
+
+  // 4. At least one sealed exhibit exists (Phase 2's role-based-visibility fixture).
+  const sealedCount = await prisma.exhibit.count({ where: { caseId, isSealed: true } });
+  if (sealedCount < 1) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected ≥1 sealed exhibit, found 0',
     );
   }
 }

@@ -39,13 +39,13 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
   }
 
   it('returns null for a nonexistent exhibit (route maps to 404)', async () => {
-    const result = await getExhibitHistory('00000000-0000-0000-0000-000000000000');
+    const result = await getExhibitHistory('00000000-0000-0000-0000-000000000000', 'JUDGE');
     expect(result).toBeNull();
   });
 
   it('reconstructs the complete, sequence-ordered timeline for the jury-eligible exhibit (P-3)', async () => {
     const exhibitId = await exhibitIdByLabel('P-3');
-    const history = await getExhibitHistory(exhibitId);
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
 
     expect(history).not.toBeNull();
     if (!history) return;
@@ -96,7 +96,7 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
 
   it('renders every entry with a plain-language summary and a resolved actor name (no raw enum/JSON/UUID leaks)', async () => {
     const exhibitId = await exhibitIdByLabel('P-3');
-    const history = await getExhibitHistory(exhibitId);
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
     expect(history).not.toBeNull();
     if (!history) return;
 
@@ -133,7 +133,7 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
     expect(exhibits.length).toBeGreaterThanOrEqual(8);
 
     for (const ex of exhibits) {
-      const history = await getExhibitHistory(ex.id);
+      const history = await getExhibitHistory(ex.id, 'JUDGE');
       expect(history).not.toBeNull();
       expect(history?.discrepancyFlags).toEqual([]);
     }
@@ -141,7 +141,7 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
 
   it('reconstructs the full history for the custody-gap exhibit (P-2) with no custodian name', async () => {
     const exhibitId = await exhibitIdByLabel('P-2');
-    const history = await getExhibitHistory(exhibitId);
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
     expect(history).not.toBeNull();
     if (!history) return;
 
@@ -151,5 +151,49 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
     expect(
       history.timeline.filter((t) => t.eventType === 'CUSTODY_TRANSFER'),
     ).toHaveLength(0);
+  });
+
+  describe('sealed-exhibit role-based visibility (inherited from getExhibit)', () => {
+    let sealedId: string;
+
+    beforeAll(async () => {
+      // Create a sealed exhibit in the seeded case, with one ledger event so a
+      // visible history would have a non-empty timeline — proving the null for an
+      // unauthorized role is masking, not merely an empty history.
+      const sealed = await prisma.exhibit.create({
+        data: {
+          caseId,
+          exhibitLabel: `SEALED-HISTORY-${Date.now()}`,
+          description: 'A sealed exhibit for history-masking tests',
+          offeringParty: 'PROSECUTION',
+          isSealed: true,
+        },
+      });
+      sealedId = sealed.id;
+      const actor = await prisma.user.findFirst({ where: { caseId } });
+      if (!actor) throw new Error('seed produced no users');
+      await prisma.exhibitEvent.create({
+        data: {
+          exhibitId: sealedId,
+          caseId,
+          eventType: 'STATUS_CHANGE',
+          payload: { fromStatus: null, toStatus: 'MARKED' },
+          actorUserId: actor.id,
+          sequenceNo: 1,
+        },
+      });
+    });
+
+    it('resolves to null for a sealed exhibit read by an unauthorized role (ATTORNEY)', async () => {
+      const history = await getExhibitHistory(sealedId, 'ATTORNEY');
+      expect(history).toBeNull();
+    });
+
+    it('resolves to the full history for a sealed exhibit read by JUDGE', async () => {
+      const history = await getExhibitHistory(sealedId, 'JUDGE');
+      expect(history).not.toBeNull();
+      expect(history?.exhibit.id).toBe(sealedId);
+      expect(history?.timeline.length).toBeGreaterThan(0);
+    });
   });
 });

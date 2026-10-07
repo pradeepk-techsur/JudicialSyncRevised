@@ -23,8 +23,12 @@ export async function GET(
     }
 
     // No status row — decide 200 (exhibit exists, not yet entered) vs 404 (no
-    // such exhibit) by checking exhibit identity.
-    const exhibit = await getExhibit(id);
+    // such exhibit) by checking exhibit identity. getExhibit now requires a role
+    // (plan 02-02 added sealed-masking to its signature); this F1 status route is
+    // explicitly out of scope for role-based visibility (plan 02-02 scope note),
+    // so it passes JUDGE — a visibility superset — to preserve its prior
+    // existence-check semantics unchanged (sees every exhibit, incl. sealed).
+    const exhibit = await getExhibit(id, 'JUDGE');
     if (!exhibit) {
       throw new NotFoundError('EXHIBIT_NOT_FOUND', 'No exhibit found with the given ID');
     }

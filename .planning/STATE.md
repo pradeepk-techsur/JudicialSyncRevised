@@ -2,15 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-07T03:59:14.811Z"
-last_activity: "2026-10-07 — Phase 1 complete"
+status: executing
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-10-07T08:59:25.466Z"
+last_activity: "2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06 — phase 2 complete.]"
 progress:
   total_phases: 5
-  completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
-  percent: 20
+  completed_phases: 2
+  total_plans: 14
+  completed_plans: 14
+  percent: 40
 ---
 
 # Project State
@@ -20,16 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 1 — Data Foundation
+**Current focus:** Phase 2 — Core Screens
 
 ## Current Position
 
-Phase: 1 of 5 (Data Foundation)
-Plan: 7 of 7 complete in current phase
-Status: Phase complete — ready for verification/transition
-Last activity: 2026-10-07 — Completed 01-07-PLAN.md (ledger replay: getExhibitHistory full timeline + rebuildProjections read-only projection-integrity check, both verified against the real seed incl. negative control). Phase 1 complete (7/7).
+Phase: 2 of 5 (Core Screens)
+Status: All 7 plans complete (wave 3 02-06 + 02-07 both done) — ready for phase transition / verify
+Last activity: 2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -61,6 +61,13 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01 P04 | 3 min | 2 tasks | 6 files |
 | Phase 01-data-foundation P06 | 5 min | 2 tasks | 4 files |
 | Phase 01-data-foundation P7 | 4 min | 2 tasks | 6 files |
+| Phase 02-core-screens P03 | 8 min | 2 tasks | 7 files |
+| Phase 02-core-screens P02 | 9 min | 2 tasks | 12 files |
+| Phase 02 P01 | 10 min | 3 tasks | 15 files |
+| Phase 02-core-screens P04 | 8 min | 2 tasks | 7 files |
+| Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
+| Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
+| Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -92,6 +99,22 @@ Recent decisions affecting current work:
 - [Phase 01-07]: getExhibitHistory replays the full ExhibitEvent ledger (all event types, sequenceNo order, no truncation) into plain-language summaries with resolved actor/custodian names; discrepancyFlags is [] until Phase 3's DiscrepancyFlag table exists
 - [Phase 01-07]: rebuildProjections is a strictly read-only ledger-replay integrity check (zero recordEvent / zero *CurrentState writes, threat T-01-20); RESERVED rulings leave a thread UNRESOLVED in replay, mirroring recordRuling; proven by a negative control that detects a corrupted projection
 - [Phase 01-07]: vitest fileParallelism:false — all integration suites share one Postgres and the same fixed-caseNumber seed, so parallel workers rebuilding it race into FK violations
+- [Phase 02-03]: DEMO_CASE_NUMBER extracted to src/lib/constants.ts as the single source of truth; seed loader and cases.ts both import it instead of re-literalling 2026-CR-0142
+- [Phase 02-03]: Sealed exhibit S-1 (isSealed:true, full status+custody history) planted via the live service path only (zero direct ledger/projection inserts, threat T-02-08); assertSeedIntegrity now requires >=1 sealed exhibit
+- [Phase 02-03]: GET /api/case returns the full 6-persona roster unfiltered (accepted risk T-02-07: synthetic personas, no real PII; the role switcher needs the whole roster)
+- [Phase 02-core-screens]: [02-02]: Sealed-exhibit visibility centralized in src/services/visibility.ts (canViewSealed + parseRequestingRole); applied as a findFirst WHERE predicate in getExhibit and inherited by getExhibitHistory — never a post-query filter, never duplicated per-route
+- [Phase 02-core-screens]: [02-02]: parseRequestingRole fails CLOSED to ATTORNEY (least-privileged) on missing/invalid X-User-Role; both exhibit routes return byte-identical 404s for sealed-unauthorized vs genuinely-missing (anti-enumeration, deep-equal asserted at HTTP layer)
+- [Phase 02-01]: Dropped shadcn's injected next/font/google (Geist) from layout.tsx to keep a minimal provider-only layout and avoid build-time font fetches; typography deferred to app-shell plan 02-05
+- [Phase 02-01]: Phase 2 UI tooling (Tailwind v4 + shadcn/ui, @tanstack/react-query + QueryClientProvider, zustand, @playwright/test pinned to PIVOTA_PLAYWRIGHT_VERSION) installed once here so every later UI plan shares one config
+- [Phase 02-core-screens]: [02-04]: ExhibitListRow (src/lib/types.ts) is the single shared composite row shape both getExhibits and searchExhibits return via one shared toListRow mapper — list and search can never drift; the Case Workspace (02-06) renders it with zero query logic
+- [Phase 02-core-screens]: [02-04]: getExhibits sort key changed from createdAt to exhibitLabel ascending so F9 and F4 share one default order; assertCaseExists adds CASE_NOT_FOUND 404 (first consumer); searchExhibits enforces EMPTY_SEARCH_CRITERIA/INVALID_DATE_RANGE/VALIDATION_ERROR and nests date filters on currentState.lastStatusAt (auto-excludes never-statused exhibits)
+- [Phase 02-05]: App shell role switcher uses a native <select> (keyboard/SR-accessible, simple to test) over the portal-rendering shadcn/Radix Select; richer shadcn primitives reserved for the two screens' filter controls
+- [Phase 02-05]: useRoleStore is the demo's entire client-side session (zustand); apiFetch reads it via getState() to attach X-User-Role to every request — no cookie/session infra
+- [Phase 02-05]: StatusBadge is the single shared status representation (dot+label+aria-label, all 6 statuses + null); both 02-06/02-07 import it identically (US-1.2 structural guarantee)
+- [Phase 02-core-screens]: [02-06]: Case Workspace follows a one-hook + presentational-components pattern — useExhibitList is the screen's single query path (getExhibits vs searchExhibits on filter state), keyed on role so a switch forces a fresh server-enforced query (threat T-02-15); zero screen-local status/custody derivation
+- [Phase 02-core-screens]: [02-06]: Empty-search guarded client-side (all-empty filters route to the unfiltered list, inline hint, never a hard error); the API's 422 EMPTY_SEARCH_CRITERIA remains defense-in-depth for other callers
+- [Phase 02-07]: Exhibit Detail (/exhibit/:id): useExhibitHistory throws typed NotFoundError on 404 (retry disabled → no sealed-probe timing side-channel), role in query key for immediate re-fetch; ExhibitNotFound is the single shared render for missing AND sealed-unauthorized (byte-identical, anti-enumeration); Timeline renders getExhibitHistory summaries verbatim (F7 text-parity precondition)
+- [Phase 02-07]: 02-07 Playwright drives the unauthorized sealed probe via page.route X-User-Role header injection (in-memory zustand session resets to JUDGE on full navigation, so a UI role switch can't survive page.goto); cross-screen parity asserted against the shared /api/cases/:id/exhibits service mapped through StatusBadge labels, decoupled from 02-06's DOM
 
 ### Pending Todos
 
@@ -100,9 +123,10 @@ None yet.
 ### Blockers/Concerns
 
 - npm audit reports 6 dev-tooling-only advisories (vitest/tinypool, @prisma/config/deepmerge-ts). `npm audit fix --force` only offers breaking downgrades to older versions — not applied. Revisit when upstream ships forward fixes. Not a runtime risk.
+- Concurrent execution (config parallelization:true) ran plans 02-01 and 02-02 against one shared working tree, causing a transient build break and an accidental revert of 02-02's uncommitted work (since recovered — 02-02 committed in full). Recommend per-plan git worktrees or serialized intra-phase execution.
 
 ## Session Continuity
 
-Last session: 2026-10-07T03:02:38.494Z
-Stopped at: Completed 01-07-PLAN.md
+Last session: 2026-10-07T08:59:17.286Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None

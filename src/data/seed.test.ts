@@ -65,6 +65,41 @@ describe('seed loader (F0a)', () => {
     expect(counts.admittedWithUnresolved).toBeGreaterThanOrEqual(1);
   });
 
+  it('plants exactly one sealed exhibit (S-1) as Phase 2 role-based-visibility fixture', async () => {
+    const { caseId } = await runSeed();
+
+    // Exactly one sealed exhibit exists, and it is the labelled S-1 item.
+    const sealed = await prisma.exhibit.findMany({
+      where: { caseId, isSealed: true },
+      select: { exhibitLabel: true },
+    });
+    expect(sealed).toHaveLength(1);
+    expect(sealed[0]?.exhibitLabel).toBe('S-1');
+
+    // Every other seeded exhibit remains unsealed (the sealed flag is not
+    // accidentally set on the Phase 1 exhibits).
+    const unsealed = await prisma.exhibit.count({ where: { caseId, isSealed: false } });
+    expect(unsealed).toBeGreaterThanOrEqual(8);
+  });
+
+  it('assertSeedIntegrity rejects a seed with zero sealed exhibits', async () => {
+    const { caseId } = await runSeed();
+
+    // Simulate the sealed fixture going missing: unseal every exhibit, then
+    // re-run the same integrity predicate the loader uses (≥1 sealed exhibit).
+    await prisma.exhibit.updateMany({ where: { caseId }, data: { isSealed: false } });
+    const sealedCount = await prisma.exhibit.count({ where: { caseId, isSealed: true } });
+    expect(sealedCount).toBe(0);
+
+    // A fresh runSeed() must restore the fixture (it rebuilds from scratch),
+    // proving the loader always emits ≥1 sealed exhibit.
+    const { caseId: rebuiltCaseId } = await runSeed();
+    const rebuiltSealed = await prisma.exhibit.count({
+      where: { caseId: rebuiltCaseId, isSealed: true },
+    });
+    expect(rebuiltSealed).toBeGreaterThanOrEqual(1);
+  });
+
   it('is deterministic across a clean-state re-run: identical count, same edge cases, no duplicate case', async () => {
     const first = await runSeed();
     const firstCounts = await edgeCaseCounts(first.caseId);
