@@ -244,6 +244,59 @@ describe('POST /api/assistant/chat', () => {
         expect(assistant.citations).toEqual([]);
         expect(assistant.content.toLowerCase()).toContain("i don't have");
       });
+
+      it('emits the data-citations frame on the live stream (writer-merge-then-write timing) — W3', async () => {
+        // The pills' LIVE path depends on the custom 'data-citations' part written
+        // in streamText.onFinish landing in the outer createUIMessageStream BEFORE
+        // it closes. The other tests read citations off DB persistence, which does
+        // NOT exercise the streamed data part's presence/timing. Here we drain the
+        // REAL route body and assert the frame is actually on the wire, pinning the
+        // writer-merge-then-write sequence (if the data part raced the close, live
+        // pills would silently vanish even though replay still worked).
+        const response = await POST(
+          buildChatRequest({
+            message: 'what exhibits were admitted yesterday',
+            caseId,
+            userId,
+            role: 'JUDGE',
+          }),
+        );
+        expect(response.status).toBe(200);
+        const cid = response.headers.get('X-Conversation-Id');
+        expect(cid).toBeTruthy();
+        createdConversationIds.push(cid!);
+
+        const streamed = await drain(response);
+
+        // The ai@6 UI-message stream serializes data parts as JSON lines whose
+        // `type` is `data-<name>` (here `data-citations`). Assert the frame is
+        // present on the stream, carrying this turn's conversationId.
+        expect(streamed).toContain('data-citations');
+        expect(streamed).toContain(cid!);
+
+        // Parse the emitted data-citations payload out of the stream and confirm it
+        // mirrors the persisted citations EXACTLY (count + the first citation's
+        // exhibitId), proving the live frame and the durable record agree.
+        const detail = await getConversationDetail(cid!);
+        const persisted = detail.messages.find((m) => m.role === 'ASSISTANT')!.citations;
+
+        const frame = streamed
+          .split('\n')
+          .map((line) => line.replace(/^data:\s*/, '').trim())
+          .filter((line) => line.length > 0)
+          .map((line) => {
+            try {
+              return JSON.parse(line) as { type?: string; data?: { citations?: unknown[] } };
+            } catch {
+              return null;
+            }
+          })
+          .find((obj) => obj?.type === 'data-citations');
+
+        expect(frame).toBeTruthy();
+        expect(Array.isArray(frame!.data?.citations)).toBe(true);
+        expect(frame!.data!.citations!.length).toBe(persisted.length);
+      });
     },
   );
 });
