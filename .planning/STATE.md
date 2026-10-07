@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 Phase: 2 of 5 (Core Screens)
 Status: In progress (wave 2, parallel execution)
-Last activity: 2026-10-07 — Completed 02-04-PLAN.md (exhibit list + search data layer: ExhibitListRow shared row shape, getExhibits upgraded to the enriched shape with role-based sealed exclusion + CASE_NOT_FOUND, new searchExhibits + /search route with AND-semantics filtering and three 422 codes; 29 tests pass, tsc + next build clean).
+Last activity: 2026-10-07 — Completed 02-05-PLAN.md (app shell: useRoleStore client-side session + apiFetch X-User-Role wrapper; shared StatusBadge (all 6 statuses + null); AppShell header/role-switcher/disabled-Ask + sidebar with 1 live link and 3 aria-disabled placeholders, wired into the root layout; / → /case; e2e/app-shell.spec.ts 6/6 pass, build clean). [Wave 2 ran in parallel with 02-04.]
 
 Progress: [██░░░░░░░░] 20%
 
