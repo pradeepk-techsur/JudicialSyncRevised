@@ -2,8 +2,8 @@ import type { Exhibit, ExhibitStatus, OfferingParty, Role } from '@prisma/client
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import { offeringPartyEnum } from '@/lib/validation/eventPayloads';
+import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import { exhibitStatusEnum, offeringPartyEnum } from '@/lib/validation/eventPayloads';
 import type { ExhibitListRow } from '@/lib/types';
 import { canViewSealed } from '@/services/visibility';
 
@@ -167,6 +167,93 @@ export async function getExhibits(
     },
     // Sort by exhibitLabel ascending — both F9 (§Process "sorted by
     // exhibitLabel") and F4 (§Process step 4 default ordering) must agree.
+    orderBy: { exhibitLabel: 'asc' },
+  });
+  return exhibits.map(toListRow);
+}
+
+// F4 — Exhibit Search. Combinable AND-semantics filtering over the same
+// ExhibitListRow shape getExhibits returns (via the shared toListRow mapper, so
+// the two endpoints never drift). Every filter value flows through Prisma's
+// parameterized query builder — never string-interpolated into raw SQL
+// (threat T-02-09) — and `status` is validated against the exhibitStatusEnum
+// before it reaches the query.
+export interface SearchExhibitsCriteria {
+  caseId: string;
+  requestingUserRole: Role;
+  keyword?: string;
+  status?: string;
+  witness?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export async function searchExhibits(criteria: SearchExhibitsCriteria): Promise<ExhibitListRow[]> {
+  const { caseId, requestingUserRole, keyword, status, witness, dateFrom, dateTo } = criteria;
+
+  // At least one criterion required (EMPTY_SEARCH_CRITERIA, 422) — the
+  // unfiltered full list is a separate call (getExhibits).
+  if (!keyword && !status && !witness && !dateFrom && !dateTo) {
+    throw new UnprocessableError('EMPTY_SEARCH_CRITERIA', 'At least one search criterion is required');
+  }
+
+  if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+    throw new UnprocessableError('INVALID_DATE_RANGE', 'dateFrom must not be after dateTo');
+  }
+
+  if (status) {
+    const parsed = exhibitStatusEnum.safeParse(status);
+    if (!parsed.success) {
+      throw new ValidationError('status must be a valid exhibit status value');
+    }
+  }
+
+  await assertCaseExists(caseId);
+
+  const exhibits = await prisma.exhibit.findMany({
+    where: {
+      caseId,
+      // Sealed exclusion lives in the SAME WHERE clause as the content filters
+      // (threat T-02-10): a sealed exhibit can never surface in results for an
+      // unauthorized role regardless of how well it matches the keyword.
+      ...(canViewSealed(requestingUserRole) ? {} : { isSealed: false }),
+      ...(keyword
+        ? {
+            OR: [
+              { exhibitLabel: { contains: keyword, mode: 'insensitive' } },
+              { description: { contains: keyword, mode: 'insensitive' } },
+              { source: { contains: keyword, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(witness ? { associatedWitness: { contains: witness, mode: 'insensitive' } } : {}),
+      ...(status || dateFrom || dateTo
+        ? {
+            currentState: {
+              ...(status ? { currentStatus: status as ExhibitStatus } : {}),
+              // F4 §Process step 5: no event-type hint given -> filter on the
+              // most recent STATUS_CHANGE event's timestamp, which is exactly
+              // what ExhibitCurrentState.lastStatusAt already records. For an
+              // exhibit with no ExhibitCurrentState row yet, Prisma's relational
+              // filter on an optional to-one relation requires the related row to
+              // exist and match, so it is correctly excluded whenever either
+              // filter is active — no manual null-handling needed.
+              ...(dateFrom || dateTo
+                ? {
+                    lastStatusAt: {
+                      ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+                      ...(dateTo ? { lte: new Date(dateTo) } : {}),
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    },
+    include: {
+      currentState: { select: { currentStatus: true } },
+      custodyState: { include: { custodian: { select: { name: true } } } },
+    },
     orderBy: { exhibitLabel: 'asc' },
   });
   return exhibits.map(toListRow);

@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
-import { createExhibit, getExhibit, getExhibits } from '@/services/exhibits';
-import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import { createExhibit, getExhibit, getExhibits, searchExhibits } from '@/services/exhibits';
+import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import { DEMO_CASE_NUMBER } from '@/lib/constants';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
 
@@ -188,5 +189,138 @@ describe('exhibits service', () => {
         (err: unknown) => err instanceof NotFoundError && err.code === 'CASE_NOT_FOUND',
       );
     });
+  });
+});
+
+// searchExhibits runs against the deterministic Phase 1 seed (DEMO_CASE_NUMBER),
+// whose known fixtures anchor the AND-combination assertions:
+//   - P-3 "Lab report — DNA match analysis", witness "Dr. Amara Finch", ADMITTED
+//   - S-1 "Chambers sidebar note", isSealed:true, ADMITTED (role-scoped)
+// `npm run seed` must have populated the DB (the plan's verify step runs it).
+describe('searchExhibits (F4)', () => {
+  let demoCaseId: string;
+
+  beforeEach(async () => {
+    const kase = await prisma.case.findUnique({
+      where: { caseNumber: DEMO_CASE_NUMBER },
+      select: { id: true },
+    });
+    if (!kase) {
+      throw new Error(
+        `Demo case ${DEMO_CASE_NUMBER} not seeded — run \`npx tsx src/data/seed.ts\` first`,
+      );
+    }
+    demoCaseId = kase.id;
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it('rejects an empty request with 422 EMPTY_SEARCH_CRITERIA', async () => {
+    await expect(
+      searchExhibits({ caseId: demoCaseId, requestingUserRole: 'JUDGE' }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof UnprocessableError && err.code === 'EMPTY_SEARCH_CRITERIA',
+    );
+  });
+
+  it('rejects dateFrom after dateTo with 422 INVALID_DATE_RANGE', async () => {
+    await expect(
+      searchExhibits({
+        caseId: demoCaseId,
+        requestingUserRole: 'JUDGE',
+        dateFrom: '2026-12-31',
+        dateTo: '2026-01-01',
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof UnprocessableError && err.code === 'INVALID_DATE_RANGE',
+    );
+  });
+
+  it('rejects an invalid status value with 422 VALIDATION_ERROR', async () => {
+    await expect(
+      searchExhibits({
+        caseId: demoCaseId,
+        requestingUserRole: 'JUDGE',
+        status: 'NOT_A_STATUS',
+      }),
+    ).rejects.toSatisfy(
+      (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_ERROR',
+    );
+  });
+
+  it('witness=Finch matches only P-3', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+    });
+    expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
+  });
+
+  it('AND-combination: witness=Finch & status=ADMITTED still matches P-3', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+      status: 'ADMITTED',
+    });
+    expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
+  });
+
+  it('AND-combination narrows to zero: witness=Finch & status=MARKED matches nothing', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+      status: 'MARKED',
+    });
+    expect(results).toHaveLength(0);
+  });
+
+  it('returns the ExhibitListRow shape with enriched currentStatus/custodian', async () => {
+    const [p3] = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+    });
+    expect(p3).toMatchObject({
+      exhibitLabel: 'P-3',
+      associatedWitness: 'Dr. Amara Finch',
+      currentStatus: 'ADMITTED',
+      discrepancyFlags: [],
+    });
+    // P-3's custody chain ends at the clerk (seed) — custodian name is resolved.
+    expect(p3.currentCustodianName).toBeTruthy();
+  });
+
+  it('results are ordered by exhibitLabel ascending', async () => {
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      status: 'ADMITTED',
+    });
+    const labels = results.map((r) => r.exhibitLabel);
+    expect(labels).toEqual([...labels].sort());
+    expect(labels.length).toBeGreaterThan(1);
+  });
+
+  it('excludes a sealed exhibit from results for an unauthorized role even on a matching keyword', async () => {
+    // S-1 is sealed (keyword "sidebar" matches its description). JUDGE sees it,
+    // ATTORNEY must not — T-02-10.
+    const judgeResults = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      keyword: 'sidebar',
+    });
+    expect(judgeResults.map((r) => r.exhibitLabel)).toContain('S-1');
+
+    const attorneyResults = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'ATTORNEY',
+      keyword: 'sidebar',
+    });
+    expect(attorneyResults.map((r) => r.exhibitLabel)).not.toContain('S-1');
   });
 });
