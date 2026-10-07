@@ -105,7 +105,12 @@ Plans:
   1. A user can open the Trial Command Center with no setup or configuration step and immediately see recent status changes, currently-unresolved objections, and outstanding discrepancies for the active trial.
   2. When a new event (status change, objection, ruling, custody transfer) is recorded from one browser tab, the Trial Command Center and any other open screen reflect it within one polling interval, with no manual page refresh required.
   3. The Trial Command Center exposes no path to record, edit, or acknowledge anything from that screen — it is strictly passive/read-only monitoring.
-**Plans**: TBD
+**Plans**: 3 plans (3 waves)
+
+Plans:
+- [ ] 05-01-PLAN.md — Recent Activity backend: export summarizeEvent, getRecentActivity service (role-scoped, latest-event-day window, since-validation) + GET /api/cases/:id/activity + COMMAND_CENTER_LOAD_FAILED + role-scoped getUnresolvedObjections (F8 backend)
+- [ ] 05-02-PLAN.md — Live-sync tuning: refetchOnWindowFocus enabled globally + three independent 4s polling hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies) + useFreshness primitive
+- [ ] 05-03-PLAN.md — Command Center screen: three ambient read-only panels + freshness indicator + fade-in, sidebar activation (first/default), / → /command-center redirect, sealed-safe panels, Playwright E2E (read-only, sealed absence, multi-tab live update, error isolation)
 
 ## Progress
 
@@ -118,4 +123,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | In progress | - |
 | 4. Pivota Assistant | 0/5 | Planned | - |
-| 5. Trial Command Center + Live Sync | 0/TBD | Not started | - |
+| 5. Trial Command Center + Live Sync | 0/3 | Planned | - |
