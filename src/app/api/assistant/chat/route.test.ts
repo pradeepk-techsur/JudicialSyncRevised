@@ -31,6 +31,15 @@ import { POST } from '@/app/api/assistant/chat/route';
 // own conversations.
 // =============================================================================
 
+// Per-test timeout for the key-gated real-LLM tests. Each makes a live Anthropic
+// round-trip (model call + tool calls + stream drain), which routinely exceeds
+// vitest's 5s default under concurrent file load (observed 5001ms at the phase
+// regression gate; the same test passes at ~4.8s in isolation). Network-bound,
+// not a logic failure — a generous explicit timeout keeps them deterministic
+// without weakening a single assertion. These tests skip entirely when no key is
+// present, so this never touches the no-key gate path.
+const LLM_TEST_TIMEOUT = 30_000;
+
 // The 5 named demo questions (ROADMAP / CONTEXT.md).
 const DEMO_QUESTIONS = [
   'what exhibits were admitted yesterday',
@@ -229,6 +238,7 @@ describe('POST /api/assistant/chat', () => {
             }
           }
         },
+        LLM_TEST_TIMEOUT,
       );
 
       it('"what exhibits were admitted yesterday" carries >=1 pill when grounded (searchExhibits path)', async () => {
@@ -236,14 +246,14 @@ describe('POST /api/assistant/chat', () => {
         if (!assistant.content.toLowerCase().includes("i don't have")) {
           expect(assistant.citations.length).toBeGreaterThanOrEqual(1);
         }
-      });
+      }, LLM_TEST_TIMEOUT);
 
       it('sealed DEPUTY probe Declines indistinguishably from not-found (criterion 4)', async () => {
         const assistant = await ask('what happened to exhibit S-1', 'DEPUTY');
         // A Decline: zero citations, decline phrasing, and NO privileged S-1 data.
         expect(assistant.citations).toEqual([]);
         expect(assistant.content.toLowerCase()).toContain("i don't have");
-      });
+      }, LLM_TEST_TIMEOUT);
 
       it('emits the data-citations frame on the live stream (writer-merge-then-write timing) — W3', async () => {
         // The pills' LIVE path depends on the custom 'data-citations' part written
@@ -296,7 +306,7 @@ describe('POST /api/assistant/chat', () => {
         expect(frame).toBeTruthy();
         expect(Array.isArray(frame!.data?.citations)).toBe(true);
         expect(frame!.data!.citations!.length).toBe(persisted.length);
-      });
+      }, LLM_TEST_TIMEOUT);
     },
   );
 });
