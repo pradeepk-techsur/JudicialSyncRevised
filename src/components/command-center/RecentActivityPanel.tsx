@@ -38,6 +38,11 @@ export function RecentActivityPanel({
   // in place and we key rows by eventId, so React reconciles without a full
   // re-sort/flash — NO toast, NO "new data" banner (Y0-patterns).
   const seenRef = useRef<Set<string>>(new Set());
+  // Per-id removal timers. Each highlighted row owns its OWN 400ms timer so a
+  // later batch's effect run can never cancel an earlier batch's pending removal
+  // (the previous single-timer-per-run design let back-to-back new events within
+  // one 400ms window strand a row highlighted indefinitely).
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -58,18 +63,38 @@ export function RecentActivityPanel({
       for (const id of fresh) next.add(id);
       return next;
     });
-    const timer = setTimeout(() => {
-      setHighlighted((prev) => {
-        const next = new Set(prev);
-        for (const id of fresh) next.delete(id);
-        return next;
-      });
-    }, 400);
-    return () => clearTimeout(timer);
+    const timers = timersRef.current;
+    for (const id of fresh) {
+      // Re-arm defensively if this id were somehow fresh again.
+      const existing = timers.get(id);
+      if (existing) clearTimeout(existing);
+      const timer = setTimeout(() => {
+        timers.delete(id);
+        setHighlighted((prev) => {
+          if (!prev.has(id)) return prev;
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }, 400);
+      timers.set(id, timer);
+    }
+    // No per-run cleanup: each id's timer is independent and self-clears. The
+    // only teardown is on unmount (below), so an earlier batch's removal is
+    // never cancelled by a later batch.
     // Depend on the concatenated id list so the effect runs whenever the set of
     // rows changes (new event arrives at the top), not on every object identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries.map((e) => e.eventId).join(','), isLoading]);
+
+  // Clear any pending removal timers on unmount.
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   return (
     <section
