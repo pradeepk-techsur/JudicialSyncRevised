@@ -103,10 +103,11 @@ function summarizeEvent(
       return `Custody transferred from ${from} to ${to}${reason}`;
     }
     case 'DISCREPANCY_ACKNOWLEDGED': {
-      // Dead code path in Phase 1 — no such events exist yet — but included for
-      // completeness since the enum value exists in the schema.
+      // Live as of Phase 3 (F6): acknowledgeDiscrepancy appends this event. Render
+      // it as a plain-language, auditable entry naming the rule and the operator's
+      // justification so the timeline shows WHY the discrepancy was accepted.
       const p = payload as DiscrepancyAcknowledgedPayload;
-      return `Discrepancy acknowledged: ${p.justification}`;
+      return `Discrepancy acknowledged (${p.ruleCode}): ${p.justification}`;
     }
     default: {
       // Defensive: an unknown event type should never silently render as a raw

@@ -60,9 +60,12 @@ const PERSONAS: Array<{ role: Role; name: string }> = [
  * errors, no drift). Scoped exclusively to SEED_CASE_NUMBER — never touches any
  * other case's data (e.g. test fixtures).
  *
- * Order: ledger + projections (which reference exhibits/users) → exhibits →
- * users → case. Note we must clear projections BEFORE exhibits (FK), and events
- * before users (actor FK).
+ * Order: discrepancy flags + jury-package rows (which FK to exhibits AND to
+ * ledger events) → projections (which reference exhibits/users) → ledger →
+ * exhibits → users → case. Note we must clear flags/jury rows BEFORE both the
+ * ledger and exhibits (FK), projections BEFORE exhibits (FK), and events before
+ * users (actor FK). Phase 3's synchronously-wired engine now produces real
+ * DiscrepancyFlag rows on seed boot, so the reset must cascade them first.
  */
 async function resetSeedCase(): Promise<void> {
   const kase = await prisma.case.findUnique({
@@ -79,7 +82,15 @@ async function resetSeedCase(): Promise<void> {
   const exhibitIds = exhibits.map((e) => e.id);
 
   await prisma.$transaction([
-    // Projections first (they FK to exhibit, and custody FKs to user).
+    // Phase 3 tables first — DiscrepancyFlag FKs to exhibit, user, AND ledger
+    // events; JuryPackageExhibit FKs to exhibit; JuryPackage FKs to case/user.
+    // They must be cleared before the ledger and exhibits are deleted.
+    prisma.discrepancyFlag.deleteMany({ where: { caseId } }),
+    prisma.juryPackageExhibit.deleteMany({
+      where: { juryPackage: { caseId } },
+    }),
+    prisma.juryPackage.deleteMany({ where: { caseId } }),
+    // Projections next (they FK to exhibit, and custody FKs to user).
     prisma.exhibitCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.objectionCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.custodyCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),

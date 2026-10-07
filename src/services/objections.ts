@@ -3,6 +3,7 @@ import type { ExhibitEvent, ObjectionCurrentState } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { AppError, NotFoundError, ValidationError } from '@/lib/errors';
 import { recordEvent } from '@/services/events';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // F2 — Objection and Ruling Tracking.
 //
@@ -193,21 +194,27 @@ export async function recordRuling(args: {
     //      and does NOT set rulingEventId/ruledAt (F02 §Process step 7). The
     //      ledger event above is the durable record of the reservation for
     //      timeline/history (F10) and keeps the thread counting as unresolved
-    //      for F6.
-    if (disposition === 'RESERVED') {
-      return { event, objectionState };
-    }
+    //      for F6. Either way we recompute the current state THEN re-evaluate
+    //      discrepancies before returning, so the UNRESOLVED_OBJECTION rule
+    //      sees the up-to-date projection in the SAME transaction.
+    const nextState =
+      disposition === 'RESERVED'
+        ? objectionState
+        : await tx.objectionCurrentState.update({
+            where: { objectionId },
+            data: {
+              status: disposition,
+              rulingEventId: event.id,
+              ruledAt: event.recordedAt,
+            },
+          });
 
-    const updated = await tx.objectionCurrentState.update({
-      where: { objectionId },
-      data: {
-        status: disposition,
-        rulingEventId: event.id,
-        ruledAt: event.recordedAt,
-      },
-    });
+    // Resolving the LAST unresolved thread of an ADMITTED exhibit clears
+    // UNRESOLVED_OBJECTION_JURY_ELIGIBLE; RESERVED keeps it (no-op). Runs for
+    // both branches (Y3 §Internal Triggers), attributing to the ruling event.
+    await evaluateDiscrepancies(objectionState.exhibitId, tx, event.id);
 
-    return { event, objectionState: updated };
+    return { event, objectionState: nextState };
   });
 }
 
