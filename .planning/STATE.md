@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-10-07T06:14:16.354Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-10-07T08:08:33.837Z"
 last_activity: "2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass)."
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 8
+  completed_plans: 9
   percent: 20
 ---
 
@@ -62,6 +62,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01-data-foundation P06 | 5 min | 2 tasks | 4 files |
 | Phase 01-data-foundation P7 | 4 min | 2 tasks | 6 files |
 | Phase 02-core-screens P03 | 8 min | 2 tasks | 7 files |
+| Phase 02-core-screens P02 | 9 min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting current work:
 - [Phase 02-03]: DEMO_CASE_NUMBER extracted to src/lib/constants.ts as the single source of truth; seed loader and cases.ts both import it instead of re-literalling 2026-CR-0142
 - [Phase 02-03]: Sealed exhibit S-1 (isSealed:true, full status+custody history) planted via the live service path only (zero direct ledger/projection inserts, threat T-02-08); assertSeedIntegrity now requires >=1 sealed exhibit
 - [Phase 02-03]: GET /api/case returns the full 6-persona roster unfiltered (accepted risk T-02-07: synthetic personas, no real PII; the role switcher needs the whole roster)
+- [Phase 02-core-screens]: [02-02]: Sealed-exhibit visibility centralized in src/services/visibility.ts (canViewSealed + parseRequestingRole); applied as a findFirst WHERE predicate in getExhibit and inherited by getExhibitHistory — never a post-query filter, never duplicated per-route
+- [Phase 02-core-screens]: [02-02]: parseRequestingRole fails CLOSED to ATTORNEY (least-privileged) on missing/invalid X-User-Role; both exhibit routes return byte-identical 404s for sealed-unauthorized vs genuinely-missing (anti-enumeration, deep-equal asserted at HTTP layer)
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T06:14:16.353Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-10-07T08:08:19.831Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
