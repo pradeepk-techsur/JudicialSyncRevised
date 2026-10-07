@@ -1,7 +1,7 @@
 {
   "generator_version": "init-dev-server@1",
   "catalog_entry": null,
-  "generated_at": "2026-10-07T03:22:54Z",
+  "generated_at": "2026-10-07T09:53:00Z",
   "inspection_inputs_hash": "e0eb41402ae60fce399241c32c6b1dfdb78209e818a48673cf8d5afcfbc4a988",
   "inspection_inputs": {
     "matched_globs": [
@@ -22,14 +22,6 @@
       "package.json:script:start=next start",
       "package.json:script:test=vitest run"
     ],
-    "existing_scripts": []
-  }
-}
-  "generated_at": "2026-10-07T03:27:50Z",
-  "inspection_inputs_hash": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
-  "inspection_inputs": {
-    "matched_globs": [],
-    "manifest_signatures": [],
     "existing_scripts": []
   }
 }
