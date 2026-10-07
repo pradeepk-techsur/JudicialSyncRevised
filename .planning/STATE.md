@@ -2,14 +2,15 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-07T21:05:15.025Z"
-last_activity: "2026-10-07 — Phase 4 complete"
+status: in_progress
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-10-07T21:13:38.932Z"
+last_activity: "2026-10-07 — Completed 05-01-PLAN.md (Command Center Recent-Activity backend): getRecentActivity read-only service + GET /api/cases/:id/activity composing the ExhibitEvent ledger through the shared summarizeEvent (now exported from history.ts) newest-first with the same role-based sealed WHERE predicate; default window anchored to start-of-day of the latest case event (never empty); since validated 422; non-AppError failure -> 500 COMMAND_CENTER_LOAD_FAILED; getUnresolvedObjections gains optional requestingUserRole (sealed-thread exclusion, no-arg callers unchanged). Full vitest suite green (195|3 skipped), tsc+build clean."
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 27
-  completed_plans: 24
+  completed_plans: 25
   percent: 80
 ---
 
@@ -20,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 4 — Pivota Assistant (F7) — COMPLETE; Phase 5 (Command Center) next
+**Current focus:** Phase 5 — Trial Command Center & Live Sync (F8) — IN PROGRESS (05-01 backend landed)
 
 ## Current Position
 
-Phase: 4 of 5 (Pivota Assistant) — COMPLETE (all 5 core plans: 01-05, plus gap-closure plan 06)
-Status: Phase 4 completed — 04-06 gap-closure plan (citation-decline gating fix, UAT test 7) landed. Phase 5 (Trial Command Center) is next.
-Last activity: 2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean.
+Phase: 5 of 5 (Trial Command Center & Live Sync) — IN PROGRESS (05-01 of ~3 plans complete)
+Status: 05-01 (Recent-Activity backend) complete — getRecentActivity service + GET /api/cases/:id/activity route + role-scoped getUnresolvedObjections. Next: 05-02 (live-sync hooks) then 05-03 (Command Center UI + Objections/Discrepancies panels).
+Last activity: 2026-10-07 — Completed 05-01-PLAN.md (Command Center Recent-Activity backend): getRecentActivity read-only service + GET /api/cases/:id/activity composing the ExhibitEvent ledger through the shared summarizeEvent (now exported from history.ts) newest-first with the same role-based sealed WHERE predicate; default window anchored to start-of-day of the latest case event (never empty); since validated 422; non-AppError failure -> 500 COMMAND_CENTER_LOAD_FAILED; getUnresolvedObjections gains optional requestingUserRole (sealed-thread exclusion, no-arg callers unchanged). Full vitest suite green (195|3 skipped), tsc+build clean.
 
 Progress: [████████░░] 80%
 
@@ -77,6 +78,7 @@ Progress: [████████░░] 80%
 | Phase 04-pivota-assistant P04 | 3 min | 2 tasks | 3 files |
 | Phase 04-pivota-assistant P05 | 10 min | 3 tasks | 13 files |
 | Phase 04-pivota-assistant P06 | 4 min | 2 tasks | 2 files |
+| Phase 05-trial-command-center-live-sync P01 | 5 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -151,6 +153,10 @@ Recent decisions affecting current work:
 - [Phase 04-pivota-assistant]: [04-05]: E2E determinism via path (a) — page.route fulfills 04-03's captured ai@6 UI-message SSE frame (start/text-delta/finish/data-citations/[DONE]) WITH the SDK's own x-vercel-ai-ui-message-stream:v1 header so DefaultChatTransport parses it like the real route; citation payloads bound to REAL seed exhibitId/eventId (resolved at runtime) so #event-<id> exists; 503 fixture rides the SDK error channel (never a decline). The documented hook-state fallback (b) proved unnecessary — raw-SSE mock parsed on first run
 - [Phase 04-pivota-assistant]: [04-05]: Stale e2e/app-shell.spec.ts assertions updated for the now-activated nav (Ask✦ enabled+opens panel; Assistant a live /assistant link, Command Center sole placeholder) — [Rule 1] deviation for intentionally-changed behavior
 - [Phase 04-pivota-assistant]: [04-06]: onFinish gates citation computation on isDeclineText(text) — a tool returning rows this turn is necessary but not sufficient for grounded; only the model's own final text deciding to assert a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven) with a single-conditional, minimal-surface fix.
+- [Phase 05-01]: summarizeEvent exported in place from history.ts (minimal, co-located; additive over 03-01's DISCREPANCY_ACKNOWLEDGED wording) so getRecentActivity reuses the identical summarizer — Command Center wording can never drift from Exhibit Detail
+- [Phase 05-01]: Recent Activity default window anchored to start-of-day of the LATEST case event (rolling anchor, never wall-clock today) so a seeded demo feed is never empty regardless of run date; empty case returns []
+- [Phase 05-01]: getUnresolvedObjections gains an OPTIONAL requestingUserRole (sealed-thread exclusion via WHERE predicate); no-arg callers (case-wide /objections jury-sidebar count) keep viewer-independent behavior, 05-03 passes the parsed role
+- [Phase 05-01]: /activity route catch splits typed ValidationError -> 422 VALIDATION_ERROR (bad/future since) from any non-AppError -> 500 COMMAND_CENTER_LOAD_FAILED
 
 ### Pending Todos
 
@@ -163,6 +169,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T19:45:36.750Z
-Stopped at: Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)
+Last session: 2026-10-07T21:13:29.239Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
