@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-10-07T02:47:08.684Z"
-last_activity: 2026-10-07 — Completed 01-04-PLAN.md (objection-thread service, ruling judge-gating incl. RESERVED, F2 API routes + tests)
+stopped_at: Completed 01-06-PLAN.md
+last_updated: "2026-10-07T02:55:38.041Z"
+last_activity: "2026-10-07 — Completed 01-06-PLAN.md (deterministic seed loader F0a: 8-exhibit demo via live write path, 3 planted edge cases, Docker migrate→seed→serve)"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 1 of 5 (Data Foundation)
-Plan: 5 of 7 complete in current phase
+Plan: 6 of 7 complete in current phase
 Status: In progress
-Last activity: 2026-10-07 — Completed 01-04-PLAN.md (objection-thread service, ruling judge-gating incl. RESERVED, F2 API routes + tests)
+Last activity: 2026-10-07 — Completed 01-06-PLAN.md (deterministic seed loader F0a: 8-exhibit demo via live write path, 3 planted edge cases, Docker migrate→seed→serve)
 
-Progress: [███████░░░] 71%
+Progress: [████████░░] 86%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [███████░░░] 71%
 | Phase 01 P03 | 5 min | 2 tasks | 6 files |
 | Phase 01-data-foundation P05 | 3 min | 2 tasks | 7 files |
 | Phase 01 P04 | 3 min | 2 tasks | 6 files |
+| Phase 01-data-foundation P06 | 5 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Recent decisions affecting current work:
 - [Phase 01-05]: Custody gap modelled as a first-class valid state: getCustodian -> null, GET /custodian -> 200 {custodian:null}; 404 reserved for a genuinely missing exhibit, keeping the two unambiguous for F6/F9/F10
 - [Phase 01-04]: Judge-gated ALL ruling dispositions including RESERVED (plan tightens the FRD's SUSTAINED/OVERRULED-only baseline per must_haves + threat T-01-11: reserving a ruling is itself a judicial act); 403 message 'Only a judge may record a ruling on an objection'
 - [Phase 01-04]: Objection threads are per-thread (one ObjectionCurrentState per objectionId) so one exhibit holds N concurrent UNRESOLVED threads; getUnresolvedObjections is the single shared query reused identically by F8/F9/F7
+- [Phase 01-06]: Seed loader (F0a) writes exclusively through the Plan 2–5 service functions — zero direct ledger/projection inserts (grep-enforced in done-criteria + seed.test.ts, threat T-01-17); proves seed data can only represent states the live system could produce
+- [Phase 01-06]: Seed determinism via scoped reset-then-rebuild (resetSeedCase on fixed caseNumber 2026-CR-0142); rollback-on-missing-edge-case via try/catch cleanup rather than one outer $transaction (each recordEvent opens its own tx)
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T02:47:08.683Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-10-07T02:55:38.040Z
+Stopped at: Completed 01-06-PLAN.md
 Resume file: None
