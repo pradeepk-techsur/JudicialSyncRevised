@@ -77,3 +77,29 @@ export class RoleNotPermittedError extends AppError {
     super('ROLE_NOT_PERMITTED', message, 403, details);
   }
 }
+
+/**
+ * 503 — the LLM provider is unreachable, timed out, or no API key is configured.
+ * This is strictly an ERROR/TRANSPORT outcome — it MUST surface on the HTTP 503
+ * channel and be rendered as the distinct "temporarily unavailable" system
+ * notice, NEVER as assistant message text and NEVER as a Decline (ROADMAP
+ * criterion 5; Y2-errors.md §Assistant).
+ */
+export class AssistantUnavailableError extends AppError {
+  constructor(message = 'The assistant is temporarily unavailable — please try again') {
+    super('ASSISTANT_UNAVAILABLE', message, 503);
+  }
+}
+
+/**
+ * Tool-level validation failure (NOT an HTTP error). A tool wrapper throws/returns
+ * this when its zod arg schema rejects the model's arguments; it is surfaced back
+ * to the MODEL within the same turn (so it can retry with corrected args), never
+ * to the end user as an HTTP status (Y2-errors.md §Assistant TOOL_ARGS_INVALID).
+ * httpStatus 422 is a sane default for the rare case it does leak to a route.
+ */
+export class ToolArgsInvalidError extends AppError {
+  constructor(toolName: string, detail: string) {
+    super('TOOL_ARGS_INVALID', `Invalid arguments for tool ${toolName}: ${detail}`, 422);
+  }
+}
