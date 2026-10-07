@@ -321,12 +321,18 @@ model AssistantMessage {
   conversationId String      @map("conversation_id")
   role           MessageRole
   content        String
+  // Monotonic intra-conversation ordinal, set explicitly at persist time. The
+  // two messages of one turn share an identical created_at (both default to the
+  // transaction's CURRENT_TIMESTAMP), so created_at alone cannot order USER
+  // before ASSISTANT. `seq` is the deterministic tiebreaker the replay orders by
+  // after created_at, guaranteeing a question always renders above its answer.
+  seq            Int         @default(0)
   createdAt      DateTime    @default(now()) @map("created_at")
 
   conversation AssistantConversation @relation(fields: [conversationId], references: [id])
   citations    AssistantCitation[]
 
-  @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, seq])
   @@map("assistant_messages")
 }
 

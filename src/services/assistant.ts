@@ -114,12 +114,17 @@ export async function persistTurn(args: {
   const { conversationId, userMessage, assistantContent, citations } = args;
 
   await prisma.$transaction(async (tx) => {
-    // USER message first (preserves chronological order for the replay).
+    // USER message first. Both rows of this turn share an identical created_at
+    // (the transaction's CURRENT_TIMESTAMP), so created_at cannot order them —
+    // the explicit `seq` (0 for USER, 1 for ASSISTANT) is the deterministic
+    // tiebreaker the replay orders by, guaranteeing the question renders above
+    // the answer.
     await tx.assistantMessage.create({
       data: {
         conversationId,
         role: 'USER' as MessageRole,
         content: userMessage,
+        seq: 0,
       },
     });
 
@@ -131,6 +136,7 @@ export async function persistTurn(args: {
         conversationId,
         role: 'ASSISTANT' as MessageRole,
         content: assistantContent,
+        seq: 1,
         citations: {
           create: citations.map((c) => ({
             recordType: c.recordType,
@@ -160,7 +166,12 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
     where: { id },
     include: {
       messages: {
-        orderBy: { createdAt: 'asc' },
+        // created_at first (chronological across turns), then `seq` as the
+        // intra-turn tiebreaker: the two messages of a turn share an identical
+        // created_at (same transaction CURRENT_TIMESTAMP), so without `seq` the
+        // USER/ASSISTANT order would be undefined and an answer could replay
+        // above its question.
+        orderBy: [{ createdAt: 'asc' }, { seq: 'asc' }],
         include: { citations: true },
       },
     },

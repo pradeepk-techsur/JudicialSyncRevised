@@ -127,6 +127,45 @@ describe('assistant persistence service (F7)', () => {
     expect(detail.messages[0]!.content).toBe('what exhibits were admitted yesterday');
     expect(detail.messages[0]!.citations).toEqual([]);
 
+    // DETERMINISTIC INTRA-TURN ORDER (B2): the two messages of a turn are
+    // inserted in one transaction and only millisecond-precision created_at
+    // separates them — two inserts landing in the SAME millisecond would carry an
+    // identical created_at, leaving USER/ASSISTANT order undefined. The replay
+    // orders by `seq` as the tiebreaker, so the answer can never render above its
+    // question. Force the colliding case directly: give BOTH rows the SAME
+    // created_at but insert ASSISTANT (seq 1) BEFORE USER (seq 0), then assert the
+    // replay still returns USER first — proving the ordering comes from `seq`, not
+    // from created_at or insertion order.
+    expect(detail.messages[1]!.role).toBe('ASSISTANT');
+
+    const tieConversation = await createConversation(caseId, userId);
+    createdConversationIds.push(tieConversation.id);
+    const sharedTs = new Date('2026-10-06T09:00:00.000Z');
+    // Insert ASSISTANT row first with the LATER seq, USER second with seq 0 —
+    // identical timestamps, reversed physical order.
+    await prisma.assistantMessage.create({
+      data: {
+        conversationId: tieConversation.id,
+        role: 'ASSISTANT',
+        content: 'answer',
+        seq: 1,
+        createdAt: sharedTs,
+      },
+    });
+    await prisma.assistantMessage.create({
+      data: {
+        conversationId: tieConversation.id,
+        role: 'USER',
+        content: 'question',
+        seq: 0,
+        createdAt: sharedTs,
+      },
+    });
+    const tieDetail = await getConversationDetail(tieConversation.id);
+    expect(tieDetail.messages[0]!.createdAt).toBe(tieDetail.messages[1]!.createdAt);
+    expect(tieDetail.messages[0]!.role).toBe('USER');
+    expect(tieDetail.messages[1]!.role).toBe('ASSISTANT');
+
     const assistant = detail.messages[1]!;
     expect(assistant.role).toBe('ASSISTANT');
     expect(assistant.citations).toHaveLength(2);
