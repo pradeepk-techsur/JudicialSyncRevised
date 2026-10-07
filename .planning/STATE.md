@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-10-07T21:13:38.932Z"
-last_activity: "2026-10-07 — Completed 05-01-PLAN.md (Command Center Recent-Activity backend): getRecentActivity read-only service + GET /api/cases/:id/activity composing the ExhibitEvent ledger through the shared summarizeEvent (now exported from history.ts) newest-first with the same role-based sealed WHERE predicate; default window anchored to start-of-day of the latest case event (never empty); since validated 422; non-AppError failure -> 500 COMMAND_CENTER_LOAD_FAILED; getUnresolvedObjections gains optional requestingUserRole (sealed-thread exclusion, no-arg callers unchanged). Full vitest suite green (195|3 skipped), tsc+build clean."
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-10-07T21:21:08.618Z"
+last_activity: "2026-10-07 — Completed 05-02-PLAN.md (Command Center live-sync hooks): enabled refetchOnWindowFocus globally (refetchIntervalInBackground left default -> pause-while-hidden + catch-up-on-focus, no custom visibility code); shipped three INDEPENDENT role-keyed 4s hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies, each its own useQuery so one erroring/refetching never blocks the others, role in key forces fresh fetch on role switch T-05-06); added query-agnostic useFreshness(dataUpdatedAt,isFetching)->secondsAgo ticker. Full vitest suite green (195|3 skipped), tsc+build clean. 05-03 handoffs: objections route must pass parsed role; Discrepancies panel must apply the sealed filter."
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 27
-  completed_plans: 25
-  percent: 80
+  completed_plans: 26
+  percent: 96
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 5 — Trial Command Center & Live Sync (F8) — IN PROGRESS (05-01 backend landed)
+**Current focus:** Phase 5 — Trial Command Center & Live Sync (F8) — IN PROGRESS (05-01 backend + 05-02 live-sync hooks landed)
 
 ## Current Position
 
-Phase: 5 of 5 (Trial Command Center & Live Sync) — IN PROGRESS (05-01 of ~3 plans complete)
-Status: 05-01 (Recent-Activity backend) complete — getRecentActivity service + GET /api/cases/:id/activity route + role-scoped getUnresolvedObjections. Next: 05-02 (live-sync hooks) then 05-03 (Command Center UI + Objections/Discrepancies panels).
-Last activity: 2026-10-07 — Completed 05-01-PLAN.md (Command Center Recent-Activity backend): getRecentActivity read-only service + GET /api/cases/:id/activity composing the ExhibitEvent ledger through the shared summarizeEvent (now exported from history.ts) newest-first with the same role-based sealed WHERE predicate; default window anchored to start-of-day of the latest case event (never empty); since validated 422; non-AppError failure -> 500 COMMAND_CENTER_LOAD_FAILED; getUnresolvedObjections gains optional requestingUserRole (sealed-thread exclusion, no-arg callers unchanged). Full vitest suite green (195|3 skipped), tsc+build clean.
+Phase: 5 of 5 (Trial Command Center & Live Sync) — IN PROGRESS (05-02 of ~3 plans complete)
+Status: 05-01 (Recent-Activity backend) + 05-02 (live-sync hooks) complete. 05-02 enabled global refetchOnWindowFocus + shipped useRecentActivity/useUnresolvedObjections/useDiscrepancies (three independent role-keyed 4s hooks) + useFreshness. Next: 05-03 (Command Center UI + Objections/Discrepancies panels) — must pass the parsed role into the objections route and apply the sealed filter in the Discrepancies panel.
+Last activity: 2026-10-07 — Completed 05-02-PLAN.md (Command Center live-sync hooks): enabled refetchOnWindowFocus globally (refetchIntervalInBackground left default -> pause-while-hidden + catch-up-on-focus, no custom visibility code); shipped three INDEPENDENT role-keyed 4s hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies, each its own useQuery so one erroring/refetching never blocks the others, role in key forces fresh fetch on role switch T-05-06); added query-agnostic useFreshness(dataUpdatedAt,isFetching)->secondsAgo ticker. Full vitest suite green (195|3 skipped), tsc+build clean.
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 96%
 
 ## Performance Metrics
 
@@ -79,6 +79,7 @@ Progress: [████████░░] 80%
 | Phase 04-pivota-assistant P05 | 10 min | 3 tasks | 13 files |
 | Phase 04-pivota-assistant P06 | 4 min | 2 tasks | 2 files |
 | Phase 05-trial-command-center-live-sync P01 | 5 min | 3 tasks | 7 files |
+| Phase 05-trial-command-center-live-sync P02 | 7 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -157,6 +158,8 @@ Recent decisions affecting current work:
 - [Phase 05-01]: Recent Activity default window anchored to start-of-day of the LATEST case event (rolling anchor, never wall-clock today) so a seeded demo feed is never empty regardless of run date; empty case returns []
 - [Phase 05-01]: getUnresolvedObjections gains an OPTIONAL requestingUserRole (sealed-thread exclusion via WHERE predicate); no-arg callers (case-wide /objections jury-sidebar count) keep viewer-independent behavior, 05-03 passes the parsed role
 - [Phase 05-01]: /activity route catch splits typed ValidationError -> 422 VALIDATION_ERROR (bad/future since) from any non-AppError -> 500 COMMAND_CENTER_LOAD_FAILED
+- [Phase 05-02]: refetchOnWindowFocus enabled globally on the shared QueryClient; refetchIntervalInBackground left at react-query default (false) = pause-while-hidden + catch-up-on-focus with no custom visibilitychange code (Y3-integrations.md §7.3, criterion 2)
+- [Phase 05-02]: Three INDEPENDENT Command Center hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies), each its own useQuery keyed [domain, caseId, role] @4s so one panel erroring/refetching never blocks the others and a role switch forces an immediate fresh server-enforced query (T-05-06); useFreshness kept query-agnostic (dataUpdatedAt→secondsAgo, honest across failed polls)
 
 ### Pending Todos
 
@@ -169,6 +172,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T21:13:29.239Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-10-07T21:21:08.616Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
