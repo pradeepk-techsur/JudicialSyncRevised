@@ -51,7 +51,16 @@ Plans:
   2. A user can search/filter the exhibit list by ID, description, status, witness, or date, with multiple criteria combining (AND semantics) — non-matching exhibits are excluded from the results.
   3. A user can drill from the Case Workspace into any exhibit's Exhibit Detail View and see its complete chronological timeline (status changes, objections, rulings, custody transfers) reconstructed from the ledger.
   4. The status and custody values shown on the Case Workspace and Exhibit Detail View always match what Phase 1's service layer reports for the same exhibit, in spot-check comparison — no screen computes or caches its own version.
-**Plans**: TBD
+**Plans**: 7 plans (3 waves)
+
+Plans:
+- [ ] 02-01-PLAN.md — Tailwind CSS v4 + shadcn/ui, @tanstack/react-query + zustand, Playwright harness (pure tooling, no UI yet)
+- [ ] 02-02-PLAN.md — Role-based sealed-exhibit visibility service (`visibility.ts`), wired into `getExhibit`/`getExhibitHistory` and their routes
+- [ ] 02-03-PLAN.md — Seed loader sealed-exhibit edge case + `GET /api/case` active-case/persona-roster bootstrap endpoint
+- [ ] 02-04-PLAN.md — `ExhibitListRow` shape, `getExhibits` upgrade, and new `searchExhibits` + `/search` route (F4)
+- [ ] 02-05-PLAN.md — App shell (header/role-switcher/sidebar), shared `StatusBadge`, zustand role store + `apiFetch` wrapper
+- [ ] 02-06-PLAN.md — Case Workspace screen: exhibit list table + combinable search/filter bar + live polling (F9/F4 UI)
+- [ ] 02-07-PLAN.md — Exhibit Detail View screen: header + full chronological timeline + sealed/missing parity (F10 UI)
 
 ### Phase 3: Jury Package + Discrepancy Detection
 **Goal**: The system automatically flags operational risks the moment they occur — an admitted exhibit with no recorded custodian, or an admitted exhibit with a still-unresolved objection — and a deputy/clerk/admin can build a jury package that structurally cannot be finalized while an open discrepancy remains on any included exhibit.
