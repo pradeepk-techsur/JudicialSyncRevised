@@ -2,14 +2,13 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-10-07T14:37:21.955Z"
-last_activity: "2026-10-07 — Completed 03-04-PLAN.md (Phase 3 Jury Package Workspace screen (F11): /jury-package route with empty/draft/finalized states; useJuryPackage (query + initiate/finalize/acknowledge, role-keyed, 4s poll that stops on FINALIZED, surfaces 409 blockingExhibits) + useDiscrepancyCount (ambient count pill + client-side flag-id resolution, since jury rows carry no flag id); hard-disabled finalize gate reading live per-row OPEN flags; shared AcknowledgeInline (500-char counter, empty-disabled Confirm) on the jury draft AND the new Exhibit Detail discrepancy banner; stale-409 inline banner naming blockers; FINALIZED green stamp + window.print export with @media print CSS; activated sidebar Jury Package nav with live count badge. 152/152 vitest, 22/22 playwright, build + tsc clean. [Wave 4 — Phase 3 complete.])"
+status: planning
+last_updated: "2026-10-07T16:05:18.946Z"
+last_activity: "2026-10-07 — Phase 3 complete"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 23
+  total_plans: 26
   completed_plans: 18
   percent: 60
 ---
