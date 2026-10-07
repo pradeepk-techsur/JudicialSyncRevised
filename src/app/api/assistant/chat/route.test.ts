@@ -152,6 +152,33 @@ describe('POST /api/assistant/chat', () => {
     it('does NOT false-positive on a plain grounded sentence', () => {
       expect(isDeclineText('Exhibit D-1 is ADMITTED as of October 6, 2026.')).toBe(false);
     });
+
+    // W1 (04-REVIEW.md iteration 1): a single turn may legitimately mix a
+    // grounded fact about one record with a decline about a DIFFERENT record
+    // (the system prompt's own example: "I don't have that information about
+    // Exhibit 22's custody record" following a grounded sentence about a
+    // different exhibit). A whole-text substring match would false-positive
+    // here and force the ENTIRE turn's citations to [], stripping the
+    // legitimate grounded citation too. isDeclineText must return false for
+    // this case so the route's onFinish gate falls through to
+    // extractCitations(steps), which preserves the grounded half's real
+    // citation (and naturally yields none for the declined half, whose tool
+    // call returned null/empty).
+    it('does NOT treat a MIXED grounded+decline answer as a full decline (W1)', () => {
+      expect(
+        isDeclineText(
+          "Custody of Exhibit 7: Officer Diaz, as of October 3, 2026. I don't have that information about Exhibit 22's custody record.",
+        ),
+      ).toBe(false);
+    });
+
+    it('still treats a multi-sentence PURE decline (every sentence declines) as a full decline', () => {
+      expect(
+        isDeclineText(
+          "I don't have that information about Exhibit 22's custody record. I don't have that information about Exhibit 23 either.",
+        ),
+      ).toBe(true);
+    });
   });
 
   // ---------------------------------------------------------------------------
