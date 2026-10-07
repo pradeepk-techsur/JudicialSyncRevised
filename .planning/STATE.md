@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-10-07T16:13:14.261Z"
-last_activity: "2026-10-07 — Completed 04-01-PLAN.md (Phase 4 foundation: installed Vercel AI SDK — ai@6.0.301 / @ai-sdk/react@3.0.304 / @ai-sdk/anthropic@3.0.127, current latest majors, no vector/LangChain deps, clean install no --legacy-peer-deps; added src/lib/assistantConfig.ts single server-side-only config — model claude-sonnet-4-5, temperature 0, isAssistantConfigured() fail-safe so a missing/placeholder key never crashes the app; added AssistantUnavailableError 503 + ToolArgsInvalidError 422 to the typed error layer; migrated MessageRole enum + AssistantConversation/AssistantMessage/AssistantCitation incl. additive exhibit_id (required) + event_id (nullable) for pill deep-link/replay + conversations back-relations on Case/User; added schema+config sanity test. 157/157 vitest, build + tsc clean. 04-03 WIRE-CONTRACT PRIMITIVES (ai@6): streamText().toUIMessageStreamResponse(); DefaultChatTransport + prepareSendMessagesRequest; stopWhen:stepCountIs(n) [no maxSteps]; createUIMessageStream writer data parts for citations. [Wave 1.])"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-10-07T16:20:54.580Z"
+last_activity: "2026-10-07 — Completed 04-02-PLAN.md (Assistant tool layer + system prompt, wave 2): src/lib/assistant/tools.ts buildAssistantToolSet(ctx) = 8 AI SDK tool() wrappers, each a 1:1 zod-validated pass-through to one service fn (no business logic, no Prisma, no second query path — grep-enforced); role+caseId always from ctx (T-04-05). Sealed seam exhibitVisible(id,role)->getExhibit placed BEFORE the role-LESS reads (status/custodian/custody-history/per-exhibit discrepancies); sealed-unauthorized => empty (null/[]) byte-identical to not-found (criterion 4, deep-equal tested); getUnresolvedObjections post-filtered by per-exhibit visibility; history/search/jury/case-wide-discrepancies use services' own role filter. searchExhibits EMPTY_SEARCH_CRITERIA->[]; getCustodyHistory typed via Awaited<ReturnType<...>>. src/lib/assistant/systemPrompt.ts buildSystemPrompt(role) encodes all 7 FRD System-Prompt Requirements (cite-or-decline, decline-as-valid, no-hedging, freshness, exact-status-word, visibility-no-hinting, per-claim citation). ai@6 tool() shape: {description, inputSchema, execute(args,{toolCallId,messages})}. Phase 3 juryPackage/discrepancies present at execution. 165/165 vitest (+8), build + tsc clean. Ready for 04-03 (chat route consumes buildAssistantToolSet + buildSystemPrompt).)"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 26
-  completed_plans: 19
+  completed_plans: 20
   percent: 60
 ---
 
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plan 01 of 5 complete)
-Status: Plan 04-01 complete (assistant foundation, wave 1) — ready for 04-02 (tool layer) / 04-03 (chat route + wire contract)
-Last activity: 2026-10-07 — Completed 04-01-PLAN.md (Phase 4 foundation: installed Vercel AI SDK — ai@6.0.301 / @ai-sdk/react@3.0.304 / @ai-sdk/anthropic@3.0.127, current latest majors, no vector/LangChain deps, clean install no --legacy-peer-deps; added src/lib/assistantConfig.ts single server-side-only config — model claude-sonnet-4-5, temperature 0, isAssistantConfigured() fail-safe so a missing/placeholder key never crashes the app; added AssistantUnavailableError 503 + ToolArgsInvalidError 422 to the typed error layer; migrated MessageRole enum + AssistantConversation/AssistantMessage/AssistantCitation incl. additive exhibit_id (required) + event_id (nullable) for pill deep-link/replay + conversations back-relations on Case/User; added schema+config sanity test. 157/157 vitest, build + tsc clean. 04-03 WIRE-CONTRACT PRIMITIVES (ai@6): streamText().toUIMessageStreamResponse(); DefaultChatTransport + prepareSendMessagesRequest; stopWhen:stepCountIs(n) [no maxSteps]; createUIMessageStream writer data parts for citations. [Wave 1.])
+Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plans 01 + 02 of 5 complete)
+Status: Plan 04-02 complete (tool layer + system prompt, wave 2) — ready for 04-03 (chat route + wire contract, consumes buildAssistantToolSet + buildSystemPrompt)
+Last activity: 2026-10-07 — Completed 04-02-PLAN.md (Assistant tool layer + system prompt, wave 2): src/lib/assistant/tools.ts buildAssistantToolSet(ctx) = 8 AI SDK tool() wrappers, each a 1:1 zod-validated pass-through to one service fn (no business logic, no Prisma, no second query path — grep-enforced); role+caseId always from ctx (T-04-05). Sealed seam exhibitVisible(id,role)->getExhibit BEFORE the role-LESS reads (status/custodian/custody-history/per-exhibit discrepancies); sealed-unauthorized => empty (null/[]) byte-identical to not-found (criterion 4, deep-equal tested); getUnresolvedObjections post-filtered by per-exhibit visibility; history/search/jury/case-wide-discrepancies use services' own role filter. searchExhibits EMPTY_SEARCH_CRITERIA->[]; getCustodyHistory typed via Awaited<ReturnType<...>>. src/lib/assistant/systemPrompt.ts buildSystemPrompt(role) encodes all 7 FRD System-Prompt Requirements. ai@6 tool() shape: {description, inputSchema, execute(args,{toolCallId,messages})}. Phase 3 juryPackage/discrepancies present at execution. 165/165 vitest (+8), build + tsc clean.
 
 Progress: [██████░░░░] 60%
 
@@ -73,6 +73,7 @@ Progress: [██████░░░░] 60%
 | Phase 03-jury-package-discrepancy-detection P03 | 10 min | 3 tasks | 10 files |
 | Phase 03-jury-package-discrepancy-detection P04 | 17 min | 3 tasks | 16 files |
 | Phase 04-pivota-assistant P01 | 2 min | 3 tasks | 7 files |
+| Phase 04-pivota-assistant P02 | 5 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,9 @@ Recent decisions affecting current work:
 - [Phase 04-pivota-assistant]: [04-01]: AI SDK resolved to current latest majors ai@6 / @ai-sdk/react@3 / @ai-sdk/anthropic@3 (not plan's predicted ^7/^4/^4); clean install, no --legacy-peer-deps. 04-03 binds to ai@6 primitives: streamText().toUIMessageStreamResponse(), DefaultChatTransport + prepareSendMessagesRequest, stopWhen:stepCountIs(n), createUIMessageStream writer for citation data parts
 - [Phase 04-pivota-assistant]: [04-01]: assistantConfig.ts is the single server-side-only reader of ANTHROPIC_API_KEY; placeholder/unset key => isAssistantConfigured() false => 503 ASSISTANT_UNAVAILABLE, never a throw at import (ROADMAP criterion 5); temperature pinned 0, model claude-sonnet-4-5
 - [Phase 04-pivota-assistant]: [04-01]: AssistantCitation diverges from TechArch canonical Citation with additive exhibit_id (required) + event_id (nullable) so a persisted/replayed pill deep-links to /exhibit/:exhibitId?event=:eventId; eventId null for citation types with no single timeline anchor
+- [Phase 04-pivota-assistant]: [04-02]: Assistant tool layer = 8 AI SDK tool() wrappers, each a 1:1 zod-validated pass-through to one service fn (no business logic, no Prisma, no second query path — grep-enforced); role+caseId always from ctx, never model args (T-04-05 no admin override)
+- [Phase 04-pivota-assistant]: [04-02]: Sealed seam = shared exhibitVisible(id,role)->getExhibit gate placed BEFORE the role-LESS reads (getExhibitStatus/getCustodian/getCustodyHistory/per-exhibit getExhibitDiscrepancies); sealed-unauthorized => empty (null/[]) byte-identical to not-found (criterion 4, deep-equal tested); getUnresolvedObjections post-filtered by per-exhibit visibility; history/search/jury/case-wide-discrepancies use the services' own role filter
+- [Phase 04-pivota-assistant]: [04-02]: searchExhibits EMPTY_SEARCH_CRITERIA (422) caught -> [] (model declines, not a stream error); getCustodyHistory tool typed via Awaited<ReturnType<...>> (no exported CustodyHistoryEntry); tool keys follow FRD names incl. getJuryPackageStatus (wraps Phase 3 getJuryPackage) + getDiscrepancies (case-wide OR per-exhibit via optional exhibitId)
 
 ### Pending Todos
 
@@ -146,6 +150,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T16:13:14.260Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-10-07T16:20:54.579Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
