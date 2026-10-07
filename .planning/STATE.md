@@ -3,8 +3,8 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-10-07T02:46:00.543Z"
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-10-07T02:46:21.087Z"
 last_activity: 2026-10-07 — Completed 01-03-PLAN.md (exhibit status state machine, status API routes, F1 integration tests)
 progress:
   total_phases: 5
@@ -81,6 +81,8 @@ Recent decisions affecting current work:
 - [01-03]: STATUS_CHANGE ledger write + ExhibitCurrentState upsert run in one transaction via recordEvent(args, tx) so ledger and projection never diverge. This validate→recordEvent(tx)→upsert pattern is the reusable template for objections (Plan 4) and custody (Plan 5).
 - [01-03]: Added UnprocessableError (422 with a feature-specific code) to the typed error layer so INVALID_STATUS_TRANSITION keeps its own code instead of collapsing into generic VALIDATION_ERROR.
 - [01-03]: GET /api/exhibits/:id/status returns 200 with a null currentStatus body for an existing exhibit that has no status yet; 404 EXHIBIT_NOT_FOUND only for a genuinely absent exhibit.
+- [Phase 01-05]: recordEvent() extended with an optional transaction client (non-breaking) so the custody CUSTODY_TRANSFER event and CustodyCurrentState upsert commit atomically in one transaction
+- [Phase 01-05]: Custody gap modelled as a first-class valid state: getCustodian -> null, GET /custodian -> 200 {custodian:null}; 404 reserved for a genuinely missing exhibit, keeping the two unambiguous for F6/F9/F10
 
 ### Pending Todos
 
@@ -92,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T02:45:40.962Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-10-07T02:46:21.085Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None
