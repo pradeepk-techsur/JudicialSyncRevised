@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { AssistantPanel } from '@/components/assistant/AssistantPanel';
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +13,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      {/* The global "Ask ✦" slide-over, mounted at the shell level so it opens
+          OVER any screen and persists (thread + scroll) across route navigation
+          without unmounting the page underneath (CONTEXT.md). */}
+      <AssistantPanel />
     </div>
   );
 }
