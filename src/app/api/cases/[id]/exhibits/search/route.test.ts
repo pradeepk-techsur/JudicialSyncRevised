@@ -46,7 +46,13 @@ describe('GET /api/cases/:id/exhibits/search', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.map((r: { exhibitLabel: string }) => r.exhibitLabel)).toEqual(['P-3']);
-    expect(body[0]).toMatchObject({ currentStatus: 'ADMITTED', discrepancyFlags: [] });
+    expect(body[0]).toMatchObject({ currentStatus: 'ADMITTED' });
+    // P-3 is ADMITTED while carrying an unresolved objection, so Phase 3's engine
+    // flags it — the row surfaces real discrepancy flags (no longer the []
+    // placeholder) in the composite ExhibitListRow shape.
+    expect(
+      body[0].discrepancyFlags.map((f: { ruleCode: string }) => f.ruleCode),
+    ).toContain('UNRESOLVED_OBJECTION_JURY_ELIGIBLE');
     expect(body[0]).not.toHaveProperty('id');
   });
 
