@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-05-PLAN.md
-last_updated: "2026-10-07T08:20:04.156Z"
-last_activity: "2026-10-07 — Completed 02-04-PLAN.md (exhibit list + search data layer: ExhibitListRow shared row shape, getExhibits upgraded to the enriched shape with role-based sealed exclusion + CASE_NOT_FOUND, new searchExhibits + /search route with AND-semantics filtering and three 422 codes; 29 tests pass, tsc + next build clean)."
+stopped_at: Completed 02-06-PLAN.md
+last_updated: "2026-10-07T08:35:48.726Z"
+last_activity: "2026-10-07 — Completed 02-06-PLAN.md (Case Workspace /case: useExhibitList single-query-path hook — getExhibits/searchExhibits on filter state, role-keyed for immediate refetch, 4s polling; ExhibitTable with StatusBadge per row + row-click → /exhibit/:id + structural discrepancy column; SearchFilterBar keyword/status/witness/date + removable chips + inline empty-search hint; 11/11 Playwright pass (5 new + 02-05 app-shell), build clean). [Wave 3, ran in parallel with 02-07.]"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 20
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 2 of 5 (Core Screens)
-Status: In progress (wave 2, parallel execution)
-Last activity: 2026-10-07 — Completed 02-05-PLAN.md (app shell: useRoleStore client-side session + apiFetch X-User-Role wrapper; shared StatusBadge (all 6 statuses + null); AppShell header/role-switcher/disabled-Ask + sidebar with 1 live link and 3 aria-disabled placeholders, wired into the root layout; / → /case; e2e/app-shell.spec.ts 6/6 pass, build clean). [Wave 2 ran in parallel with 02-04.]
+Status: In progress (wave 3, parallel execution)
+Last activity: 2026-10-07 — Completed 02-06-PLAN.md (Case Workspace /case: useExhibitList single-query-path hook — getExhibits/searchExhibits on filter state, role-keyed for immediate refetch, 4s polling; ExhibitTable with StatusBadge per row + row-click → /exhibit/:id + structural discrepancy column; SearchFilterBar keyword/status/witness/date + removable chips + inline empty-search hint; 11/11 Playwright pass (5 new + 02-05 app-shell), build clean). [Wave 3, ran in parallel with 02-07.]
 
 Progress: [██░░░░░░░░] 20%
 
@@ -66,6 +66,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 02 P01 | 10 min | 3 tasks | 15 files |
 | Phase 02-core-screens P04 | 8 min | 2 tasks | 7 files |
 | Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
+| Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 02-05]: App shell role switcher uses a native <select> (keyboard/SR-accessible, simple to test) over the portal-rendering shadcn/Radix Select; richer shadcn primitives reserved for the two screens' filter controls
 - [Phase 02-05]: useRoleStore is the demo's entire client-side session (zustand); apiFetch reads it via getState() to attach X-User-Role to every request — no cookie/session infra
 - [Phase 02-05]: StatusBadge is the single shared status representation (dot+label+aria-label, all 6 statuses + null); both 02-06/02-07 import it identically (US-1.2 structural guarantee)
+- [Phase 02-core-screens]: [02-06]: Case Workspace follows a one-hook + presentational-components pattern — useExhibitList is the screen's single query path (getExhibits vs searchExhibits on filter state), keyed on role so a switch forces a fresh server-enforced query (threat T-02-15); zero screen-local status/custody derivation
+- [Phase 02-core-screens]: [02-06]: Empty-search guarded client-side (all-empty filters route to the unfiltered list, inline hint, never a hard error); the API's 422 EMPTY_SEARCH_CRITERIA remains defense-in-depth for other callers
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T08:20:04.155Z
-Stopped at: Completed 02-05-PLAN.md
+Last session: 2026-10-07T08:35:48.725Z
+Stopped at: Completed 02-06-PLAN.md
 Resume file: None
