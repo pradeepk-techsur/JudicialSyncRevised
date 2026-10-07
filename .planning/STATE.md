@@ -3,8 +3,8 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Phase 4 context gathered
-last_updated: "2026-10-07T12:31:30.097Z"
+stopped_at: Phase 5 context gathered
+last_updated: "2026-10-07T12:38:44.629Z"
 last_activity: "2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]"
 progress:
   total_phases: 5
@@ -127,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T12:31:30.096Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-pivota-assistant/04-CONTEXT.md
+Last session: 2026-10-07T12:38:44.627Z
+Stopped at: Phase 5 context gathered
+Resume file: .planning/phases/05-trial-command-center-live-sync/05-CONTEXT.md
