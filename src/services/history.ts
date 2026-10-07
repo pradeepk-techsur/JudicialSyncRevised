@@ -2,6 +2,7 @@ import type {
   EventType,
   Exhibit,
   ExhibitStatus,
+  Role,
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getExhibit } from '@/services/exhibits';
@@ -117,9 +118,15 @@ function summarizeEvent(
 
 export async function getExhibitHistory(
   exhibitId: string,
+  requestingUserRole: Role,
 ): Promise<ExhibitHistoryResponse | null> {
-  // 1. Fetch the exhibit identity — null (→ route 404) if it does not exist.
-  const exhibit = await getExhibit(exhibitId);
+  // 1. Fetch the exhibit identity — null (→ route 404) BOTH when the exhibit does
+  //    not exist AND when it is sealed and the requesting role cannot view sealed
+  //    exhibits. Sealed-masking is INHERITED from getExhibit, never reimplemented
+  //    here: because this early return fires before the event-ledger query runs,
+  //    a masked exhibit never reaches the timeline reconstruction at all (threat
+  //    T-02-03).
+  const exhibit = await getExhibit(exhibitId, requestingUserRole);
   if (!exhibit) {
     return null;
   }
