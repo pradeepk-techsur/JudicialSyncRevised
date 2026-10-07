@@ -404,3 +404,51 @@ Route (app)
 [2m   Duration [22m 2.46s[2m (transform 105ms, setup 0ms, collect 490ms, tests 1.07s, environment 1ms, prepare 326ms)[22m
 ```
 
+
+## Backend pre-push gate
+
+- Status: passed
+- Result marker + failing output tail:
+```
+__GATE__ build_exit=0 test_exit=0 build_cmd=[npm run build] test_cmd=[npm test] head=8d545ecaa8bccfa3b1e39aa49704421a87a4f6d7 test_files=13 skip_marks=0 shadow_files=0
+├ ƒ /api/exhibits/[id]
+├ ƒ /api/exhibits/[id]/custodian
+├ ƒ /api/exhibits/[id]/custody-history
+├ ƒ /api/exhibits/[id]/events/custody
+├ ƒ /api/exhibits/[id]/events/objection
+├ ƒ /api/exhibits/[id]/events/status
+├ ƒ /api/exhibits/[id]/history
+├ ƒ /api/exhibits/[id]/status
+└ ƒ /api/objections/[id]/ruling
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> judicialsync@0.1.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/daytona/project[39m
+
+ [32m✓[39m src/data/seed.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 227[2mms[22m[39m
+ [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 192[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 102[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m67 passed[39m[22m[90m (67)[39m
+[2m   Start at [22m 03:13:10
+[2m   Duration [22m 2.49s[2m (transform 100ms, setup 0ms, collect 496ms, tests 1.11s, environment 1ms, prepare 321ms)[22m
+
+```
