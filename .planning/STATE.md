@@ -2,16 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in_progress
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-10-07T21:21:08.618Z"
-last_activity: "2026-10-07 — Completed 05-02-PLAN.md (Command Center live-sync hooks): enabled refetchOnWindowFocus globally (refetchIntervalInBackground left default -> pause-while-hidden + catch-up-on-focus, no custom visibility code); shipped three INDEPENDENT role-keyed 4s hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies, each its own useQuery so one erroring/refetching never blocks the others, role in key forces fresh fetch on role switch T-05-06); added query-agnostic useFreshness(dataUpdatedAt,isFetching)->secondsAgo ticker. Full vitest suite green (195|3 skipped), tsc+build clean. 05-03 handoffs: objections route must pass parsed role; Discrepancies panel must apply the sealed filter."
+status: completed
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-10-07T21:34:22.055Z"
+last_activity: "2026-10-07 — Completed 05-03-PLAN.md (Trial Command Center screen F8 — FINAL plan): shipped /command-center (default landing) composing RecentActivity (full-width, newest-first, ~400ms fade-in) over a two-column Objections/Discrepancies row + FreshnessIndicator, all read-only (link-through only). Page owns ONE useRecentActivity instance shared with feed+freshness. Discrepancies sealed-filtered by intersecting Phase-3 flags with useExhibitList's role-visible set (absent AND uncounted); objections route now passes parseRequestingRole. Command Center activated first/live in sidebar (Jury Package/Assistant preserved); / → /command-center. [Rule 2] live-sync hooks set retry:false so a failed poll surfaces its independent inline error promptly. 7 new Playwright tests prove all 3 ROADMAP criteria (zero-config panels, multi-tab live-update within one 4s interval, strictly read-only) + sealed absence + per-panel error isolation + link-through; full 36-test E2E suite green, tsc+next build clean. MILESTONE COMPLETE."
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 27
-  completed_plans: 26
-  percent: 96
+  completed_plans: 27
+  percent: 100
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 5 — Trial Command Center & Live Sync (F8) — IN PROGRESS (05-01 backend + 05-02 live-sync hooks landed)
+**Current focus:** MILESTONE COMPLETE — Phase 5 (Trial Command Center & Live Sync, F8) finished; all 5 phases / 27 plans done.
 
 ## Current Position
 
-Phase: 5 of 5 (Trial Command Center & Live Sync) — IN PROGRESS (05-02 of ~3 plans complete)
-Status: 05-01 (Recent-Activity backend) + 05-02 (live-sync hooks) complete. 05-02 enabled global refetchOnWindowFocus + shipped useRecentActivity/useUnresolvedObjections/useDiscrepancies (three independent role-keyed 4s hooks) + useFreshness. Next: 05-03 (Command Center UI + Objections/Discrepancies panels) — must pass the parsed role into the objections route and apply the sealed filter in the Discrepancies panel.
-Last activity: 2026-10-07 — Completed 05-02-PLAN.md (Command Center live-sync hooks): enabled refetchOnWindowFocus globally (refetchIntervalInBackground left default -> pause-while-hidden + catch-up-on-focus, no custom visibility code); shipped three INDEPENDENT role-keyed 4s hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies, each its own useQuery so one erroring/refetching never blocks the others, role in key forces fresh fetch on role switch T-05-06); added query-agnostic useFreshness(dataUpdatedAt,isFetching)->secondsAgo ticker. Full vitest suite green (195|3 skipped), tsc+build clean.
+Phase: 5 of 5 (Trial Command Center & Live Sync) — COMPLETE (05-03 of 3 plans done; phase + milestone complete)
+Status: 05-01 (Recent-Activity backend) + 05-02 (live-sync hooks) + 05-03 (Command Center screen F8) all complete. 05-03 shipped the ambient read-only /command-center (default landing): RecentActivity full-width over Objections/Discrepancies two-column + FreshnessIndicator, three independent panels, sealed absence across all panels (objections route role-pass + Discrepancies ∩ role-visible exhibit set), Command Center first/live in sidebar, / → /command-center redirect. All three ROADMAP criteria proven by Playwright (zero-config panels / multi-tab live-update / read-only). Next: milestone transition (/pivota_spec-complete-milestone, /pivota_spec-verify-work).
+Last activity: 2026-10-07 — Completed 05-03-PLAN.md (Trial Command Center screen F8 — final plan): /command-center default landing, three ambient read-only panels + freshness, sealed-filtered, Command-Center-first sidebar, [Rule 2] hooks retry:false for prompt per-panel error surfacing, 7 new Playwright tests (all 3 criteria + sealed absence + error isolation + link-through), full 36-test suite green, tsc+build clean.
 
-Progress: [█████████░] 96%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [█████████░] 96%
 | Phase 04-pivota-assistant P06 | 4 min | 2 tasks | 2 files |
 | Phase 05-trial-command-center-live-sync P01 | 5 min | 3 tasks | 7 files |
 | Phase 05-trial-command-center-live-sync P02 | 7 min | 2 tasks | 5 files |
+| Phase 05-trial-command-center-live-sync P03 | 9 min | 3 tasks tasks | 13 files files |
 
 ## Accumulated Context
 
@@ -160,6 +161,10 @@ Recent decisions affecting current work:
 - [Phase 05-01]: /activity route catch splits typed ValidationError -> 422 VALIDATION_ERROR (bad/future since) from any non-AppError -> 500 COMMAND_CENTER_LOAD_FAILED
 - [Phase 05-02]: refetchOnWindowFocus enabled globally on the shared QueryClient; refetchIntervalInBackground left at react-query default (false) = pause-while-hidden + catch-up-on-focus with no custom visibilitychange code (Y3-integrations.md §7.3, criterion 2)
 - [Phase 05-02]: Three INDEPENDENT Command Center hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies), each its own useQuery keyed [domain, caseId, role] @4s so one panel erroring/refetching never blocks the others and a role switch forces an immediate fresh server-enforced query (T-05-06); useFreshness kept query-agnostic (dataUpdatedAt→secondsAgo, honest across failed polls)
+- [Phase 05-03]: /command-center page owns the SINGLE useRecentActivity instance and passes the UseQueryResult into RecentActivityPanel so the feed + freshness indicator share one query (no duplicate activity fetch); panels are otherwise one-hook-per-panel, strictly read-only (only next/link link-throughs + a read-only refetch retry — no form/input/mutation)
+- [Phase 05-03]: Discrepancies sealed filtering by COMPOSITION — intersect Phase-3's viewer-independent /discrepancies flags with useExhibitList's role-visible (server-sealed-filtered) exhibit set, so sealed flags are absent AND uncounted (T-05-07); panel derives no state. Objections panel made sealed-safe by the route passing parseRequestingRole (T-05-08). Discrepancy rows route to /jury-package when a draft exists (one read of GET /jury-package) else /exhibit/:id, defaulting to Exhibit Detail on any error
+- [Phase 05-03]: [Rule 2] Live-sync hooks set retry:false so a failed poll surfaces its panel's INDEPENDENT inline error promptly (the 4s interval re-attempts on recovery) instead of sitting in a skeleton through react-query's default 3× backoff — required for the per-panel error-isolation criterion. Command Center activated FIRST/live in the sidebar (placeholder removed; Jury Package/Assistant preserved); / → /command-center. New-row fade-in = useRef<Set> of prior eventIds + transient ~400ms highlight, keyed by eventId (no re-sort/toast). E2E multi-tab write pinned to P-5 (unreferenced elsewhere) so the one real ledger write never perturbs another suite's seed
+- [Phase 05-03]: MILESTONE COMPLETE — all 5 phases / 27 plans done; F8 Command Center proves all 3 ROADMAP criteria end-to-end via Playwright (zero-config panels, multi-tab live-update within one 4s interval, strictly read-only); full 36-test E2E suite green, tsc + next build clean
 
 ### Pending Todos
 
@@ -172,6 +177,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T21:21:08.616Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-10-07T21:34:22.054Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
