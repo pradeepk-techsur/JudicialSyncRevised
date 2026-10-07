@@ -185,9 +185,22 @@ export function buildAssistantToolSet(ctx: AssistantToolContext): Record<string,
     //    already role-filters sealed rows. Always ctx.caseId + ctx.requestingUserRole
     //    (never model-overridden — criterion 4). EMPTY_SEARCH_CRITERIA → [] (so the
     //    model declines) rather than a thrown error.
+    //
+    //    ASSISTANT-FACING SHAPE WIDENING (04-03, the citation preferred path): a raw
+    //    ExhibitListRow carries an exhibitId but NO event id, so a grounded "what
+    //    exhibits were admitted yesterday" answer would have nothing to cite. We
+    //    therefore ATTACH each row's current-status event id + timestamp
+    //    (lastStatusEventId / lastStatusAt), sourced from the SAME role-filtered
+    //    read's projection via getExhibitStatus — NOT a second divergent query path:
+    //    getExhibitStatus reads the identical ExhibitCurrentState projection every
+    //    screen reads, and we only call it for rows searchExhibits already returned
+    //    (so sealed rows are already excluded; 1:1 data provenance preserved). The
+    //    row's own fields are untouched; this is purely additive. The service's own
+    //    searchExhibits return is unchanged — the widening lives ONLY here, in the
+    //    assistant-facing tool, so the UI list/search endpoints keep their shape.
     searchExhibits: tool({
       description:
-        'Search the active case\'s exhibits by any combination of keyword, status, witness, and status-date range. Returns matching exhibit rows (label, description, status, custodian, discrepancy flags). Returns an empty array when nothing matches.',
+        'Search the active case\'s exhibits by any combination of keyword, status, witness, and status-date range. Returns matching exhibit rows (label, description, status, custodian, discrepancy flags, and the current-status event id/timestamp for citation). Returns an empty array when nothing matches.',
       inputSchema: z.object({
         keyword: z.string().optional(),
         status: z
@@ -206,7 +219,7 @@ export function buildAssistantToolSet(ctx: AssistantToolContext): Record<string,
       }),
       execute: async ({ keyword, status, witness, dateFrom, dateTo }) => {
         try {
-          return await searchExhibits({
+          const rows = await searchExhibits({
             caseId,
             requestingUserRole: role,
             keyword,
@@ -215,6 +228,19 @@ export function buildAssistantToolSet(ctx: AssistantToolContext): Record<string,
             dateFrom,
             dateTo,
           });
+          // Attach the current-status event id/timestamp to each already-visible
+          // row from the SAME projection (getExhibitStatus) so the assistant can
+          // cite the status event (04-03 citation preferred path). An exhibit with
+          // no status yet (lastStatusEventId absent) yields nulls — the citation
+          // extractor simply has no ExhibitEvent anchor for that row.
+          const statuses = await Promise.all(
+            rows.map((r) => getExhibitStatus(r.exhibitId)),
+          );
+          return rows.map((r, i) => ({
+            ...r,
+            lastStatusEventId: statuses[i]?.lastStatusEventId ?? null,
+            lastStatusAt: statuses[i]?.lastStatusAt?.toISOString() ?? null,
+          }));
         } catch (err) {
           // An empty-criteria search is "no matching records" from the assistant's
           // view, not an error — return [] so the model declines. Any other stray
