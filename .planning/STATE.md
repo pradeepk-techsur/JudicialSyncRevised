@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-10-07T13:56:50.883Z"
-last_activity: "2026-10-07 — Completed 03-01-PLAN.md (Phase 3 data model + discrepancy engine: DiscrepancyFlag/JuryPackage/JuryPackageExhibit tables + 3 enums migrated; src/services/discrepancies.ts (evaluate/get/getExhibit/acknowledge) reading projections only, wired SYNCHRONOUSLY into status/ruling/custody write transactions so flags appear/clear on write; auditable idempotent acknowledge via DISCREPANCY_ACKNOWLEDGED ledger event; shared RoleNotPermittedError + optional AppError.details + DiscrepancyFlagSummary + ruleLabel in wave 1; history summarizer live. 123/123 vitest, build clean, tsc clean. [Wave 1.]"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-10-07T14:06:27.738Z"
+last_activity: "2026-10-07 — Completed 03-02-PLAN.md (Phase 3 jury-package + discrepancy HTTP surface: src/services/juryPackage.ts with computeJuryCandidates/initiate/read-only GET/finalize; 5 route handlers — GET+POST jury-package, POST finalize, GET case+exhibit discrepancies, POST acknowledge; membership is full-visibility case-truth while the returned view is role-filtered; finalize re-evaluates FRESH over membership (sealed included) and names blockers in error.details; GET is strictly read-only (null + zero-row). 150/150 vitest, build clean, tsc clean. [Wave 2.])"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 23
-  completed_plans: 15
+  completed_plans: 16
   percent: 40
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 3 of 5 (Jury Package & Discrepancy Detection)
-Status: Plan 03-01 complete (data model + discrepancy engine, wave 1) — ready for 03-02
-Last activity: 2026-10-07 — Completed 03-01-PLAN.md (Phase 3 data model + discrepancy engine: DiscrepancyFlag/JuryPackage/JuryPackageExhibit tables + 3 enums migrated; src/services/discrepancies.ts reading projections only, wired SYNCHRONOUSLY into status/ruling/custody write transactions so flags appear/clear on write; auditable idempotent acknowledge via DISCREPANCY_ACKNOWLEDGED ledger event; shared RoleNotPermittedError + optional AppError.details + DiscrepancyFlagSummary + ruleLabel delivered in wave 1; history summarizer live. 123/123 vitest, build clean, tsc clean. [Wave 1.])
+Status: Plan 03-02 complete (jury-package + discrepancy HTTP surface, wave 2) — ready for 03-03
+Last activity: 2026-10-07 — Completed 03-02-PLAN.md (Phase 3 jury-package + discrepancy HTTP surface: src/services/juryPackage.ts with computeJuryCandidates/initiate/read-only GET/finalize; 5 route handlers — GET+POST jury-package, POST finalize, GET case+exhibit discrepancies, POST acknowledge; membership is full-visibility case-truth while the returned view is role-filtered; finalize re-evaluates FRESH over membership (sealed included) and names blockers in error.details; GET is strictly read-only (null + zero-row). 150/150 vitest, build clean, tsc clean. [Wave 2.])
 
 Progress: [████░░░░░░] 40%
 
@@ -69,6 +69,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
 | Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
 | Phase 03-jury-package-discrepancy-detection P01 | 15 min | 3 tasks | 14 files |
+| Phase 03-jury-package-discrepancy-detection P02 | 8 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,9 @@ Recent decisions affecting current work:
 - [Phase 03-jury-package-discrepancy-detection]: [03-01]: Discrepancy engine reads derived projections only (never scans the ledger) and runs SYNCHRONOUSLY inside the status/ruling/custody write transactions (tx-threaded) so flags appear/clear on the state-change write, never on page load (Y3 Internal Triggers)
 - [Phase 03-jury-package-discrepancy-detection]: [03-01]: acknowledgeDiscrepancy commits a DISCREPANCY_ACKNOWLEDGED ledger event + flag flip in ONE transaction via recordEvent (single-writer preserved); idempotent on already-acked/resolved, 422 JUSTIFICATION_REQUIRED, 403 role-gated against actual User.role
 - [Phase 03-jury-package-discrepancy-detection]: [03-01]: AppError gains optional details surfaced by errorResponse only when present (03-02 finalize 409 channel); DiscrepancyFlagSummary type + single ruleLabel() source produced in wave 1 for 03-02/03-03 to consume
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: GET jury-package is strictly READ-ONLY (null when none, reconcile-only on DRAFT) — ROADMAP criterion 5 supersedes CONTEXT line 23 and Y1-api's non-nullable GET type
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: JuryPackageExhibitView adds an additive flags: DiscrepancyFlagSummary[] per row so 03-04's finalize gate blocks on OPEN only and re-enables on ACKNOWLEDGED (discrepancyStatus CLEAN|FLAGGED collapses the two)
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: Jury-package membership is case truth (full-visibility, viewer-independent); sealed filtering is view/export-only — a sealed OPEN discrepancy still blocks finalize for a deputy who cannot see it (gate reads membership, not the role-filtered view)
 
 ### Pending Todos
 
@@ -131,6 +135,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T13:56:41.850Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-10-07T14:06:27.736Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
