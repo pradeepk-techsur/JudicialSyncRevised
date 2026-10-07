@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Phase 5 context gathered
-last_updated: "2026-10-07T12:38:44.629Z"
-last_activity: "2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-10-07T13:56:50.883Z"
+last_activity: "2026-10-07 — Completed 03-01-PLAN.md (Phase 3 data model + discrepancy engine: DiscrepancyFlag/JuryPackage/JuryPackageExhibit tables + 3 enums migrated; src/services/discrepancies.ts (evaluate/get/getExhibit/acknowledge) reading projections only, wired SYNCHRONOUSLY into status/ruling/custody write transactions so flags appear/clear on write; auditable idempotent acknowledge via DISCREPANCY_ACKNOWLEDGED ledger event; shared RoleNotPermittedError + optional AppError.details + DiscrepancyFlagSummary + ruleLabel in wave 1; history summarizer live. 123/123 vitest, build clean, tsc clean. [Wave 1.]"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 23
+  completed_plans: 15
   percent: 40
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 2 — Core Screens
+**Current focus:** Phase 3 — Jury Package & Discrepancy Detection
 
 ## Current Position
 
-Phase: 2 of 5 (Core Screens)
-Status: All 7 plans complete (wave 3 02-06 + 02-07 both done) — ready for phase transition / verify
-Last activity: 2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]
+Phase: 3 of 5 (Jury Package & Discrepancy Detection)
+Status: Plan 03-01 complete (data model + discrepancy engine, wave 1) — ready for 03-02
+Last activity: 2026-10-07 — Completed 03-01-PLAN.md (Phase 3 data model + discrepancy engine: DiscrepancyFlag/JuryPackage/JuryPackageExhibit tables + 3 enums migrated; src/services/discrepancies.ts reading projections only, wired SYNCHRONOUSLY into status/ruling/custody write transactions so flags appear/clear on write; auditable idempotent acknowledge via DISCREPANCY_ACKNOWLEDGED ledger event; shared RoleNotPermittedError + optional AppError.details + DiscrepancyFlagSummary + ruleLabel delivered in wave 1; history summarizer live. 123/123 vitest, build clean, tsc clean. [Wave 1.])
 
 Progress: [████░░░░░░] 40%
 
@@ -68,6 +68,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
 | Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
 | Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
+| Phase 03-jury-package-discrepancy-detection P01 | 15 min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,9 @@ Recent decisions affecting current work:
 - [Phase 02-core-screens]: [02-06]: Empty-search guarded client-side (all-empty filters route to the unfiltered list, inline hint, never a hard error); the API's 422 EMPTY_SEARCH_CRITERIA remains defense-in-depth for other callers
 - [Phase 02-07]: Exhibit Detail (/exhibit/:id): useExhibitHistory throws typed NotFoundError on 404 (retry disabled → no sealed-probe timing side-channel), role in query key for immediate re-fetch; ExhibitNotFound is the single shared render for missing AND sealed-unauthorized (byte-identical, anti-enumeration); Timeline renders getExhibitHistory summaries verbatim (F7 text-parity precondition)
 - [Phase 02-07]: 02-07 Playwright drives the unauthorized sealed probe via page.route X-User-Role header injection (in-memory zustand session resets to JUDGE on full navigation, so a UI role switch can't survive page.goto); cross-screen parity asserted against the shared /api/cases/:id/exhibits service mapped through StatusBadge labels, decoupled from 02-06's DOM
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: Discrepancy engine reads derived projections only (never scans the ledger) and runs SYNCHRONOUSLY inside the status/ruling/custody write transactions (tx-threaded) so flags appear/clear on the state-change write, never on page load (Y3 Internal Triggers)
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: acknowledgeDiscrepancy commits a DISCREPANCY_ACKNOWLEDGED ledger event + flag flip in ONE transaction via recordEvent (single-writer preserved); idempotent on already-acked/resolved, 422 JUSTIFICATION_REQUIRED, 403 role-gated against actual User.role
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: AppError gains optional details surfaced by errorResponse only when present (03-02 finalize 409 channel); DiscrepancyFlagSummary type + single ruleLabel() source produced in wave 1 for 03-02/03-03 to consume
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T12:38:44.627Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-trial-command-center-live-sync/05-CONTEXT.md
+Last session: 2026-10-07T13:56:41.850Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None
