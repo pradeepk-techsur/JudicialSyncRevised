@@ -2,10 +2,9 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: "Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)"
-last_updated: "2026-10-07T19:47:38.601Z"
-last_activity: "2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean."
+status: planning
+last_updated: "2026-10-07T21:05:15.025Z"
+last_activity: "2026-10-07 — Phase 4 complete"
 progress:
   total_phases: 5
   completed_phases: 4
