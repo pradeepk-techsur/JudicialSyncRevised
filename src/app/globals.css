@@ -127,3 +127,30 @@
     @apply font-sans;
     }
 }
+
+/* Print rules (CONTEXT print CSS) — produce a clean FINALIZED jury-package
+   handoff. App chrome (header, sidebar, nav) and in-app action buttons carry the
+   `.no-print` utility and are hidden; the finalized content (banner + exhibit
+   list + the print-only handoff header) prints without the shell. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  /* Let the printed content use the full page rather than the fixed app-shell
+     viewport layout (which clips to screen height). */
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .jury-print-root {
+    margin: 0 !important;
+  }
+}
