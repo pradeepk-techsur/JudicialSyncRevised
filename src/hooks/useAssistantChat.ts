@@ -238,7 +238,22 @@ export function useAssistantChat(): UseAssistantChatResult {
   const replayedForRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeConversationId) {
+      // The store's active conversation was reset to null. This happens on the
+      // explicit "New conversation" control (which also calls the hook's
+      // newConversation → setMessages([])) AND on a ROLE SWITCH, where
+      // roleStore.setActiveUser calls assistantStore.newConversation() DIRECTLY
+      // without going through this hook. In that role-switch path nothing else
+      // clears the live useChat messages, so the prior role's answer bubbles
+      // would stay rendered AND — worse — be resent to the model on the next
+      // send (the transport forwards the full local `messages` array), leaking
+      // prior-role history across a visibility boundary (CONTEXT.md role
+      // isolation; T-04-12). Clearing the live messages here makes the fresh
+      // thread the single source of truth regardless of who nulled the store:
+      // the empty-state chips return and the next send carries only the new turn.
       replayedForRef.current = null;
+      if (messages.length > 0) setMessages([]);
+      lastSentRef.current = '';
+      chat.clearError();
       return;
     }
     if (replayedForRef.current === activeConversationId) return;
