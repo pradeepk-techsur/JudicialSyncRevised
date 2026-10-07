@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { AppError, NotFoundError, ValidationError } from '@/lib/errors';
 import { recordEvent } from '@/services/events';
 import { evaluateDiscrepancies } from '@/services/discrepancies';
+import { advisoryLockKey } from '@/lib/advisoryLock';
 
 // F2 — Objection and Ruling Tracking.
 //
@@ -92,17 +93,6 @@ export async function recordObjection(args: {
     throw new NotFoundError('EXHIBIT_NOT_FOUND', 'No exhibit found with the given ID');
   }
 
-  // 3. The exhibit must currently be OFFERED or OBJECTED. An exhibit with no
-  //    ExhibitCurrentState row (never offered — still only MARKED) or one in a
-  //    terminal status cannot be objected to.
-  const currentState = await prisma.exhibitCurrentState.findUnique({
-    where: { exhibitId },
-    select: { currentStatus: true },
-  });
-  if (!currentState || !OBJECTABLE_STATUSES.has(currentState.currentStatus)) {
-    throw new InvalidObjectionTargetError();
-  }
-
   // 4. Generate the thread id shared by this raise event and its future ruling.
   const objectionId = randomUUID();
 
@@ -113,6 +103,23 @@ export async function recordObjection(args: {
   //    with no projection row (invisible to getUnresolvedObjections) — mirrors
   //    status.ts / custody.ts.
   return prisma.$transaction(async (tx) => {
+    // Serialize all writers for this exhibit on the shared per-exhibit advisory
+    // lock (status / custody / ruling all contend on the same key), so the
+    // status re-check below and any future flag evaluation observe a consistent
+    // projection against concurrent rulings — W1.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey(exhibitId)})`;
+
+    // 3. The exhibit must currently be OFFERED or OBJECTED, re-checked inside the
+    //    lock. An exhibit with no ExhibitCurrentState row (never offered — still
+    //    only MARKED) or one in a terminal status cannot be objected to.
+    const currentState = await tx.exhibitCurrentState.findUnique({
+      where: { exhibitId },
+      select: { currentStatus: true },
+    });
+    if (!currentState || !OBJECTABLE_STATUSES.has(currentState.currentStatus)) {
+      throw new InvalidObjectionTargetError();
+    }
+
     const event = await recordEvent(
       {
         exhibitId,
@@ -151,20 +158,24 @@ export async function recordRuling(args: {
 }): Promise<{ event: ExhibitEvent; objectionState: ObjectionCurrentState }> {
   const { objectionId, disposition, actorUserId } = args;
 
-  // 1. The referenced thread must exist and currently be UNRESOLVED.
-  const objectionState = await prisma.objectionCurrentState.findUnique({
+  // Resolve the thread's exhibitId first so we can serialize all ruling writers
+  // for that exhibit on the same per-exhibit advisory lock the status/custody
+  // paths use. Without this, two concurrent rulings on the same exhibit could
+  // both reach evaluateDiscrepancies, both observe no existing flag, and both
+  // insert a duplicate OPEN flag (the engine's find-then-create has no DB
+  // uniqueness backstop) — W1.
+  const thread = await prisma.objectionCurrentState.findUnique({
     where: { objectionId },
+    select: { exhibitId: true },
   });
-  if (!objectionState) {
+  if (!thread) {
     throw new NotFoundError('OBJECTION_NOT_FOUND', 'No objection found with the given ID');
   }
-  if (objectionState.status !== 'UNRESOLVED') {
-    throw new ObjectionAlreadyResolvedError();
-  }
 
-  // 2. Server-side role check against the ACTUAL User.role column (never a
-  //    client claim) — T-01-11, the highest-value check in this plan. Required
-  //    for every disposition, RESERVED included.
+  // Server-side role check against the ACTUAL User.role column (never a client
+  // claim) — T-01-11, the highest-value check in this plan. Required for every
+  // disposition, RESERVED included. Checked before the lock so an unauthorized
+  // caller never contends on it.
   const actor = await prisma.user.findUnique({
     where: { id: actorUserId },
     select: { role: true },
@@ -173,13 +184,28 @@ export async function recordRuling(args: {
     throw new RoleNotPermittedError();
   }
 
-  // 3. Append the RULING_RECORDED ledger event (sole writer) and apply the
-  //    projection update in the SAME transaction — passing the tx client into
-  //    recordEvent so the ledger event and the ObjectionCurrentState change
-  //    commit or roll back together. A crash between them can no longer leave a
-  //    RULING_RECORDED event while the thread stays UNRESOLVED — mirrors
-  //    status.ts / custody.ts.
   return prisma.$transaction(async (tx) => {
+    // 1. Serialize concurrent ruling writers for this exhibit (mirrors
+    //    status.ts / custody.ts). Held until commit/rollback, so the
+    //    read-check-write + evaluateDiscrepancies sequence below is atomic
+    //    against other ruling/status/custody transactions on the same exhibit.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey(thread.exhibitId)})`;
+
+    // 2. Re-read the thread INSIDE the lock: it must exist and be UNRESOLVED.
+    const objectionState = await tx.objectionCurrentState.findUnique({
+      where: { objectionId },
+    });
+    if (!objectionState) {
+      throw new NotFoundError('OBJECTION_NOT_FOUND', 'No objection found with the given ID');
+    }
+    if (objectionState.status !== 'UNRESOLVED') {
+      throw new ObjectionAlreadyResolvedError();
+    }
+
+    // 3. Append the RULING_RECORDED ledger event (sole writer) and apply the
+    //    projection update in the SAME transaction — passing the tx client into
+    //    recordEvent so the ledger event and the ObjectionCurrentState change
+    //    commit or roll back together.
     const event = await recordEvent(
       {
         exhibitId: objectionState.exhibitId,
