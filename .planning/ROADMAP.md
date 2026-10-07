@@ -13,7 +13,7 @@ JudicialSync-Demo proves that Pivota can be the operational memory of a courtroo
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Data Foundation** - Event-sourced ledger + status/objection/custody tracking, with deterministic seed data containing the required discrepancy edge cases (completed 2026-10-07)
-- [ ] **Phase 2: Core Screens** - Case Workspace (browse/search) and Exhibit Detail View (full history), reading the Phase 1 service layer
+- [x] **Phase 2: Core Screens** - Case Workspace (browse/search) and Exhibit Detail View (full history), reading the Phase 1 service layer (completed 2026-10-07)
 - [ ] **Phase 3: Jury Package + Discrepancy Detection** - Automated cross-domain discrepancy flags gating jury package finalization, surfaced on the Jury Package Workspace
 - [ ] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline
 - [ ] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens
@@ -44,7 +44,7 @@ Plans:
 
 ### Phase 2: Core Screens
 **Goal**: Any courtroom user can browse the full case exhibit list, search/filter it by multiple combinable criteria, and drill into any single exhibit's complete chronological history — through two screens that read the exact same service layer validated in Phase 1, with no screen-local derivation that could diverge from it.
-**Status**: Passed
+**Status**: Complete (2026-10-07)
 **Depends on**: Phase 1
 **Requirements**: F4, F9, F10
 **Success Criteria** (what must be TRUE):
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 0/TBD | Complete | 2026-10-07 |
-| 2. Core Screens | 0/TBD | Passed | - |
+| 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Not started | - |
 | 4. Pivota Assistant | 0/TBD | Not started | - |
 | 5. Trial Command Center + Live Sync | 0/TBD | Not started | - |
