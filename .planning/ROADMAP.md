@@ -73,7 +73,11 @@ Plans:
   3. Attempting to finalize a jury package while any included exhibit has an open discrepancy is rejected, with the blocking exhibit(s) named in the response — finalization only succeeds once every included exhibit's discrepancies are resolved or explicitly acknowledged.
   4. A deputy/clerk/judge/admin can explicitly acknowledge an open discrepancy with a required justification, and that acknowledgment is itself recorded as an auditable, visible event — never a silent dismissal.
   5. Opening the Jury Package Workspace before any deputy/clerk/admin has initiated a package shows an explicit "no package started yet" state — viewing it never silently creates a draft as a side effect.
-**Plans**: TBD
+**Plans**: 4 plans
+- [ ] 03-01-PLAN.md — Schema (DiscrepancyFlag/JuryPackage/JuryPackageExhibit) + discrepancy rule engine wired synchronously into status/ruling/custody writes (F6 foundation)
+- [ ] 03-02-PLAN.md — Discrepancy routes + jury-package service (read-only GET, fresh-gated finalize) + jury routes (F5)
+- [ ] 03-03-PLAN.md — Widen ExhibitListRow, Case Workspace discrepancy badges, seed-fires-both-rules integrity assertion (F6 surfacing)
+- [ ] 03-04-PLAN.md — Jury Package Workspace screen (empty/draft/finalized, hard-disabled gate, inline acknowledge, export/print) + sidebar count badge + Exhibit Detail ack banner (F11)
 
 ### Phase 4: Pivota Assistant
 **Goal**: Any authorized courtroom user can ask a natural-language question about an exhibit's status, custody, rulings, or jury eligibility during live proceedings and receive an immediate, cited answer grounded in the same data the dashboards show — or an explicit decline — and is never given a fabricated claim.
