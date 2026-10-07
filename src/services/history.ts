@@ -5,7 +5,10 @@ import type {
   Role,
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import type { DiscrepancyFlagSummary } from '@/lib/types';
+import { ruleLabel } from '@/lib/discrepancyLabels';
 import { getExhibit } from '@/services/exhibits';
+import { getExhibitDiscrepancies } from '@/services/discrepancies';
 
 // F10 — Full chronological exhibit history (Y1-api.md §Exhibits GET
 // /api/exhibits/:id/history; FRD F00 §Process step 7 "ledger replay").
@@ -38,10 +41,10 @@ export interface ExhibitHistoryResponse {
   exhibit: Exhibit;
   currentStatus: ExhibitStatus | null;
   currentCustodianName: string | null;
-  // Always [] in Phase 1 — the DiscrepancyFlag table does not exist yet. Phase 3
-  // populates this field; returning [] now is the honest placeholder the
-  // Y1-api.md response shape prescribes, never a fabricated value.
-  discrepancyFlags: [];
+  // The exhibit's active (OPEN+ACKNOWLEDGED) discrepancy flags as compact
+  // render-ready summaries (Phase 3 / F6). This is what the Exhibit Detail
+  // header banner (ExhibitHeader.tsx) reads to light up its amber block.
+  discrepancyFlags: DiscrepancyFlagSummary[];
   timeline: TimelineEntry[];
 }
 
@@ -133,14 +136,24 @@ export async function getExhibitHistory(
   }
 
   // 2. Header summary fields from the derived projections. The custodian name is
-  //    joined through CustodyCurrentState → User.
-  const [currentState, custodyState] = await Promise.all([
+  //    joined through CustodyCurrentState → User. The exhibit's active
+  //    discrepancy flags (OPEN+ACKNOWLEDGED) are loaded through the SAME shared
+  //    query the Case Workspace / Jury screen use (getExhibitDiscrepancies), so
+  //    the header banner can never drift from the list column.
+  const [currentState, custodyState, discrepancyRows] = await Promise.all([
     prisma.exhibitCurrentState.findUnique({ where: { exhibitId } }),
     prisma.custodyCurrentState.findUnique({
       where: { exhibitId },
       include: { custodian: { select: { name: true } } },
     }),
+    getExhibitDiscrepancies(exhibitId),
   ]);
+
+  const discrepancyFlags: DiscrepancyFlagSummary[] = discrepancyRows.map((flag) => ({
+    ruleCode: flag.ruleCode,
+    status: flag.status as 'OPEN' | 'ACKNOWLEDGED',
+    label: ruleLabel(flag.ruleCode),
+  }));
 
   // 3. The COMPLETE, ordered ledger — every event type, no filtering, no limit.
   //    The actor is joined here so each entry resolves to a name, never a UUID.
@@ -183,7 +196,7 @@ export async function getExhibitHistory(
     exhibit,
     currentStatus: currentState?.currentStatus ?? null,
     currentCustodianName: custodyState?.custodian.name ?? null,
-    discrepancyFlags: [],
+    discrepancyFlags,
     timeline,
   };
 }

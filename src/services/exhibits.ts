@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
 import { exhibitStatusEnum, offeringPartyEnum } from '@/lib/validation/eventPayloads';
-import type { ExhibitListRow } from '@/lib/types';
+import type { DiscrepancyFlagSummary, ExhibitListRow } from '@/lib/types';
+import { ruleLabel } from '@/lib/discrepancyLabels';
 import { canViewSealed } from '@/services/visibility';
 
 // Exhibit identity-record CRUD (FRD F00 §Inputs/§Validation).
@@ -126,16 +127,23 @@ async function assertCaseExists(caseId: string): Promise<void> {
 
 // The single mapper from a Prisma exhibit-with-projections row to the shared
 // ExhibitListRow shape. Both getExhibits and searchExhibits return this exact
-// shape — reusing this mapper is what guarantees they never drift.
-function toListRow(exhibit: {
-  id: string;
-  exhibitLabel: string;
-  description: string;
-  offeringParty: OfferingParty;
-  associatedWitness: string | null;
-  currentState: { currentStatus: ExhibitStatus } | null;
-  custodyState: { custodian: { name: string } } | null;
-}): ExhibitListRow {
+// shape — reusing this mapper is what guarantees they never drift. The caller
+// passes in the exhibit's already-grouped discrepancy flags (batch-loaded once
+// for the whole page via loadDiscrepancyFlagsByExhibit — never N+1 per row), so
+// the row carries real OPEN+ACKNOWLEDGED flags mapped through the single
+// ruleLabel source rather than the old [] placeholder.
+function toListRow(
+  exhibit: {
+    id: string;
+    exhibitLabel: string;
+    description: string;
+    offeringParty: OfferingParty;
+    associatedWitness: string | null;
+    currentState: { currentStatus: ExhibitStatus } | null;
+    custodyState: { custodian: { name: string } } | null;
+  },
+  discrepancyFlags: DiscrepancyFlagSummary[],
+): ExhibitListRow {
   return {
     exhibitId: exhibit.id,
     exhibitLabel: exhibit.exhibitLabel,
@@ -144,8 +152,42 @@ function toListRow(exhibit: {
     associatedWitness: exhibit.associatedWitness,
     currentStatus: exhibit.currentState?.currentStatus ?? null,
     currentCustodianName: exhibit.custodyState?.custodian.name ?? null,
-    discrepancyFlags: [],
+    discrepancyFlags,
   };
+}
+
+// Batch-load the active (OPEN+ACKNOWLEDGED) discrepancy flags for a page of
+// exhibits in ONE query and group them by exhibitId, so toListRow can attach
+// each row's flags without an N+1 per-row lookup. RESOLVED flags are history
+// and are deliberately excluded (they surface only in the exhibit timeline).
+// Keyed on the already-sealed-filtered exhibitIds, so a sealed exhibit's flags
+// never reach an unauthorized client (threat T-03-09).
+async function loadDiscrepancyFlagsByExhibit(
+  exhibitIds: string[],
+): Promise<Map<string, DiscrepancyFlagSummary[]>> {
+  const byExhibit = new Map<string, DiscrepancyFlagSummary[]>();
+  if (exhibitIds.length === 0) {
+    return byExhibit;
+  }
+  const flags = await prisma.discrepancyFlag.findMany({
+    where: { exhibitId: { in: exhibitIds }, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
+    select: { exhibitId: true, ruleCode: true, status: true },
+    orderBy: { detectedAt: 'asc' },
+  });
+  for (const flag of flags) {
+    const summary: DiscrepancyFlagSummary = {
+      ruleCode: flag.ruleCode,
+      status: flag.status as 'OPEN' | 'ACKNOWLEDGED',
+      label: ruleLabel(flag.ruleCode),
+    };
+    const existing = byExhibit.get(flag.exhibitId);
+    if (existing) {
+      existing.push(summary);
+    } else {
+      byExhibit.set(flag.exhibitId, [summary]);
+    }
+  }
+  return byExhibit;
 }
 
 export async function getExhibits(
@@ -169,7 +211,8 @@ export async function getExhibits(
     // exhibitLabel") and F4 (§Process step 4 default ordering) must agree.
     orderBy: { exhibitLabel: 'asc' },
   });
-  return exhibits.map(toListRow);
+  const flagsByExhibit = await loadDiscrepancyFlagsByExhibit(exhibits.map((e) => e.id));
+  return exhibits.map((e) => toListRow(e, flagsByExhibit.get(e.id) ?? []));
 }
 
 // F4 — Exhibit Search. Combinable AND-semantics filtering over the same
@@ -256,5 +299,6 @@ export async function searchExhibits(criteria: SearchExhibitsCriteria): Promise<
     },
     orderBy: { exhibitLabel: 'asc' },
   });
-  return exhibits.map(toListRow);
+  const flagsByExhibit = await loadDiscrepancyFlagsByExhibit(exhibits.map((e) => e.id));
+  return exhibits.map((e) => toListRow(e, flagsByExhibit.get(e.id) ?? []));
 }

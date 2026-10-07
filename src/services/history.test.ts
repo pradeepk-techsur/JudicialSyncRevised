@@ -125,18 +125,28 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
     }
   });
 
-  it('returns discrepancyFlags as [] for every exhibit in this phase', async () => {
-    const exhibits = await prisma.exhibit.findMany({
-      where: { caseId },
-      select: { id: true },
-    });
-    expect(exhibits.length).toBeGreaterThanOrEqual(8);
+  it('populates discrepancyFlags from the live engine: flagged exhibits carry them, clean ones are []', async () => {
+    // Phase 3 (F6) lights up getExhibitHistory.discrepancyFlags from the live
+    // engine. The seeded demo plants exactly the two flagged conditions:
+    //   P-2 — ADMITTED with no custodian  → ADMITTED_NO_CUSTODIAN
+    //   P-3 — ADMITTED with an unresolved objection → UNRESOLVED_OBJECTION_JURY_ELIGIBLE
+    // P-4 is cleanly ADMITTED with a full custody chain and no open objection → [].
+    const p2 = await getExhibitHistory(await exhibitIdByLabel('P-2'), 'JUDGE');
+    expect(p2).not.toBeNull();
+    expect(p2!.discrepancyFlags.map((f) => f.ruleCode)).toContain('ADMITTED_NO_CUSTODIAN');
+    const p2Flag = p2!.discrepancyFlags.find((f) => f.ruleCode === 'ADMITTED_NO_CUSTODIAN');
+    expect(p2Flag!.status).toBe('OPEN');
+    expect(p2Flag!.label).toBe('No custodian on record');
 
-    for (const ex of exhibits) {
-      const history = await getExhibitHistory(ex.id, 'JUDGE');
-      expect(history).not.toBeNull();
-      expect(history?.discrepancyFlags).toEqual([]);
-    }
+    const p3 = await getExhibitHistory(await exhibitIdByLabel('P-3'), 'JUDGE');
+    expect(p3).not.toBeNull();
+    expect(p3!.discrepancyFlags.map((f) => f.ruleCode)).toContain(
+      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
+
+    const p4 = await getExhibitHistory(await exhibitIdByLabel('P-4'), 'JUDGE');
+    expect(p4).not.toBeNull();
+    expect(p4!.discrepancyFlags).toEqual([]);
   });
 
   it('reconstructs the full history for the custody-gap exhibit (P-2) with no custodian name', async () => {
