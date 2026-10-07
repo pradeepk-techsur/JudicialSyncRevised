@@ -5,16 +5,26 @@
 // map `code` -> HTTP status, emitting the common envelope
 // `{ error: { code, message } }` (Y2-errors.md).
 
-/** Base class so route handlers can `instanceof AppError` and read `.code`/`.httpStatus`. */
+/**
+ * Base class so route handlers can `instanceof AppError` and read `.code`/`.httpStatus`.
+ *
+ * `details` is an OPTIONAL structured payload surfaced by `errorResponse` as
+ * `{ error: { code, message, details } }` when present (omitted entirely when
+ * undefined — fully backward-compatible with the bare `{ code, message }`
+ * envelope). This is the channel finalize's 409 blocking-exhibit list rides on
+ * (plan 03-02); it is provided here in wave 1 so downstream only consumes it.
+ */
 export class AppError extends Error {
   readonly code: string;
   readonly httpStatus: number;
+  readonly details?: unknown;
 
-  constructor(code: string, message: string, httpStatus: number) {
+  constructor(code: string, message: string, httpStatus: number, details?: unknown) {
     super(message);
     this.name = new.target.name;
     this.code = code;
     this.httpStatus = httpStatus;
+    this.details = details;
     // Restore prototype chain for `instanceof` across transpilation targets.
     Object.setPrototypeOf(this, new.target.prototype);
   }
@@ -22,8 +32,8 @@ export class AppError extends Error {
 
 /** 422 — any input validation failure (Y2-errors.md VALIDATION_ERROR). */
 export class ValidationError extends AppError {
-  constructor(message: string) {
-    super('VALIDATION_ERROR', message, 422);
+  constructor(message: string, details?: unknown) {
+    super('VALIDATION_ERROR', message, 422, details);
   }
 }
 
@@ -32,15 +42,15 @@ export class ValidationError extends AppError {
  * conflict (e.g. EXHIBIT_LABEL_CONFLICT) so routes map it directly.
  */
 export class ConflictError extends AppError {
-  constructor(code: string, message: string) {
-    super(code, message, 409);
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, 409, details);
   }
 }
 
 /** 404 — a referenced record does not exist (or is masked). */
 export class NotFoundError extends AppError {
-  constructor(code: string, message: string) {
-    super(code, message, 404);
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, 404, details);
   }
 }
 
@@ -51,7 +61,19 @@ export class NotFoundError extends AppError {
  * the client can distinguish it (Y2-errors.md).
  */
 export class UnprocessableError extends AppError {
-  constructor(code: string, message: string) {
-    super(code, message, 422);
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, 422, details);
+  }
+}
+
+/**
+ * 403 — ROLE_NOT_PERMITTED. The acting user's role is not authorized for this
+ * action. Shared by the discrepancy/jury features (acknowledgeDiscrepancy
+ * role-gate, F6; finalize, 03-02). objections.ts keeps its own private
+ * ruling-specific variant — this is the general-purpose one.
+ */
+export class RoleNotPermittedError extends AppError {
+  constructor(message = 'You are not permitted to perform this action', details?: unknown) {
+    super('ROLE_NOT_PERMITTED', message, 403, details);
   }
 }
