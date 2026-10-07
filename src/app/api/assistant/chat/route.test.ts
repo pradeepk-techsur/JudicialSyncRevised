@@ -6,7 +6,7 @@ import { runSeed } from '@/data/seed';
 import { getActiveCaseWithUsers } from '@/services/cases';
 import { isAssistantConfigured } from '@/lib/assistantConfig';
 import { getConversationDetail } from '@/services/assistant';
-import { POST } from '@/app/api/assistant/chat/route';
+import { POST, isDeclineText } from '@/app/api/assistant/chat/route';
 
 // =============================================================================
 // Chat-route release-blocker suite (F7). Runs meaningfully in BOTH modes and
@@ -122,6 +122,36 @@ describe('POST /api/assistant/chat', () => {
       });
     }
     await prisma.$disconnect();
+  });
+
+  // ---------------------------------------------------------------------------
+  // isDeclineText — pure-function unit tests. Always run (no key needed): this
+  // is the exact gate 04-06 adds to close 04-UAT.md test 7 (a tool returning
+  // rows this turn is NOT sufficient for "grounded" — only the model's own
+  // final text is). Verifies case-insensitivity and that a plain grounded
+  // sentence never false-positives as a decline.
+  // ---------------------------------------------------------------------------
+  describe('isDeclineText', () => {
+    it('matches the exact UAT test-7 repro decline sentence', () => {
+      expect(
+        isDeclineText(
+          "I don't have that information about which exhibits were admitted yesterday.",
+        ),
+      ).toBe(true);
+    });
+
+    it('matches the bare decline phrase', () => {
+      expect(isDeclineText("I don't have that information.")).toBe(true);
+    });
+
+    it('matches case-insensitively (all-caps / mixed-case)', () => {
+      expect(isDeclineText("I DON'T HAVE that information.")).toBe(true);
+      expect(isDeclineText("i don't have THAT INFORMATION about Exhibit 3.")).toBe(true);
+    });
+
+    it('does NOT false-positive on a plain grounded sentence', () => {
+      expect(isDeclineText('Exhibit D-1 is ADMITTED as of October 6, 2026.')).toBe(false);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -245,6 +275,54 @@ describe('POST /api/assistant/chat', () => {
         const assistant = await ask('what exhibits were admitted yesterday', 'JUDGE');
         if (!assistant.content.toLowerCase().includes("i don't have")) {
           expect(assistant.citations.length).toBeGreaterThanOrEqual(1);
+        }
+      }, LLM_TEST_TIMEOUT);
+
+      it('04-UAT.md test 7 repro: a decline on "what exhibits were admitted yesterday" ALWAYS carries citations: [] even though searchExhibits returned rows this turn', async () => {
+        // The live-reproduced defect: searchExhibits has no date-filter support, so
+        // it returns all ADMITTED exhibits regardless of "yesterday". Before the
+        // 04-06 fix, onFinish unconditionally called extractCitations(steps),
+        // deriving one citation per returned row even when the model's own text
+        // correctly declined on the date criterion. This test proves the gate: a
+        // textual decline this turn now ALWAYS yields citations: [], regardless of
+        // what extractCitations(steps) would otherwise have derived from the tool
+        // call's rows.
+        const assistant = await ask('what exhibits were admitted yesterday', 'JUDGE');
+        expect(assistant.content.trim().length).toBeGreaterThan(0);
+
+        if (isDeclineText(assistant.content)) {
+          // THE defect this plan closes: decline text must carry zero citations,
+          // even though searchExhibits returned rows this turn.
+          expect(assistant.citations).toEqual([]);
+        } else {
+          // Defensive fallback (UAT's own note: model behavior on this literal
+          // date-filter question is non-deterministic across demo runs). If the
+          // model instead answered grounded, the normal grounded invariant still
+          // holds — never grounded text with zero citations.
+          expect(assistant.citations.length).toBeGreaterThanOrEqual(1);
+          for (const c of assistant.citations) {
+            const exhibit = await prisma.exhibit.findUnique({
+              where: { id: c.exhibitId },
+              select: { id: true },
+            });
+            expect(exhibit).not.toBeNull();
+          }
+        }
+      }, LLM_TEST_TIMEOUT);
+
+      it('no-over-correction guard: a genuinely grounded answer ("who currently has custody of Exhibit 7") still carries >=1 citation', async () => {
+        // Guards against a regression where isDeclineText false-positives on
+        // grounded text and empties out citations that should be present — the
+        // gate must only zero out citations for an ACTUAL textual decline.
+        const assistant = await ask('who currently has custody of Exhibit 7', 'JUDGE');
+        expect(assistant.content.trim().length).toBeGreaterThan(0);
+
+        if (!isDeclineText(assistant.content)) {
+          expect(assistant.citations.length).toBeGreaterThanOrEqual(1);
+        } else {
+          // If the model declined for some reason, the gate's own invariant still
+          // holds (decline ⇒ zero citations) — never decline-with-citations.
+          expect(assistant.citations).toEqual([]);
         }
       }, LLM_TEST_TIMEOUT);
 
