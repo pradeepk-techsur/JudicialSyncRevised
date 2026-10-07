@@ -1,0 +1,19 @@
+{
+  "generator_version": "init-dev-server@1",
+  "catalog_entry": null,
+  "generated_at": "2026-10-07T03:22:54Z",
+  "inspection_inputs_hash": "fa7d849ecab8adb2b8d87b1e8747e96a44c81499bb98587900f8f4702afb64b7",
+  "inspection_inputs": {
+    "matched_globs": [
+      "*compose.y*ml",
+      "next.config.*",
+      "package.json"
+    ],
+    "manifest_signatures": [
+      "docker-compose.yml:services:app,db",
+      "package.json:dep:next@16.4.0",
+      "package.json:dev-script:next dev"
+    ],
+    "existing_scripts": []
+  }
+}
