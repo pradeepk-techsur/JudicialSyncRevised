@@ -2,14 +2,15 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-07T03:59:14.811Z"
-last_activity: "2026-10-07 — Phase 1 complete"
+status: executing
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-10-07T06:14:16.354Z"
+last_activity: "2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass)."
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 14
+  completed_plans: 8
   percent: 20
 ---
 
@@ -20,14 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 1 — Data Foundation
+**Current focus:** Phase 2 — Core Screens
 
 ## Current Position
 
-Phase: 1 of 5 (Data Foundation)
-Plan: 7 of 7 complete in current phase
-Status: Phase complete — ready for verification/transition
-Last activity: 2026-10-07 — Completed 01-07-PLAN.md (ledger replay: getExhibitHistory full timeline + rebuildProjections read-only projection-integrity check, both verified against the real seed incl. negative control). Phase 1 complete (7/7).
+Phase: 2 of 5 (Core Screens)
+Status: In progress (wave 1, parallel execution)
+Last activity: 2026-10-07 — Completed 02-03-PLAN.md (case bootstrap: planted sealed exhibit S-1 as Phase 2's first role-based-visibility fixture + 4th seed-integrity check; new getActiveCaseWithUsers service + GET /api/case returning caseId + 6-persona roster; all 9 tests pass).
 
 Progress: [██░░░░░░░░] 20%
 
@@ -61,6 +61,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase 01 P04 | 3 min | 2 tasks | 6 files |
 | Phase 01-data-foundation P06 | 5 min | 2 tasks | 4 files |
 | Phase 01-data-foundation P7 | 4 min | 2 tasks | 6 files |
+| Phase 02-core-screens P03 | 8 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 01-07]: getExhibitHistory replays the full ExhibitEvent ledger (all event types, sequenceNo order, no truncation) into plain-language summaries with resolved actor/custodian names; discrepancyFlags is [] until Phase 3's DiscrepancyFlag table exists
 - [Phase 01-07]: rebuildProjections is a strictly read-only ledger-replay integrity check (zero recordEvent / zero *CurrentState writes, threat T-01-20); RESERVED rulings leave a thread UNRESOLVED in replay, mirroring recordRuling; proven by a negative control that detects a corrupted projection
 - [Phase 01-07]: vitest fileParallelism:false — all integration suites share one Postgres and the same fixed-caseNumber seed, so parallel workers rebuilding it race into FK violations
+- [Phase 02-03]: DEMO_CASE_NUMBER extracted to src/lib/constants.ts as the single source of truth; seed loader and cases.ts both import it instead of re-literalling 2026-CR-0142
+- [Phase 02-03]: Sealed exhibit S-1 (isSealed:true, full status+custody history) planted via the live service path only (zero direct ledger/projection inserts, threat T-02-08); assertSeedIntegrity now requires >=1 sealed exhibit
+- [Phase 02-03]: GET /api/case returns the full 6-persona roster unfiltered (accepted risk T-02-07: synthetic personas, no real PII; the role switcher needs the whole roster)
 
 ### Pending Todos
 
@@ -103,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T03:02:38.494Z
-Stopped at: Completed 01-07-PLAN.md
+Last session: 2026-10-07T06:14:16.353Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
