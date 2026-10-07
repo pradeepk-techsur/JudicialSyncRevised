@@ -31,5 +31,8 @@ export function useUnresolvedObjections() {
     },
     enabled: Boolean(caseId),
     refetchInterval: 4_000,
+    // Live-sync panel: surface a failed poll's error promptly (own error state);
+    // the 4s interval re-attempts naturally. See useDiscrepancies for rationale.
+    retry: false,
   });
 }

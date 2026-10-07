@@ -33,5 +33,11 @@ export function useDiscrepancies() {
     },
     enabled: Boolean(caseId),
     refetchInterval: 4_000,
+    // Live-sync panel: a failed poll should surface its inline error promptly
+    // (the panel has its own error state) rather than retrying with backoff —
+    // the 4s interval re-attempts the fetch naturally on recovery. Without this,
+    // react-query's default 3× backoff keeps the panel in a loading skeleton for
+    // several seconds before the independent error state can show.
+    retry: false,
   });
 }
