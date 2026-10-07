@@ -73,6 +73,16 @@ ledger↔projection atomicity for objections — and must be fixed before ship.
   transaction, then re-read the current custodian *inside* the lock before
   validating and writing. (Share the `advisoryLockKey` helper rather than
   duplicating it.)
+- **Resolution:** fixed (5d0c2f0). `recordCustodyTransfer` now wraps the
+  current-custodian read, chain check, `recordEvent`, and projection upsert in a
+  single `prisma.$transaction` that first takes
+  `pg_advisory_xact_lock(advisoryLockKey(exhibitId))`, re-reading the custodian
+  inside the lock — mirroring `recordStatusChange`. The `advisoryLockKey` helper
+  was extracted to `src/lib/advisoryLock.ts` and is now shared by both
+  status.ts and custody.ts (no duplication). P2034/P2028 are mapped to a 409
+  `CUSTODY_CONFLICT` like the status path. Concurrency correctness carries
+  `fixed: requires human verification` (no multi-connection race test exists in
+  the suite). 67/67 tests green, build passes, tsc clean.
 
 ### B2: Objection and ruling writes are not atomic — the ledger event and its projection row are written in two separate transactions
 - **File:** src/services/objections.ts:109-126 (recordObjection), 166-188 (recordRuling)
@@ -98,8 +108,23 @@ ledger↔projection atomicity for objections — and must be fixed before ship.
   `prisma.$transaction`, passing the `tx` client into `recordEvent` and doing the
   `objectionCurrentState` create/update on that same `tx`, mirroring the pattern
   already used in `status.ts` and `custody.ts`.
+- **Resolution:** fixed (002293e). Both `recordObjection` and `recordRuling` now
+  run inside a single `prisma.$transaction`, passing `tx` into `recordEvent` and
+  performing the `objectionCurrentState` create/update on that same `tx`. The
+  RESERVED early-return now happens inside the transaction (ledger event still
+  commits atomically, no projection update), matching prior behavior. Ledger and
+  projection can no longer land in separate transactions. 18/18 objection tests
+  green, full suite 67/67, build passes, tsc clean. Atomicity-on-crash carries
+  `fixed: requires human verification` (no process-kill test exists).
 
 ## WARNINGs
+
+> **Fix-pass note (iteration 1):** This fix pass was scoped to the two BLOCKERs
+> (B1, B2). W1–W3 are deferred to a follow-up pass. Note that the B1 fix (adding
+> the advisory lock to the custody path) incidentally closes W1 for the custody
+> caller — concurrent `recordEvent` calls for the same exhibit are now serialized
+> there, so the sequenceNo collision / spurious-500 window no longer applies to
+> custody. The objection caller remains unserialized (W1 still open there).
 
 ### W1: Concurrent events on the same exhibit can collide on sequenceNo and surface as an unhandled 500 outside the status path
 - **File:** src/services/events.ts:68-84; callers src/services/objections.ts:109,166 and src/services/custody.ts:92
