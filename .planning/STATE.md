@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-05-PLAN.md
-last_updated: "2026-10-07T16:57:28.936Z"
-last_activity: "2026-10-07 — Completed 04-05-PLAN.md (Assistant UI surfaces + citations + E2E, wave 5): two surfaces over ONE shared conversation — AssistantPanel (global slide-over, mounted in AppShell, always-mounted+translated-off so thread state survives close/reopen+navigation, stays open on pill click) + full-page /assistant, both rendering the surface-agnostic AssistantThread over 04-04's useAssistantChat/useAssistantStore. CitationPill reads citation.exhibitId/eventId directly (never re-derived) → /exhibit/:id?event=:id (non-null) or /exhibit/:id top-of-timeline (null). Three unambiguous outcomes: grounded(pills)/decline(neutral,no-pill,data-outcome=decline,not-error)/unavailable(role=alert system-notice + Try-again re-submits preserved question). Timeline ?event= deep-link scrolls+highlights (~400ms, graceful top fallback), useSearchParams in Suspense (Next16). Header Ask✦ enabled→togglePanel; Sidebar Assistant→/assistant live (Jury Package NOT regressed, Command Center sole placeholder). e2e/assistant.spec.ts: 7 deterministic KEY-FREE tests mocking POST /api/assistant/chat with 04-03's captured ai@6 UI-message stream frame + x-vercel-ai-ui-message-stream:v1 header, citations bound to REAL seed ids so #event-<id> exists; path(a) stable, hook-state fallback(b) unneeded. 29 E2E pass (clean seed), 175|3 vitest, build+tsc clean. Phase 4 COMPLETE."
+stopped_at: "Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)"
+last_updated: "2026-10-07T19:47:38.601Z"
+last_activity: "2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean."
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 26
-  completed_plans: 23
-  percent: 88
+  total_plans: 27
+  completed_plans: 24
+  percent: 80
 ---
 
 # Project State
@@ -25,11 +25,11 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 4 of 5 (Pivota Assistant) — COMPLETE (all 5 plans: 01 + 02 + 03 + 04 + 05)
-Status: Plan 04-05 complete (assistant UI surfaces + citations + E2E, wave 5) — F7 fully delivered. Phase 4 done; ready for Phase 5 (Trial Command Center) planning / `/pivota_spec-verify-work 04`.
-Last activity: 2026-10-07 — Completed 04-05-PLAN.md (Assistant UI surfaces + citations + E2E, wave 5): two surfaces over ONE shared conversation — AssistantPanel (global slide-over mounted in AppShell, always-mounted+translated-off so thread survives close/reopen+nav, stays open on pill click) + full-page /assistant, both rendering the surface-agnostic AssistantThread over 04-04's useAssistantChat/useAssistantStore. CitationPill reads citation.exhibitId/eventId directly → /exhibit/:id?event=:id or /exhibit/:id top-of-timeline (null eventId). Three unambiguous outcomes: grounded(pills)/decline(neutral,no-pill,not-error)/unavailable(role=alert + Try-again re-submits preserved question). Timeline ?event= deep-link scrolls+highlights (graceful top fallback), useSearchParams in Suspense. Header Ask✦→togglePanel; Sidebar Assistant→/assistant (Jury Package not regressed). e2e/assistant.spec.ts 7 deterministic key-free tests via 04-03's captured ai@6 stream frame + stream header, citations bound to real seed ids; 29 E2E pass (clean seed), 175|3 vitest, build+tsc clean.
+Phase: 4 of 5 (Pivota Assistant) — COMPLETE (all 5 core plans: 01-05, plus gap-closure plan 06)
+Status: Phase 4 completed — 04-06 gap-closure plan (citation-decline gating fix, UAT test 7) landed. Phase 5 (Trial Command Center) is next.
+Last activity: 2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean.
 
-Progress: [████████░░] 88%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -77,6 +77,7 @@ Progress: [████████░░] 88%
 | Phase 04-pivota-assistant P03 | 9 min | 3 tasks | 6 files |
 | Phase 04-pivota-assistant P04 | 3 min | 2 tasks | 3 files |
 | Phase 04-pivota-assistant P05 | 10 min | 3 tasks | 13 files |
+| Phase 04-pivota-assistant P06 | 4 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,7 @@ Recent decisions affecting current work:
 - [Phase 04-pivota-assistant]: [04-05]: CitationPill reads the deep-link target (exhibitId/eventId) DIRECTLY off the citation object, never re-derived from recordId/recordType — non-null eventId → /exhibit/:id?event=:id (Timeline scroll+~400ms highlight), null eventId → /exhibit/:id top-of-timeline fallback (DiscrepancyFlag/JuryPackageExhibit). Exhibit page reads ?event via useSearchParams inside a Suspense boundary (Next 16); param only used for getElementById+scroll, never an HTML/navigation sink (T-04-15/16)
 - [Phase 04-pivota-assistant]: [04-05]: E2E determinism via path (a) — page.route fulfills 04-03's captured ai@6 UI-message SSE frame (start/text-delta/finish/data-citations/[DONE]) WITH the SDK's own x-vercel-ai-ui-message-stream:v1 header so DefaultChatTransport parses it like the real route; citation payloads bound to REAL seed exhibitId/eventId (resolved at runtime) so #event-<id> exists; 503 fixture rides the SDK error channel (never a decline). The documented hook-state fallback (b) proved unnecessary — raw-SSE mock parsed on first run
 - [Phase 04-pivota-assistant]: [04-05]: Stale e2e/app-shell.spec.ts assertions updated for the now-activated nav (Ask✦ enabled+opens panel; Assistant a live /assistant link, Command Center sole placeholder) — [Rule 1] deviation for intentionally-changed behavior
+- [Phase 04-pivota-assistant]: [04-06]: onFinish gates citation computation on isDeclineText(text) — a tool returning rows this turn is necessary but not sufficient for grounded; only the model's own final text deciding to assert a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven) with a single-conditional, minimal-surface fix.
 
 ### Pending Todos
 
@@ -162,6 +164,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T16:57:28.934Z
-Stopped at: Completed 04-05-PLAN.md
+Last session: 2026-10-07T19:45:36.750Z
+Stopped at: Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)
 Resume file: None
