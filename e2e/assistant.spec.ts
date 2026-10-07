@@ -336,9 +336,9 @@ test.describe('Pivota Assistant', () => {
     await page.goto('/case');
     await page.getByRole('link', { name: 'Assistant' }).click();
     await expect(page).toHaveURL(/\/assistant$/);
-    // The full-page surface renders the same AssistantThread. The panel's thread
-    // is also mounted (always-present, translated off-screen), so scope to the
-    // page variant explicitly.
+    // The full-page surface renders the AssistantThread. On /assistant the panel
+    // suppresses its OWN duplicate thread (W1: avoids a second, divergent useChat
+    // for the same conversation), so the page variant is the single live thread.
     const pageThread = page.locator('[data-testid="assistant-thread"][data-variant="page"]');
     await expect(pageThread).toBeVisible();
     // Empty-state chips present on the full page too (scoped to the page thread).
