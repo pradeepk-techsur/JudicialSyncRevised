@@ -3,10 +3,11 @@ phase: 04
 gate_status: passed
 build_command: "npm run build"
 test_command: "npm test"
-last_updated: 2026-10-07T17:18:22Z
+last_updated: 2026-10-07T17:20:51Z
 tests_disabled_during_fixes: none
 shadowed_sources: 0
 review_blockers_open: 0
+boot_smoke: pass
 waves:
   - wave: 1
     build: pass
@@ -580,3 +581,13 @@ Route (app)
 [2m   Duration [22m 36.99s[2m (transform 204ms, setup 0ms, collect 1.38s, tests 33.55s, environment 2ms, prepare 732ms)[22m
 ```
 
+
+## Boot smoke (phase 04)
+
+- Verdict: **pass** (all four gates)
+- Rebuilt the app container from current HEAD (`docker compose up -d --build app`) because the adopted running stack predated wave 5's assistant routes (#219 adopt would have judged stale code).
+- Gate 1 — port 3000 bound.
+- Gate 2 — `GET /` → 307 (non-5xx).
+- Gate 3 — `/tmp/pivota-dev.log` + app container log carry no fatal DB/migrate/build marker. (DB `duplicate key` ERRORs in the log are from the concurrent vitest suite asserting unique-constraint rejection, not app boot.)
+- Gate 4 — 14 relations in the datastore (migrations applied, incl. Phase 4 assistant tables); `/api/case` data endpoint → 200; `/assistant` page → 200.
+- `POST /api/assistant/chat` → **503 `ASSISTANT_UNAVAILABLE`** — the DESIGNED fail-safe (criterion 5): `ANTHROPIC_API_KEY` is UNSET in the sandbox container, so the assistant route declines cleanly while every other screen remains fully usable. Not a boot failure.
