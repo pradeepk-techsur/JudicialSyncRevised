@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { createExhibit, getExhibit, getExhibits } from '@/services/exhibits';
-import { ConflictError, ValidationError } from '@/lib/errors';
+import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
 
@@ -49,8 +49,20 @@ describe('exhibits service', () => {
     expect(fetched).not.toBeNull();
     expect(fetched?.id).toBe(created.id);
 
-    const list = await getExhibits(caseId);
-    expect(list.map((e) => e.id)).toContain(created.id);
+    const list = await getExhibits(caseId, 'JUDGE');
+    // getExhibits now returns the composite ExhibitListRow shape keyed by
+    // exhibitId, not raw Exhibit rows.
+    const row = list.find((e) => e.exhibitId === created.id);
+    expect(row).toBeDefined();
+    expect(row).toMatchObject({
+      exhibitId: created.id,
+      exhibitLabel: `Exhibit ${suffix}`,
+      offeringParty: 'PROSECUTION',
+      associatedWitness: 'Det. Rivera',
+      currentStatus: null,
+      currentCustodianName: null,
+      discrepancyFlags: [],
+    });
   });
 
   it('rejects a duplicate exhibitLabel within the same case with EXHIBIT_LABEL_CONFLICT', async () => {
@@ -129,6 +141,52 @@ describe('exhibits service', () => {
         const fetched = await getExhibit(sealedId, role);
         expect(fetched, `role ${role} must NOT see the sealed exhibit`).toBeNull();
       }
+    });
+  });
+
+  describe('getExhibits (ExhibitListRow list)', () => {
+    let sealedId: string;
+    let visibleId: string;
+
+    beforeEach(async () => {
+      const { caseId, suffix } = fixture;
+      const visible = await createExhibit({
+        caseId,
+        exhibitLabel: `A-Visible ${suffix}`,
+        description: 'An ordinary visible exhibit',
+        offeringParty: 'DEFENSE',
+      });
+      visibleId = visible.id;
+      const sealed = await createExhibit({
+        caseId,
+        exhibitLabel: `Z-Sealed ${suffix}`,
+        description: 'A sealed exhibit — restricted visibility',
+        offeringParty: 'PROSECUTION',
+        isSealed: true,
+      });
+      sealedId = sealed.id;
+    });
+
+    it('includes a sealed exhibit for a role that can view sealed exhibits (JUDGE)', async () => {
+      const list = await getExhibits(fixture.caseId, 'JUDGE');
+      const ids = list.map((e) => e.exhibitId);
+      expect(ids).toContain(sealedId);
+      expect(ids).toContain(visibleId);
+    });
+
+    it('excludes a sealed exhibit for a role that cannot (ATTORNEY) — absent, not redacted', async () => {
+      const list = await getExhibits(fixture.caseId, 'ATTORNEY');
+      const ids = list.map((e) => e.exhibitId);
+      expect(ids).not.toContain(sealedId);
+      expect(ids).toContain(visibleId);
+    });
+
+    it('throws CASE_NOT_FOUND for a nonexistent caseId', async () => {
+      await expect(
+        getExhibits('00000000-0000-0000-0000-000000000000', 'JUDGE'),
+      ).rejects.toSatisfy(
+        (err: unknown) => err instanceof NotFoundError && err.code === 'CASE_NOT_FOUND',
+      );
     });
   });
 });
