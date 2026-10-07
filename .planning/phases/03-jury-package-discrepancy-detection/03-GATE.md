@@ -3,10 +3,11 @@ phase: 03
 gate_status: passed
 build_command: "npm run build"
 test_command: "npm test"
-last_updated: 2026-10-07T14:51:30Z
+last_updated: 2026-10-07T14:53:08Z
 tests_disabled_during_fixes: none
 shadowed_sources: 0
 review_blockers_open: 0
+boot_smoke: pass
 waves:
   - wave: 1
     build: pass
@@ -21,6 +22,10 @@ waves:
     tests: pass
     fix_attempts: 0
   - wave: 4
+    build: pass
+    tests: pass
+    fix_attempts: 0
+  - wave: 5
     build: pass
     tests: pass
     fix_attempts: 0
@@ -408,5 +413,103 @@ Route (app)
 [2m      Tests [22m [1m[32m152 passed[39m[22m[90m (152)[39m
 [2m   Start at [22m 14:38:31
 [2m   Duration [22m 6.49s[2m (transform 177ms, setup 0ms, collect 1.13s, tests 3.56s, environment 2ms, prepare 647ms)[22m
+```
+
+## Wave 5
+
+- Build: `npm run build` → pass
+- Tests: `npm test` → pass
+- Fix attempts: 0/3 — Phase-level regression gate: full suite 153/153 green on final tree after code-review fixes (B1/W1/W3)
+
+### Gate output
+
+```
+> judicialsync@0.1.0 build
+> next build
+
+▲ Next.js 16.4.0 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 13ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 323ms
+  Running TypeScript ...
+  Finished TypeScript in 1739ms ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/7) ...
+  Generating static pages using 3 workers (1/7) 
+  Generating static pages using 3 workers (3/7) 
+  Generating static pages using 3 workers (5/7) 
+✓ Generating static pages using 3 workers (7/7) in 115ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/case
+├ ƒ /api/cases/[id]/discrepancies
+├ ƒ /api/cases/[id]/exhibits
+├ ƒ /api/cases/[id]/exhibits/search
+├ ƒ /api/cases/[id]/jury-package
+├ ƒ /api/cases/[id]/objections
+├ ƒ /api/discrepancies/[id]/acknowledge
+├ ƒ /api/exhibits
+├ ƒ /api/exhibits/[id]
+├ ƒ /api/exhibits/[id]/custodian
+├ ƒ /api/exhibits/[id]/custody-history
+├ ƒ /api/exhibits/[id]/discrepancies
+├ ƒ /api/exhibits/[id]/events/custody
+├ ƒ /api/exhibits/[id]/events/objection
+├ ƒ /api/exhibits/[id]/events/status
+├ ƒ /api/exhibits/[id]/history
+├ ƒ /api/exhibits/[id]/status
+├ ƒ /api/jury-package/[id]/finalize
+├ ƒ /api/objections/[id]/ruling
+├ ○ /case
+├ ƒ /exhibit/[id]
+└ ○ /jury-package
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+> judicialsync@0.1.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/daytona/project[39m
+
+ [32m✓[39m src/data/seed.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 873[2mms[22m[39m
+ [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 320[2mms[22m[39m
+ [32m✓[39m src/app/api/case/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 301[2mms[22m[39m
+ [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 252[2mms[22m[39m
+ [32m✓[39m src/app/api/discrepancies/[id]/acknowledge/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 181[2mms[22m[39m
+ [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 172[2mms[22m[39m
+ [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 150[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 133[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 118[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 91[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m      Tests [22m [1m[32m153 passed[39m[22m[90m (153)[39m
+[2m   Start at [22m 14:51:46
+[2m   Duration [22m 6.66s[2m (transform 180ms, setup 0ms, collect 1.13s, tests 3.70s, environment 2ms, prepare 658ms)[22m
 ```
 
