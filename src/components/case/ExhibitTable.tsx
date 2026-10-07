@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { StatusBadge } from '@/components/StatusBadge';
+import { DiscrepancyBadge } from '@/components/case/DiscrepancyBadge';
 import {
   Table,
   TableBody,
@@ -49,13 +50,14 @@ export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
               <StatusBadge status={row.currentStatus} />
             </TableCell>
             <TableCell>{row.currentCustodianName ?? '—'}</TableCell>
-            {/* discrepancyFlags is always [] until Phase 3's DiscrepancyFlag
-                table exists — this column is structurally present (per
-                US-9.2's "visible without drill-in" requirement once Phase 3
-                populates it) but intentionally renders nothing now; faking a
-                visual treatment for a feature that cannot fire yet would be
-                worse than an empty cell. */}
-            <TableCell aria-label="No discrepancy flags" />
+            {/* Discrepancy column (F6/F9, US-9.2 "visible without drill-in"):
+                Phase 3 populates row.discrepancyFlags from the live engine, so
+                the badge surfaces amber OPEN / muted ACKNOWLEDGED rule labels
+                here. Acknowledge is NOT inline on the browse screen — clicking
+                the row still drills into Exhibit Detail (per CONTEXT). */}
+            <TableCell>
+              <DiscrepancyBadge flags={row.discrepancyFlags} />
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

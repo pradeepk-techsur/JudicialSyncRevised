@@ -289,8 +289,12 @@ describe('searchExhibits (F4)', () => {
       exhibitLabel: 'P-3',
       associatedWitness: 'Dr. Amara Finch',
       currentStatus: 'ADMITTED',
-      discrepancyFlags: [],
     });
+    // P-3 is ADMITTED while carrying an unresolved objection, so Phase 3's engine
+    // flags it — discrepancyFlags is non-empty (no longer the [] placeholder).
+    expect(p3.discrepancyFlags.map((f) => f.ruleCode)).toContain(
+      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
     // P-3's custody chain ends at the clerk (seed) — custodian name is resolved.
     expect(p3.currentCustodianName).toBeTruthy();
   });
@@ -304,6 +308,35 @@ describe('searchExhibits (F4)', () => {
     const labels = results.map((r) => r.exhibitLabel);
     expect(labels).toEqual([...labels].sort());
     expect(labels.length).toBeGreaterThan(1);
+  });
+
+  it('surfaces real discrepancy flags on a flagged exhibit and [] on a clean one (Phase 3)', async () => {
+    // getExhibits over the seeded demo case: P-3 is ADMITTED with an UNRESOLVED
+    // objection (UNRESOLVED_OBJECTION_JURY_ELIGIBLE fires); P-2 is ADMITTED with
+    // no custodian (ADMITTED_NO_CUSTODIAN fires); P-4 is cleanly ADMITTED with a
+    // full custody chain and no open objection (no flag).
+    const rows = await getExhibits(demoCaseId, 'JUDGE');
+    const byLabel = new Map(rows.map((r) => [r.exhibitLabel, r]));
+
+    const p3 = byLabel.get('P-3');
+    expect(p3).toBeDefined();
+    expect(p3!.discrepancyFlags.length).toBeGreaterThanOrEqual(1);
+    expect(p3!.discrepancyFlags.map((f) => f.ruleCode)).toContain(
+      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
+    const p3Flag = p3!.discrepancyFlags.find(
+      (f) => f.ruleCode === 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
+    expect(p3Flag!.status).toBe('OPEN');
+    expect(p3Flag!.label).toBe('Unresolved objection');
+
+    const p2 = byLabel.get('P-2');
+    expect(p2).toBeDefined();
+    expect(p2!.discrepancyFlags.map((f) => f.ruleCode)).toContain('ADMITTED_NO_CUSTODIAN');
+
+    const p4 = byLabel.get('P-4');
+    expect(p4).toBeDefined();
+    expect(p4!.discrepancyFlags).toEqual([]);
   });
 
   it('excludes a sealed exhibit from results for an unauthorized role even on a matching keyword', async () => {

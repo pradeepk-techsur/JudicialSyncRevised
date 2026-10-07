@@ -60,9 +60,12 @@ const PERSONAS: Array<{ role: Role; name: string }> = [
  * errors, no drift). Scoped exclusively to SEED_CASE_NUMBER — never touches any
  * other case's data (e.g. test fixtures).
  *
- * Order: ledger + projections (which reference exhibits/users) → exhibits →
- * users → case. Note we must clear projections BEFORE exhibits (FK), and events
- * before users (actor FK).
+ * Order: discrepancy flags + jury-package rows (which FK to exhibits AND to
+ * ledger events) → projections (which reference exhibits/users) → ledger →
+ * exhibits → users → case. Note we must clear flags/jury rows BEFORE both the
+ * ledger and exhibits (FK), projections BEFORE exhibits (FK), and events before
+ * users (actor FK). Phase 3's synchronously-wired engine now produces real
+ * DiscrepancyFlag rows on seed boot, so the reset must cascade them first.
  */
 async function resetSeedCase(): Promise<void> {
   const kase = await prisma.case.findUnique({
@@ -79,7 +82,15 @@ async function resetSeedCase(): Promise<void> {
   const exhibitIds = exhibits.map((e) => e.id);
 
   await prisma.$transaction([
-    // Projections first (they FK to exhibit, and custody FKs to user).
+    // Phase 3 tables first — DiscrepancyFlag FKs to exhibit, user, AND ledger
+    // events; JuryPackageExhibit FKs to exhibit; JuryPackage FKs to case/user.
+    // They must be cleared before the ledger and exhibits are deleted.
+    prisma.discrepancyFlag.deleteMany({ where: { caseId } }),
+    prisma.juryPackageExhibit.deleteMany({
+      where: { juryPackage: { caseId } },
+    }),
+    prisma.juryPackage.deleteMany({ where: { caseId } }),
+    // Projections next (they FK to exhibit, and custody FKs to user).
     prisma.exhibitCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.objectionCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.custodyCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
@@ -381,8 +392,10 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
 
 /**
  * Verify the deliberately-planted fixtures are present: the three Phase 1 edge
- * cases plus Phase 2's sealed-exhibit role-based-visibility fixture. Each must
- * hold ≥1 or the seed is rejected (SeedIntegrityError → caller rolls back).
+ * cases, Phase 2's sealed-exhibit role-based-visibility fixture, AND Phase 3's
+ * two discrepancy rules having actually fired (≥1 OPEN ADMITTED_NO_CUSTODIAN and
+ * ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag). Each must hold or the seed is
+ * rejected (SeedIntegrityError → caller rolls back the entire partial seed).
  */
 async function assertSeedIntegrity(caseId: string): Promise<void> {
   // 1. At least one unresolved objection exists case-wide.
@@ -429,6 +442,32 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
   if (sealedCount < 1) {
     throw new SeedIntegrityError(
       'Seed integrity check failed: expected ≥1 sealed exhibit, found 0',
+    );
+  }
+
+  // 5. Both Phase 3 (F6) discrepancy rules must actually have FIRED on seed. The
+  //    flags are NOT inserted directly — they arise purely because 03-01 wired
+  //    evaluateDiscrepancies into the status/ruling/custody service write paths,
+  //    so running the seed through those services produces them automatically.
+  //    This converts "the engine is wired" into a boot-time, demo-blocking
+  //    guarantee: if a future change silently stops the engine from firing on
+  //    seed, the seed throws and rolls back rather than shipping a jury screen
+  //    that cannot demonstrate the finalize gate (CONTEXT: "the seeded case must
+  //    make both discrepancy rules fire out of the box").
+  const openFlags = await prisma.discrepancyFlag.findMany({
+    where: { caseId, status: 'OPEN' },
+    select: { ruleCode: true },
+  });
+  const openRuleCodes = new Set(openFlags.map((f) => f.ruleCode));
+
+  if (!openRuleCodes.has('ADMITTED_NO_CUSTODIAN')) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected ≥1 OPEN ADMITTED_NO_CUSTODIAN flag, found 0',
+    );
+  }
+  if (!openRuleCodes.has('UNRESOLVED_OBJECTION_JURY_ELIGIBLE')) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag, found 0',
     );
   }
 }

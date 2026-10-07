@@ -20,6 +20,11 @@ async function deleteSeedCase(): Promise<void> {
   const exhibits = await prisma.exhibit.findMany({ where: { caseId }, select: { id: true } });
   const exhibitIds = exhibits.map((e) => e.id);
   await prisma.$transaction([
+    // Phase 3 tables first — DiscrepancyFlag/JuryPackage* FK to exhibit, ledger
+    // events, case and user, so they must be cleared before those are deleted.
+    prisma.discrepancyFlag.deleteMany({ where: { caseId } }),
+    prisma.juryPackageExhibit.deleteMany({ where: { juryPackage: { caseId } } }),
+    prisma.juryPackage.deleteMany({ where: { caseId } }),
     prisma.exhibitCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.objectionCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),
     prisma.custodyCurrentState.deleteMany({ where: { exhibitId: { in: exhibitIds } } }),

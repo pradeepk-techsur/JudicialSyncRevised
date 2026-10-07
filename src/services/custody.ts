@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import { advisoryLockKey } from '@/lib/advisoryLock';
 import { recordEvent } from '@/services/events';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Chain-of-custody tracking (FRD F03).
 //
@@ -131,6 +132,11 @@ export async function recordCustodyTransfer(args: {
           lastEventId: event.id,
         },
       });
+
+      // Re-evaluate discrepancy rules in the same transaction: recording custody
+      // on an ADMITTED exhibit clears ADMITTED_NO_CUSTODIAN. The just-recorded
+      // event id attributes the resolution (Y3 §Internal Triggers).
+      await evaluateDiscrepancies(exhibitId, tx, event.id);
 
       return { event, custodyState };
     });

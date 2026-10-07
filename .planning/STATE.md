@@ -2,16 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 5 context gathered
-last_updated: "2026-10-07T12:38:44.629Z"
-last_activity: "2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]"
+status: completed
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-10-07T14:37:21.955Z"
+last_activity: "2026-10-07 — Completed 03-04-PLAN.md (Phase 3 Jury Package Workspace screen (F11): /jury-package route with empty/draft/finalized states; useJuryPackage (query + initiate/finalize/acknowledge, role-keyed, 4s poll that stops on FINALIZED, surfaces 409 blockingExhibits) + useDiscrepancyCount (ambient count pill + client-side flag-id resolution, since jury rows carry no flag id); hard-disabled finalize gate reading live per-row OPEN flags; shared AcknowledgeInline (500-char counter, empty-disabled Confirm) on the jury draft AND the new Exhibit Detail discrepancy banner; stale-409 inline banner naming blockers; FINALIZED green stamp + window.print export with @media print CSS; activated sidebar Jury Package nav with live count badge. 152/152 vitest, 22/22 playwright, build + tsc clean. [Wave 4 — Phase 3 complete.])"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 14
-  completed_plans: 14
-  percent: 40
+  completed_phases: 3
+  total_plans: 23
+  completed_plans: 18
+  percent: 60
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 2 — Core Screens
+**Current focus:** Phase 3 — Jury Package & Discrepancy Detection
 
 ## Current Position
 
-Phase: 2 of 5 (Core Screens)
-Status: All 7 plans complete (wave 3 02-06 + 02-07 both done) — ready for phase transition / verify
-Last activity: 2026-10-07 — Completed 02-07-PLAN.md (Exhibit Detail View /exhibit/:id: useExhibitHistory hook with typed NotFoundError 404-distinction + retry-disabled + role-keyed + 4s polling; ExhibitHeader status/custodian/party/witness above the fold via shared StatusBadge; Timeline full ledger verbatim oldest-first; ExhibitNotFound single shared render for missing AND sealed-unauthorized; 4/4 Playwright pass incl. byte-identical not-found + cross-screen parity; build clean, 114 vitest pass). [Wave 3, ran in parallel with 02-06.]
+Phase: 3 of 5 (Jury Package & Discrepancy Detection) — COMPLETE (all 4 plans)
+Status: Plan 03-04 complete (Jury Package Workspace screen, wave 4) — Phase 3 done; ready for Phase 4 planning
+Last activity: 2026-10-07 — Completed 03-04-PLAN.md (Phase 3 Jury Package Workspace screen (F11): /jury-package route rendering empty/draft/finalized from live server truth; useJuryPackage + useDiscrepancyCount hooks; hard-disabled finalize gate reading live per-row OPEN flags with explanatory caption; shared inline AcknowledgeInline (500-char counter, empty-disabled Confirm) on the jury draft AND the new Exhibit Detail discrepancy banner; stale-409 inline banner naming blocking exhibits; FINALIZED green-stamp read-only view with window.print export + @media print CSS; activated sidebar Jury Package nav with live open-discrepancy count badge. 152/152 vitest, 22/22 playwright, build + tsc clean. [Wave 4 — Phase 3 complete.])
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
@@ -68,6 +68,10 @@ Progress: [████░░░░░░] 40%
 | Phase 02-core-screens P05 | 5 min | 3 tasks | 10 files |
 | Phase 02-core-screens P06 | 12 min | 3 tasks | 5 files |
 | Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
+| Phase 03-jury-package-discrepancy-detection P01 | 15 min | 3 tasks | 14 files |
+| Phase 03-jury-package-discrepancy-detection P02 | 8 min | 3 tasks | 11 files |
+| Phase 03-jury-package-discrepancy-detection P03 | 10 min | 3 tasks | 10 files |
+| Phase 03-jury-package-discrepancy-detection P04 | 17 min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -115,6 +119,17 @@ Recent decisions affecting current work:
 - [Phase 02-core-screens]: [02-06]: Empty-search guarded client-side (all-empty filters route to the unfiltered list, inline hint, never a hard error); the API's 422 EMPTY_SEARCH_CRITERIA remains defense-in-depth for other callers
 - [Phase 02-07]: Exhibit Detail (/exhibit/:id): useExhibitHistory throws typed NotFoundError on 404 (retry disabled → no sealed-probe timing side-channel), role in query key for immediate re-fetch; ExhibitNotFound is the single shared render for missing AND sealed-unauthorized (byte-identical, anti-enumeration); Timeline renders getExhibitHistory summaries verbatim (F7 text-parity precondition)
 - [Phase 02-07]: 02-07 Playwright drives the unauthorized sealed probe via page.route X-User-Role header injection (in-memory zustand session resets to JUDGE on full navigation, so a UI role switch can't survive page.goto); cross-screen parity asserted against the shared /api/cases/:id/exhibits service mapped through StatusBadge labels, decoupled from 02-06's DOM
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: Discrepancy engine reads derived projections only (never scans the ledger) and runs SYNCHRONOUSLY inside the status/ruling/custody write transactions (tx-threaded) so flags appear/clear on the state-change write, never on page load (Y3 Internal Triggers)
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: acknowledgeDiscrepancy commits a DISCREPANCY_ACKNOWLEDGED ledger event + flag flip in ONE transaction via recordEvent (single-writer preserved); idempotent on already-acked/resolved, 422 JUSTIFICATION_REQUIRED, 403 role-gated against actual User.role
+- [Phase 03-jury-package-discrepancy-detection]: [03-01]: AppError gains optional details surfaced by errorResponse only when present (03-02 finalize 409 channel); DiscrepancyFlagSummary type + single ruleLabel() source produced in wave 1 for 03-02/03-03 to consume
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: GET jury-package is strictly READ-ONLY (null when none, reconcile-only on DRAFT) — ROADMAP criterion 5 supersedes CONTEXT line 23 and Y1-api's non-nullable GET type
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: JuryPackageExhibitView adds an additive flags: DiscrepancyFlagSummary[] per row so 03-04's finalize gate blocks on OPEN only and re-enables on ACKNOWLEDGED (discrepancyStatus CLEAN|FLAGGED collapses the two)
+- [Phase 03-jury-package-discrepancy-detection]: [03-02]: Jury-package membership is case truth (full-visibility, viewer-independent); sealed filtering is view/export-only — a sealed OPEN discrepancy still blocks finalize for a deputy who cannot see it (gate reads membership, not the role-filtered view)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: ExhibitListRow.discrepancyFlags batch-loaded in ONE grouped query keyed on the already-sealed-filtered exhibitIds (no N+1); a sealed exhibit's flags never reach an unauthorized client (T-03-09)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: DiscrepancyBadge renders plain-language labels always-visible (never icon-only); single flag inline, multiples collapse to 'N issues' with every label in title/aria-label; consumes the single DiscrepancyFlagSummary + ruleLabel sources (no redefinition)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: assertSeedIntegrity asserts >=1 OPEN flag per discrepancy rule (demo-blocking); flags arise only from the live engine, grep now forbids prisma.discrepancyFlag.create in seed.ts (extends T-01-17/T-03-10)
+- [Phase 03-jury-package-discrepancy-detection]: [03-04]: Jury rows carry no DiscrepancyFlag.id, so acknowledge resolves the flag id client-side from the case-wide /api/cases/:id/discrepancies list (shared useDiscrepancyCount) rather than changing the 03-02 server view
+- [Phase 03-jury-package-discrepancy-detection]: [03-04]: Finalize gate reads ONLY per-row flags.some(OPEN); FINALIZE_ROLES=DEPUTY/CLERK/ADMIN, ACK_ROLES adds JUDGE; the draft freshness 1s tick is isolated so live polling never detaches the inline acknowledge controls
 
 ### Pending Todos
 
@@ -127,6 +142,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T12:38:44.627Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-trial-command-center-live-sync/05-CONTEXT.md
+Last session: 2026-10-07T14:37:21.953Z
+Stopped at: Completed 03-04-PLAN.md
+Resume file: None

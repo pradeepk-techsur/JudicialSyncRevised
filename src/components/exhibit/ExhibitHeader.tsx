@@ -1,4 +1,5 @@
 import { StatusBadge } from '@/components/StatusBadge';
+import { DiscrepancyBanner } from '@/components/exhibit/DiscrepancyBanner';
 import type { ExhibitHistoryResponse } from '@/services/history';
 
 export function ExhibitHeader({ data }: { data: ExhibitHistoryResponse }) {
@@ -14,16 +15,11 @@ export function ExhibitHeader({ data }: { data: ExhibitHistoryResponse }) {
         <span>Party: {exhibit.offeringParty}</span>
         <span>Witness: {exhibit.associatedWitness ?? '—'}</span>
       </div>
-      {/* Discrepancy banner structurally reserved for Phase 3 — data.discrepancyFlags
-          is always [] in this phase, so nothing renders here yet. Rendering an
-          empty <div/> (rather than omitting the block entirely) keeps this the
-          one place Phase 3 inserts its banner, without this phase inventing a
-          placeholder visual for a feature that cannot fire yet. */}
-      {data.discrepancyFlags.length > 0 && (
-        <div className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-800">
-          {/* unreachable in Phase 2 — discrepancyFlags is always [] */}
-        </div>
-      )}
+      {/* Phase 3: now that 03-03 populates history.discrepancyFlags, this is the
+          Exhibit Detail discrepancy banner — per-flag plain-language labels plus a
+          role-gated inline Acknowledge (reusing AcknowledgeInline). It renders
+          nothing when there are no active flags. */}
+      <DiscrepancyBanner exhibitId={exhibit.id} flags={data.discrepancyFlags} />
     </div>
   );
 }

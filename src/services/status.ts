@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { ConflictError, UnprocessableError } from '@/lib/errors';
 import { advisoryLockKey } from '@/lib/advisoryLock';
 import { recordEvent } from '@/services/events';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Admission-lifecycle status state machine (FRD F01).
 //
@@ -115,6 +116,14 @@ export async function recordStatusChange(args: {
           lastStatusAt: event.recordedAt,
         },
       });
+
+      // 8. Re-evaluate discrepancy rules SYNCHRONOUSLY, inside the same
+      //    transaction, so a flag appears/clears in the SAME write that changed
+      //    the status (Y3 §Internal Triggers — never on page load). A transition
+      //    into ADMITTED can fire ADMITTED_NO_CUSTODIAN and/or
+      //    UNRESOLVED_OBJECTION_JURY_ELIGIBLE; the call is unconditional for
+      //    correctness. The just-recorded event id attributes any resolution.
+      await evaluateDiscrepancies(exhibitId, tx, event.id);
 
       return { event, currentState: nextState };
     });
