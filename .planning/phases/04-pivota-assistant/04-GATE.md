@@ -591,3 +591,51 @@ Route (app)
 - Gate 3 — `/tmp/pivota-dev.log` + app container log carry no fatal DB/migrate/build marker. (DB `duplicate key` ERRORs in the log are from the concurrent vitest suite asserting unique-constraint rejection, not app boot.)
 - Gate 4 — 14 relations in the datastore (migrations applied, incl. Phase 4 assistant tables); `/api/case` data endpoint → 200; `/assistant` page → 200.
 - `POST /api/assistant/chat` → **503 `ASSISTANT_UNAVAILABLE`** — the DESIGNED fail-safe (criterion 5): `ANTHROPIC_API_KEY` is UNSET in the sandbox container, so the assistant route declines cleanly while every other screen remains fully usable. Not a boot failure.
+
+## Backend pre-push gate
+
+- Status: passed
+- Result marker + failing output tail:
+```
+__GATE__ build_exit=0 test_exit=0 build_cmd=[npm run build] test_cmd=[npm test] head=556ed173172576d81993a52f857c60444c3966f6 test_files=36 skip_marks=3 shadow_files=0
+ [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 249[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/tools.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 192[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 179[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 169[2mms[22m[39m
+ [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 187[2mms[22m[39m
+ [32m✓[39m src/app/api/assistant/chat/route.test.ts [2m([22m[2m11 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 29085[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what exhibits were admitted yesterday" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3837[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what objections remain unresolved" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 4704[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "is Exhibit 14 in the jury package" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3062[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "who currently has custody of Exhibit 7" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3083[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what happened to Exhibit 14" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 2710[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22m"what exhibits were admitted yesterday" carries >=1 pill when grounded (searchExhibits path) [33m 3609[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22msealed DEPUTY probe Declines indistinguishably from not-found (criterion 4) [33m 4156[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22memits the data-citations frame on the live stream (writer-merge-then-write timing) — W3 [33m 3772[2mms[22m[39m
+ [32m✓[39m src/services/assistant.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 161[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 146[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 140[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 89[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 61[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m30 passed[39m[22m[90m (30)[39m
+[2m      Tests [22m [1m[32m176 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (179)[39m
+[2m   Start at [22m 17:24:37
+[2m   Duration [22m 36.81s[2m (transform 216ms, setup 0ms, collect 1.42s, tests 33.29s, environment 2ms, prepare 747ms)[22m
+
+```
