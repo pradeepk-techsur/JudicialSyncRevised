@@ -1,0 +1,195 @@
+// JudicialSync — append-only event-ledger data model (Phase 1 scope: F0, F1, F2, F3).
+//
+// Design contract (see FRD Y0-schema.md / TechArch §3):
+//   - ExhibitEvent is the SINGLE append-only ledger table — rows are NEVER
+//     updated or deleted after creation. recordEvent() (Plan 2) is the only writer.
+//   - *CurrentState tables are DERIVED projections, fully rebuildable by replaying
+//     the ledger in sequenceNo order. They are never independently edited.
+//   - Identity tables (Case, User, Exhibit) carry NO mutable status/custody fields.
+//
+// Prisma-side names are PascalCase/camelCase; @map/@@map pin the Postgres
+// table/column names to snake_case per TechArch §3.8 ORM mapping.
+//
+// Out of Phase 1 scope (added by later phases): DiscrepancyFlag, JuryPackage,
+// JuryPackageExhibit, Assistant* models.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  JUDGE
+  CHAMBERS_STAFF
+  DEPUTY
+  CLERK
+  ATTORNEY
+  ADMIN
+
+  @@map("role_type")
+}
+
+enum OfferingParty {
+  PLAINTIFF
+  PROSECUTION
+  DEFENSE
+
+  @@map("offering_party")
+}
+
+enum ExhibitStatus {
+  MARKED
+  OFFERED
+  OBJECTED
+  ADMITTED
+  EXCLUDED
+  WITHDRAWN
+
+  @@map("exhibit_status")
+}
+
+enum ObjectionStatus {
+  UNRESOLVED
+  SUSTAINED
+  OVERRULED
+
+  @@map("objection_status")
+}
+
+enum EventType {
+  STATUS_CHANGE
+  OBJECTION_RAISED
+  RULING_RECORDED
+  CUSTODY_TRANSFER
+  DISCREPANCY_ACKNOWLEDGED
+
+  @@map("event_type")
+}
+
+model Case {
+  id         String   @id @default(uuid())
+  caseNumber String   @unique @map("case_number")
+  title      String
+  court      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  users    User[]
+  exhibits Exhibit[]
+
+  @@map("cases")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  caseId    String   @map("case_id")
+  name      String
+  role      Role
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  case               Case                  @relation(fields: [caseId], references: [id])
+  actedEvents        ExhibitEvent[]        @relation("EventActor")
+  custodyAssignments CustodyCurrentState[] @relation("CurrentCustodian")
+
+  @@index([caseId, role])
+  @@map("users")
+}
+
+model Exhibit {
+  id                String        @id @default(uuid())
+  caseId            String        @map("case_id")
+  exhibitLabel      String        @map("exhibit_label")
+  description       String
+  source            String?
+  offeringParty     OfferingParty @map("offering_party")
+  associatedWitness String?       @map("associated_witness")
+  isSealed          Boolean       @default(false) @map("is_sealed")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  case         Case                    @relation(fields: [caseId], references: [id])
+  events       ExhibitEvent[]
+  currentState ExhibitCurrentState?
+  custodyState CustodyCurrentState?
+  objections   ObjectionCurrentState[]
+
+  @@unique([caseId, exhibitLabel])
+  @@index([caseId])
+  @@map("exhibits")
+}
+
+/// The single append-only ledger table. Rows are NEVER updated or deleted
+/// after creation — enforced at the application layer: recordEvent() (Plan 2)
+/// is the only writer. `sequenceNo` guarantees deterministic per-exhibit
+/// replay order independent of clock skew.
+model ExhibitEvent {
+  id          String    @id @default(uuid())
+  exhibitId   String    @map("exhibit_id")
+  caseId      String    @map("case_id")
+  eventType   EventType @map("event_type")
+  payload     Json
+  actorUserId String    @map("actor_user_id")
+  sequenceNo  Int       @map("sequence_no")
+  recordedAt  DateTime  @default(now()) @map("recorded_at")
+
+  exhibit Exhibit @relation(fields: [exhibitId], references: [id])
+  actor   User    @relation("EventActor", fields: [actorUserId], references: [id])
+
+  @@unique([exhibitId, sequenceNo])
+  @@index([exhibitId, recordedAt])
+  @@index([caseId, eventType, recordedAt])
+  @@map("exhibit_events")
+}
+
+/// One row per exhibit once it has at least one STATUS_CHANGE event.
+/// Fully rebuildable by replaying exhibit_events WHERE event_type =
+/// STATUS_CHANGE in sequence_no order (see Plan 7, rebuildProjections).
+model ExhibitCurrentState {
+  exhibitId         String        @id @map("exhibit_id")
+  currentStatus     ExhibitStatus @map("current_status")
+  lastStatusEventId String        @map("last_status_event_id")
+  lastStatusAt      DateTime      @map("last_status_at")
+
+  exhibit Exhibit @relation(fields: [exhibitId], references: [id])
+
+  @@map("exhibit_current_state")
+}
+
+/// One row per objection THREAD (not per exhibit — an exhibit may have many
+/// concurrently open threads). Rebuildable by replaying OBJECTION_RAISED /
+/// RULING_RECORDED events grouped by payload.objectionId.
+model ObjectionCurrentState {
+  objectionId    String          @id @map("objection_id")
+  exhibitId      String          @map("exhibit_id")
+  status         ObjectionStatus @default(UNRESOLVED)
+  objectingParty OfferingParty   @map("objecting_party")
+  grounds        String
+  raisedEventId  String          @map("raised_event_id")
+  raisedAt       DateTime        @map("raised_at")
+  rulingEventId  String?         @map("ruling_event_id")
+  ruledAt        DateTime?       @map("ruled_at")
+
+  exhibit Exhibit @relation(fields: [exhibitId], references: [id])
+
+  @@index([exhibitId, status])
+  @@map("objection_current_state")
+}
+
+/// One row per exhibit once it has at least one CUSTODY_TRANSFER event.
+/// An exhibit with NO row here despite being ADMITTED is exactly the
+/// ADMITTED_NO_CUSTODIAN discrepancy condition evaluated by Phase 3 —
+/// absence is meaningful and must never be backfilled with a placeholder row.
+model CustodyCurrentState {
+  exhibitId              String   @id @map("exhibit_id")
+  currentCustodianUserId String   @map("current_custodian_user_id")
+  since                  DateTime
+  lastEventId            String   @map("last_event_id")
+
+  exhibit   Exhibit @relation(fields: [exhibitId], references: [id])
+  custodian User    @relation("CurrentCustodian", fields: [currentCustodianUserId], references: [id])
+
+  @@map("custody_current_state")
+}
