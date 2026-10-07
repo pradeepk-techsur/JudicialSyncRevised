@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { ExhibitEvent, ObjectionCurrentState } from '@prisma/client';
+import type { ExhibitEvent, ObjectionCurrentState, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { AppError, NotFoundError, ValidationError } from '@/lib/errors';
 import { recordEvent } from '@/services/events';
 import { evaluateDiscrepancies } from '@/services/discrepancies';
+import { canViewSealed } from '@/services/visibility';
 import { advisoryLockKey } from '@/lib/advisoryLock';
 
 // F2 — Objection and Ruling Tracking.
@@ -249,12 +250,29 @@ export async function recordRuling(args: {
  * every future caller uses identically (Case Workspace F9, Command Center F8,
  * assistant tool F7) — there is deliberately no caller-specific variant, so the
  * "unresolved" definition can never drift between consumers.
+ *
+ * `requestingUserRole` is OPTIONAL and additive: when supplied by a role-scoped
+ * caller (the Command Center Objections panel, 05-03) whose role CANNOT view
+ * sealed, objection threads on sealed exhibits are excluded via the exhibit
+ * relation (same `isSealed: false` WHERE predicate every other read applies —
+ * never a post-filter). Omitting it preserves the prior viewer-independent
+ * behavior for existing callers (the case-wide /objections route backing the
+ * jury sidebar count).
  */
 export async function getUnresolvedObjections(
   caseId: string,
+  requestingUserRole?: Role,
 ): Promise<ObjectionCurrentState[]> {
   return prisma.objectionCurrentState.findMany({
-    where: { status: 'UNRESOLVED', exhibit: { caseId } },
+    where: {
+      status: 'UNRESOLVED',
+      exhibit: {
+        caseId,
+        ...(requestingUserRole && !canViewSealed(requestingUserRole)
+          ? { isSealed: false }
+          : {}),
+      },
+    },
     orderBy: { raisedAt: 'asc' },
   });
 }
