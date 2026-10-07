@@ -392,8 +392,10 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
 
 /**
  * Verify the deliberately-planted fixtures are present: the three Phase 1 edge
- * cases plus Phase 2's sealed-exhibit role-based-visibility fixture. Each must
- * hold ≥1 or the seed is rejected (SeedIntegrityError → caller rolls back).
+ * cases, Phase 2's sealed-exhibit role-based-visibility fixture, AND Phase 3's
+ * two discrepancy rules having actually fired (≥1 OPEN ADMITTED_NO_CUSTODIAN and
+ * ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag). Each must hold or the seed is
+ * rejected (SeedIntegrityError → caller rolls back the entire partial seed).
  */
 async function assertSeedIntegrity(caseId: string): Promise<void> {
   // 1. At least one unresolved objection exists case-wide.
@@ -440,6 +442,32 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
   if (sealedCount < 1) {
     throw new SeedIntegrityError(
       'Seed integrity check failed: expected ≥1 sealed exhibit, found 0',
+    );
+  }
+
+  // 5. Both Phase 3 (F6) discrepancy rules must actually have FIRED on seed. The
+  //    flags are NOT inserted directly — they arise purely because 03-01 wired
+  //    evaluateDiscrepancies into the status/ruling/custody service write paths,
+  //    so running the seed through those services produces them automatically.
+  //    This converts "the engine is wired" into a boot-time, demo-blocking
+  //    guarantee: if a future change silently stops the engine from firing on
+  //    seed, the seed throws and rolls back rather than shipping a jury screen
+  //    that cannot demonstrate the finalize gate (CONTEXT: "the seeded case must
+  //    make both discrepancy rules fire out of the box").
+  const openFlags = await prisma.discrepancyFlag.findMany({
+    where: { caseId, status: 'OPEN' },
+    select: { ruleCode: true },
+  });
+  const openRuleCodes = new Set(openFlags.map((f) => f.ruleCode));
+
+  if (!openRuleCodes.has('ADMITTED_NO_CUSTODIAN')) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected ≥1 OPEN ADMITTED_NO_CUSTODIAN flag, found 0',
+    );
+  }
+  if (!openRuleCodes.has('UNRESOLVED_OBJECTION_JURY_ELIGIBLE')) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag, found 0',
     );
   }
 }

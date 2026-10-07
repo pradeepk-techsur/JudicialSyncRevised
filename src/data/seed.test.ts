@@ -65,6 +65,22 @@ describe('seed loader (F0a)', () => {
     expect(counts.admittedWithUnresolved).toBeGreaterThanOrEqual(1);
   });
 
+  it('fires both Phase 3 discrepancy rules out of the box (demo-blocking guarantee)', async () => {
+    const { caseId } = await runSeed();
+
+    // The flags must arise purely from the live engine wired into the service
+    // write paths (03-01) — the seed never inserts them directly. After a run,
+    // both OPEN rule codes must be present, or the seeded demo could not
+    // demonstrate the finalize gate.
+    const openFlags = await prisma.discrepancyFlag.findMany({
+      where: { caseId, status: 'OPEN' },
+      select: { ruleCode: true },
+    });
+    const openRuleCodes = new Set(openFlags.map((f) => f.ruleCode));
+    expect(openRuleCodes.has('ADMITTED_NO_CUSTODIAN')).toBe(true);
+    expect(openRuleCodes.has('UNRESOLVED_OBJECTION_JURY_ELIGIBLE')).toBe(true);
+  });
+
   it('plants exactly one sealed exhibit (S-1) as Phase 2 role-based-visibility fixture', async () => {
     const { caseId } = await runSeed();
 
@@ -139,6 +155,10 @@ describe('seed loader (F0a)', () => {
       /prisma\.exhibitCurrentState\.create/,
       /prisma\.objectionCurrentState\.create/,
       /prisma\.custodyCurrentState\.create/,
+      // Phase 3: the seed must NEVER create a discrepancy flag directly — flags
+      // must arise only from the live engine via the service write paths, so demo
+      // flags are guaranteed to be states the live system could produce (T-03-10).
+      /prisma\.discrepancyFlag\.create/,
     ];
     for (const pattern of bannedWrites) {
       expect(code).not.toMatch(pattern);
