@@ -1,65 +1,61 @@
 ---
-status: testing
+status: complete
 phase: 03-jury-package-discrepancy-detection
 source: 03-01-SUMMARY.md, 03-02-SUMMARY.md, 03-03-SUMMARY.md, 03-04-SUMMARY.md
 started: 2026-10-07T14:58:16Z
-updated: 2026-10-07T15:35:00Z
+updated: 2026-10-07T15:50:00Z
 ---
 
 ## Current Test
 <!-- OVERWRITE each test - shows where we are -->
 
-number: 1
-position: 1 of 9
-name: Discrepancy Badge Appears on Case Workspace
-expected: |
-  On the Case Workspace exhibit list, the ⚑ column shows a plain-language amber badge for any admitted exhibit that has no recorded custodian, or that is admitted with a still-unresolved objection — these flags were computed automatically by the system, not entered by hand.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 1. Discrepancy Badge Appears on Case Workspace
 expected: On the Case Workspace exhibit list, the ⚑ column shows a plain-language amber badge for any admitted exhibit that has no recorded custodian, or that is admitted with a still-unresolved objection.
-result: [pending]
+result: pass
 
 ### 2. Exhibit Detail Discrepancy Banner + Acknowledge
 expected: Opening a flagged exhibit's Exhibit Detail page shows an amber banner naming the open discrepancy. An authorized role (deputy/clerk/judge/admin) can type a justification and click Confirm; the banner updates to show it acknowledged.
-result: [pending]
+result: pass
+reported: "Discrepancies ⚠ No custodian on record (Ack'd)"
 
 ### 3. Jury Package Workspace — Empty State
 expected: Before anyone has started a jury package, opening /jury-package shows an explicit "no package started yet" message — not a blank page, and merely viewing it does not silently create anything.
-result: [pending]
+result: pass
 
 ### 4. Initiate Jury Package Draft
 expected: As deputy/clerk/admin, clicking to start a jury package shows a draft table listing the admitted exhibits, each annotated with its current (live) discrepancy status.
-result: [pending]
+result: pass
 
 ### 5. Finalize Button Hard-Disabled While Open Discrepancy Exists
 expected: While any exhibit in the draft still has an open (unacknowledged) discrepancy, the Finalize button is disabled and an explanatory caption says why.
-result: [pending]
+result: pass
 
 ### 6. Acknowledge Discrepancy Inline on Jury Draft
 expected: From the jury draft table, typing a justification and confirming acknowledges that exhibit's open discrepancy; its row updates to show acknowledged, and once every flagged exhibit is cleared the Finalize button becomes enabled.
-result: [pending]
+result: pass
 
 ### 7. Finalize Jury Package
 expected: With no open discrepancies remaining, clicking Finalize completes the package: the screen switches to a read-only finalized view with a clear visual stamp and who/when it was finalized.
-result: [pending]
+result: pass
 
 ### 8. Export/Print Finalized Package
 expected: From the finalized view, using the export/print action produces a clean, chrome-free printable version of the package (no sidebar/header, a handoff header with the case number).
-result: [pending]
+result: pass
 
 ### 9. Sidebar Jury Package Navigation + Live Count Badge
 expected: The sidebar's Jury Package link is a live, clickable nav item (not a "soon" placeholder) and shows a count badge reflecting the number of currently-open discrepancies, updating as discrepancies are acknowledged.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 9
-passed: 0
+passed: 9
 issues: 0
-pending: 9
+pending: 0
 skipped: 0
 
 ## Self-Check
