@@ -1,0 +1,20 @@
+{
+  "duration_secs": 3660.0,
+  "token_usage": {
+    "input": 242,
+    "output": 50325,
+    "total": 12434890,
+    "cache_read": 11996511,
+    "cache_write": 387812,
+    "cost": 3.8725661999999996
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/03-jury-package-discrepancy-detection/03-UAT.md"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 2,
+  "created_at": "2026-10-07T14:56:55.678799+00:00",
+  "completed_at": "2026-10-07T15:57:56.546292311+00:00"
+}
