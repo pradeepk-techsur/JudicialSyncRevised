@@ -1,6 +1,6 @@
 ---
 phase: 3
-status: issues_found
+status: fixes_applied
 blockers: 1
 warnings: 3
 files_reviewed: 48
@@ -96,10 +96,16 @@ its siblings (`getExhibits`, `getExhibitHistory`, `/exhibits/:id/discrepancies`)
   exploit is one seed/data change away.
 - **Fix direction:** Make the route sealed-aware like its siblings — parse the requesting
   role and have `getDiscrepancies` accept it and exclude flags whose exhibit is
-  `isSealed && !canViewSealed(role)` (e.g. add an `exhibit: { isSealed: false }` relational
+  `isSealed && !canViewSealed(role)` (e.g. add an   `exhibit: { isSealed: false }` relational
   predicate when the role can't view sealed, mirroring the `getExhibits` pattern). Keep the
   jury-package finalize gate reading membership directly (it already does), so gate honesty
   is unaffected.
+
+**Resolution:** fixed (919346c) — `getDiscrepancies(caseId, requestingUserRole)` now adds
+`exhibit: { isSealed: false }` for roles that fail `canViewSealed`, and the route parses
+`X-User-Role` via `parseRequestingRole` and passes it through, mirroring the sibling read
+paths. New regression test in `discrepancies.test.ts` asserts a sealed ADMITTED/custody-less
+exhibit's flag is visible to JUDGE but absent for ATTORNEY. tsc clean; targeted + full suite green.
 
 ## WARNINGs
 
@@ -120,6 +126,15 @@ its siblings (`getExhibits`, `getExhibitHistory`, `/exhibits/:id/discrepancies`)
   statuses (or `(exhibitId, ruleCode, status)`) and treat the P2002 as a no-op, or run the
   objection write paths under the same advisory lock the status/custody paths use.
 
+**Resolution:** fixed (6abbb34) — took the second (lock) option: `recordObjection` and
+`recordRuling` now acquire the shared `pg_advisory_xact_lock(advisoryLockKey(exhibitId))` at
+the top of their transactions and re-check state inside the lock, so all per-exhibit writers
+(status / custody / objection / ruling) serialize on one key — closing the concurrent-ruling
+window where two `evaluateDiscrepancies` find-then-create paths could both insert a duplicate
+OPEN flag. tsc clean; objection + discrepancy tests and full suite green. Commit body carries
+`fixed: requires human verification` — the race window is not deterministically reproducible in
+a unit test, so the serialization guarantee should be confirmed under concurrent-load UAT.
+
 ### W2: `useDiscrepancyCount` sidebar count is case-wide, not scoped to the active case view
 - **File:** src/hooks/useDiscrepancyCount.ts:38-55
 - **Evidence:** This is secondary to B1 and shares its root cause: once B1 is fixed the count
@@ -130,6 +145,11 @@ its siblings (`getExhibits`, `getExhibitHistory`, `/exhibits/:id/discrepancies`)
   roles after the fix) rather than re-introducing client-side filtering.
 - **Fix direction:** No change needed beyond B1; verify the count reflects the now-filtered
   server list and do not add a client-side sealed filter (server-truth stance).
+
+**Resolution:** fixed via B1 (919346c) — no code change here. Verified `useDiscrepancyCount`
+reads the server list directly (role already in the query key, no client-side sealed filter),
+so once `getDiscrepancies` drops sealed flags server-side the `openCount` / sidebar pill are
+automatically role-correct. Server-truth stance preserved.
 
 ### W3: Exhibit Detail banner instantiates the full jury-package polling query for a mutation
 - **File:** src/components/exhibit/DiscrepancyBanner.tsx:29
@@ -142,6 +162,13 @@ its siblings (`getExhibits`, `getExhibitHistory`, `/exhibits/:id/discrepancies`)
   wasteful background write-capable poll on an unrelated screen. Degraded, not broken.
 - **Fix direction:** Extract the acknowledge mutation into its own small hook (or accept an
   injected mutation) so the Exhibit Detail banner doesn't mount the jury-package query/poll.
+
+**Resolution:** fixed (320edcb) — extracted `useAcknowledgeDiscrepancy` (mutation + the same
+three-family invalidation, mounts NO query) plus a shared `juryPackageError` module
+(`JuryPackageError`/`BlockingExhibit`/`parseError`). `useJuryPackage` now delegates its
+`acknowledge` to the standalone hook and re-exports the error types for existing consumers;
+`DiscrepancyBanner` imports the standalone hook, so Exhibit Detail no longer mounts the 4s
+write-capable jury-package poll. tsc clean; full suite green.
 
 ## Cross-file seams checked
 - `GET/POST /api/cases/:id/jury-package` ↔ `useJuryPackage` (payload `{actorUserId}`, response `{juryPackage,exhibits}`) — OK
