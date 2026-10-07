@@ -1,31 +1,19 @@
 ---
 phase: 4
-status: clean
+status: issues_found
 blockers: 0
-warnings: 0
-files_reviewed: 10
+warnings: 2
+files_reviewed: 2
 files_reviewed_list:
-  - e2e/assistant.spec.ts
-  - prisma/migrations/20261007170631_assistant_message_seq_tiebreaker/migration.sql
-  - prisma/schema.prisma
-  - src/app/api/assistant/chat/route.test.ts
   - src/app/api/assistant/chat/route.ts
-  - src/app/api/assistant/conversations/[id]/route.ts
-  - src/components/assistant/AssistantPanel.tsx
-  - src/hooks/useAssistantChat.ts
-  - src/services/assistant.test.ts
-  - src/services/assistant.ts
-reviewed_at: 2026-10-07T17:30:00Z
-iteration: 2
+  - src/app/api/assistant/chat/route.test.ts
+reviewed_at: 2026-10-07T19:56:31Z
+iteration: 1
 ---
 
 # Phase 4 Code Review
 
-Re-review of iteration-1 findings (B1, B2, W1–W4) after the code-fixer's six fix
-commits (`c1d0b2d`, `a18e235`, `185b0e0`, `ac9c9f4`, `f230d00`, `28f78c4`). Scope:
-the 10 files the fixer touched (a subset of the iteration-1 list). Each previous
-finding was verified against the actual diff + current file state, and each fix
-was checked for a regression it might introduce. `tsc --noEmit` is clean.
+Scope note: per the orchestrator's framing, this review covers only the gap-closure diff introduced by plan 04-06 (commits `6dcdca3`, `6ebea5a`, `ff02a61`), confirmed via `git diff --stat bdde5da ff02a61 -- . ':!.planning'` to touch exactly `src/app/api/assistant/chat/route.ts` and `src/app/api/assistant/chat/route.test.ts`. The prior 5 plans (04-01..04-05) are out of scope and were not re-reviewed.
 
 ## BLOCKERs
 
@@ -33,83 +21,28 @@ None.
 
 ## WARNINGs
 
-None.
+### W1: `isDeclineText` is a whole-text substring gate, so a mixed grounded+decline answer loses its legitimate citations too
+- **File:** `src/app/api/assistant/chat/route.ts:168, 251-253`
+- **Evidence:** `isDeclineText(text)` returns `true` if the decline phrase appears *anywhere* in `text`, and the route then forces `citations = []` for the *entire* turn (`const citations = isDeclineText(text) ? [] : extractCitations(steps)`). The system prompt explicitly allows multi-fact/list answers ("In a list answer, cite each item individually, not once for the whole list," `systemPrompt.ts:54`) and the model can legitimately mix a grounded fact with a decline about a different record in the same turn (the prompt's own example — "I don't have that information about Exhibit 22's custody record" — is phrased as a sentence that could follow a grounded sentence about a different exhibit in the same answer). Verified with a synthetic case:
+  ```js
+  isDeclineText("Custody of Exhibit 7: Officer Diaz, as of October 3, 2026. I don't have that information about Exhibit 22's custody record.")
+  // => true
+  ```
+  Under the new gate this entire turn — including the genuinely grounded Exhibit 7 custody fact — would persist and stream with `citations: []`, i.e. a grounded factual sentence rendered with no citation pill. This is the exact "ungrounded-looking grounded answer" failure mode the feature's citation guarantee exists to prevent, just inverted (citation stripped from a true fact rather than attached to a false one). It does not corrupt data (the text itself is untouched, and declines are still safe), and the demo's query surface (5 fixed chips + single-topic freeform questions during manual QA) may never exercise a genuinely mixed single-turn answer, which is why I'm not escalating this to a BLOCKER — but it is a real behavioral regression for any multi-part question a judge might type (e.g. "who has custody of Exhibit 7 and what's the status of Exhibit 22" where only one half resolves).
+- **Note for refutation record:** I checked whether the UI's free-text input (`AssistantThread.tsx:181-193`) restricts input to the 5 scripted chips — it does not; it is a plain `<input type="text">` accepting arbitrary typed questions, so this path is reachable outside the scripted demo flow, not merely a theoretical edge case.
 
-## Previous findings — verification
+### W2: No test exercises the mixed-answer case the gate is weakest on
+- **File:** `src/app/api/assistant/chat/route.test.ts` (whole file — the new tests at lines 134-155, 281-327)
+- **Evidence:** The new tests prove exactly the two directions the plan specified (pure decline → `[]`, pure grounded → `>=1`), but neither the always-run `isDeclineText` unit block nor the two new key-gated tests assert anything about a single turn that is *both* partially grounded and partially a decline. Given W1, this is the one scenario where the fix's correctness is actually unproven — the plan's own "no-over-correction guard" task description talks only about a *fully* grounded answer never being over-corrected, not a mixed one. This is additive test-coverage scope, not a required blocker for this gap-closure plan (which was scoped to the single UAT-reported repro), but it leaves the riskiest edge of the new logic unverified.
 
-### B1 (bug) — role-switch did not clear hook messages → cross-role leakage: FIXED
-- **File:** src/hooks/useAssistantChat.ts:239–258
-- **Verified:** The replay effect's null-branch now clears the live `useChat`
-  messages on ANY `activeConversationId → null` transition — including the
-  role-switch path where `roleStore.setActiveUser` calls
-  `assistantStore.newConversation()` directly, bypassing the hook. It resets
-  `replayedForRef.current = null`, calls `setMessages([])` (guarded by
-  `messages.length > 0`), clears `lastSentRef`, and `chat.clearError()`. Prior-role
-  bubbles are removed and the transport's `prepareSendMessagesRequest` (which
-  forwards the live `messages` array) now carries only the new turn, closing the
-  model-context leak. `clearError`/`setMessages` are valid on the SDK return type
-  (tsc clean). No regression on initial mount (null branch is a no-op when
-  messages are empty) and no replay clobber on the subsequent fresh turn
-  (`messages.length > 0` short-circuits re-replay). Hook has E2E (not unit)
-  coverage; model-context reset is UAT-verified per the original note.
+## Cross-file seams checked
 
-### B2 (bug) — equal intra-turn created_at, no replay tiebreaker: FIXED
-- **File:** prisma/schema.prisma:321–335, migration `20261007170631_...`, src/services/assistant.ts:157–209
-- **Verified:** New `seq Int @default(0)` ordinal on `AssistantMessage` (USER=0,
-  ASSISTANT=1 set explicitly in `persistTurn`); replay `orderBy` is now
-  `[{ createdAt: 'asc' }, { seq: 'asc' }]`. Migration drops the old
-  `(conversation_id, created_at)` index and creates `(conversation_id,
-  created_at, seq)`; it is correctly ordered after the original assistant-tables
-  migration. New service test forces an identical `createdAt` with ASSISTANT
-  inserted physically before USER and asserts USER still replays first, proving
-  the ordering comes from `seq`. `createdAt` is mapped via `.toISOString()`
-  (string), so the test's string equality on the colliding timestamp is valid.
-
-### W1 — divergent duplicate `useChat` on /assistant: FIXED
-- **File:** src/components/assistant/AssistantPanel.tsx:28–72
-- **Verified:** Panel reads `usePathname()` and suppresses BOTH its backdrop and
-  its `<aside>`/thread when `pathname === '/assistant'`, so the full page is the
-  single live surface and no second `useChat` exists for that conversation.
-  `usePathname` is reactive: navigating away from `/assistant` re-renders the
-  panel with its store-preserved `isPanelOpen` and replays from
-  `activeConversationId` — no regression to the close→reopen persistence behavior
-  elsewhere. E2E comment updated; the page-variant assertion still holds.
-
-### W2 — stale conversationId FK-crash inside onFinish: FIXED
-- **File:** src/services/assistant.ts:90–125, src/app/api/assistant/chat/route.ts:113–121, 160–188
-- **Verified:** New `resolveConversationId(suppliedId, caseId, userId)` runs
-  BEFORE the LLM call and reuses a supplied id only if it exists AND belongs to
-  the same case+user, else creates a fresh conversation — eliminating the realistic
-  stale/spoofed-id FK trigger entirely. The resolved id is returned on the
-  `X-Conversation-Id` header AND written into the `data-citations` part (route
-  line 184); the hook's `onData` reconciles the client's zustand id (hook
-  213–217), so the silent fresh-conversation fallback keeps client and server in
-  sync — no divergence regression. `onFinish`'s `persistTurn` is wrapped in
-  try/catch and re-throws as defense-in-depth for unexpected DB errors; the
-  primary defect is resolved by the pre-call validation regardless of the exact
-  re-throw-to-onError propagation.
-
-### W3 — data-citations stream frame untested server-side: FIXED
-- **File:** src/app/api/assistant/chat/route.test.ts:247–299
-- **Verified:** New key-gated test drains the REAL route body (via the existing
-  `drain` helper), asserts a `data-citations` frame is on the wire carrying this
-  turn's `X-Conversation-Id`, parses the frame's citations array, and asserts its
-  length equals the persisted record's — pinning the writer-merge-then-write
-  timing. Test-only addition; no production behavior change.
-
-### W4 — replay route has no read-time role/ownership check: FIXED (documented)
-- **File:** src/app/api/assistant/conversations/[id]/route.ts:9–28
-- **Verified:** Read-time role scoping is confirmed out of F7 scope; citations are
-  role-filtered at persist time so replay cannot retroactively expose hidden
-  records, matching the demo's established header-trust model. An explicit
-  INTENTIONALLY-UNAUTHENTICATED block records the rationale and names the single
-  place to add a check if audit threads ever become read-time role-scoped. No
-  behavior change.
-
-## Cross-file seams checked (fix-touched seams only)
-- roleStore role-switch → assistantStore.newConversation → hook null-transition clears live messages: OK (B1 fixed; next send carries only the new turn).
-- persistTurn seq (0/1) ↔ getConversationDetail `orderBy [createdAt, seq]` ↔ (conversation_id, created_at, seq) index: OK (B2 fixed; tiebreaker deterministic).
-- route.ts `resolveConversationId` ↔ `X-Conversation-Id` header ↔ data-citations `conversationId` ↔ hook `onData` capture: OK (client reconciles to the resolved id; no divergence on stale-id fallback).
-- AssistantPanel `usePathname()` suppression ↔ /assistant page single thread ↔ navigate-away remount+replay: OK (store-preserved isPanelOpen, no persistence regression off-route).
-- schema.prisma AssistantMessage.seq ↔ migration ADD COLUMN + index swap ↔ Prisma client types: OK (tsc clean).
-- route.test.ts `drain` ↔ real stream body ↔ persisted citations count: OK (frame timing pinned).
+- `isDeclineText` export ↔ `route.test.ts` import (`import { POST, isDeclineText } from '@/app/api/assistant/chat/route'`) — OK, named export matches named import, both present and typed `(text: string) => boolean`.
+- `onFinish`'s gated `citations` var ↔ `persistTurn({ citations, ... })` (`@/services/assistant`) — OK, `persistTurn` still receives whatever array it's handed and persists it faithfully (W2-unrelated; `services/assistant.ts` untouched by this plan, confirmed unmodified in the 3-commit diff).
+- `onFinish`'s gated `citations` var ↔ `writer.write({ type: 'data-citations', data: { citations: toCitations(citations) } })` — OK, same gated array feeds both the DB write and the live stream frame, so DB replay and live-stream citations stay in agreement (no fork between persisted vs. streamed citation counts introduced by this patch).
+- Client outcome classifier (`src/hooks/useAssistantChat.ts:347`, `citationsFromMessage(lastAssistant).length > 0 ? 'grounded' : 'decline'`) ↔ server's now-gated `citations` array — OK for the UAT-7 repro case (decline text now always yields `citations.length === 0`, so the client classifies it as `'decline'`, agreeing with the model's own words) and OK for W1's mixed case too in a narrow sense (client still renders *some* text as `'decline'` with a neutral bubble — not an error — it just silently drops a true citation pill the user could have used to verify the Exhibit-7 fact; the classifier itself does not mis-fire, the upstream citations array is just incomplete).
+- `extractCitations` / `citationsForToolResult` (the per-tool citation derivation this plan explicitly does not touch) — confirmed byte-identical pre/post-diff (same line count, same switch cases) via the file read; plan's "do not touch" constraint honored.
+- Error-vs-decline separation (T-04-13) — OK, unchanged: `onError`/`isLikelyProviderError` and the pre-stream `isAssistantConfigured()` 503 guard are untouched and structurally precede `onFinish`; the new gate lives entirely inside the success-path `onFinish` callback, so a provider/transport failure still never reaches `isDeclineText`.
+- Sealed-exhibit indistinguishability (T-04-04) — OK, unchanged: a sealed-unauthorized tool returns empty/null before `extractCitations` runs regardless of this gate, and the gate adds no new code path that could leak a sealed record (it only ever *removes* citations, never adds them).
+- System-prompt decline phrase (`systemPrompt.ts:42`, `"I don't have that information"`) ↔ `isDeclineText`'s match string (`"i don't have that information"`) — OK, verified byte-for-byte identical ASCII apostrophe (U+0027) in both files via direct codepoint inspection; no unicode-apostrophe mismatch.
+- `tsc --noEmit` and `next build` — both clean (re-ran independently during this review, not just trusting the plan's self-check).
