@@ -1,22 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 04-pivota-assistant
 source: 04-01-SUMMARY.md, 04-02-SUMMARY.md, 04-03-SUMMARY.md, 04-04-SUMMARY.md, 04-05-SUMMARY.md
 started: 2026-10-07T17:26:00Z
-updated: 2026-10-07T17:41:05Z
+updated: 2026-10-07T18:17:45Z
 ---
 
 ## Current Test
 
-number: 5
-position: 5 of 9
-name: Panel persists across navigation
-expected: |
-  Open the assistant slide-over panel (Ask ✦), ask a question, then click a
-  citation pill. The underlying screen navigates to the cited exhibit, but
-  the panel STAYS OPEN with the conversation still visible — only an
-  explicit close action closes it.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -39,11 +31,11 @@ result: pass
 
 ### 5. Panel persists across navigation
 expected: Open the assistant slide-over panel (Ask ✦), ask a question, then click a citation pill. The underlying screen navigates to the cited exhibit, but the panel STAYS OPEN with the conversation still visible — only an explicit close action closes it.
-result: [pending]
+result: pass
 
 ### 6. Switching surfaces keeps the same conversation
 expected: Start a conversation in the slide-over panel, then navigate to the full /assistant page (or vice versa). The same conversation thread is visible on the other surface — it is one shared conversation, not two separate ones.
-result: [pending]
+result: pass
 
 ### 7. Five named example questions all resolve sensibly
 expected: From the assistant's empty state, tap each of the five example chips in turn ("What exhibits were admitted yesterday?", "What objections remain unresolved?", "Is Exhibit 14 in the jury package?", "Who currently has custody of Exhibit 7?", "What happened to Exhibit 14?"). Each produces either a grounded cited answer or an explicit decline — never a vague or factual-sounding answer with no citation, and a decline NEVER shows a citation pill.
@@ -53,19 +45,20 @@ severity: major
 
 ### 8. Assistant nav is live everywhere
 expected: The header's Ask ✦ button is enabled (not greyed out) and opens the panel from any screen (Case Workspace, Exhibit Detail, Jury Package). The sidebar's "Assistant" link navigates to the full /assistant page. Jury Package nav is unaffected.
-result: [pending]
+result: pass
 
 ### 9. "Temporarily unavailable" notice (only if assistant misconfigured)
 expected: If the assistant provider is unreachable/misconfigured, asking a question shows a visually distinct warning-style "assistant temporarily unavailable" notice (not styled like a normal answer) with the typed question preserved and a "Try again" control — never silently rendered as a Decline.
-result: [pending]
+result: skipped
+reason: "covered by existing passing e2e/assistant.spec.ts 'unavailable' test (mocked 503); user chose not to manually break the working ANTHROPIC_API_KEY to re-observe it live"
 
 ## Summary
 
 total: 9
-passed: 4
+passed: 7
 issues: 1
-pending: 4
-skipped: 0
+pending: 0
+skipped: 1
 
 ## Self-Check
 
