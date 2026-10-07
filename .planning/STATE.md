@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-10-07T16:34:31.142Z"
-last_activity: "2026-10-07 — Completed 04-03-PLAN.md (Assistant chat route + persistence + wire contract, wave 3): src/services/assistant.ts single-writer persistence (createConversation/persistTurn atomic user+assistant+citations/getConversationDetail replay) with additive exhibitId(required)+eventId(nullable) link fields round-tripped. POST /api/assistant/chat = streamText temp0 + pinned Anthropic + 8-tool set bound to header role + cite-or-decline prompt; 503-guard-first (isAssistantConfigured) before any LLM/DB; error-vs-decline (provider/transport failures ride stream error channel fixed code, never a Decline token; 20s timeout); conversation-on-first-message; citation extraction for ALL 8 tools from this turn's toolResults (never model-authored) -> persistTurn in onFinish; citations carried in-stream as 'data-citations' part + conversationId via X-Conversation-Id header (THE wire contract 04-04/04-05 bind to). searchExhibits tool WIDENED with lastStatusEventId/lastStatusAt (same getExhibitStatus projection, service/UI untouched) so search rows are citable. GET /api/assistant/conversations/:id replay (404 CONVERSATION_NOT_FOUND). Real ANTHROPIC_API_KEY present at execution => key-gated behavioral block RAN: 5 named questions grounded-or-decline (zero ungrounded), searchExhibits pill path, sealed DEPUTY decline. 175 passed|3 skipped vitest (no-key 503 gate verified separately), build+tsc clean. Captured real grounded+decline stream frames in SUMMARY for the 04-05 E2E mock."
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-10-07T16:43:09.769Z"
+last_activity: "2026-10-07 — Completed 04-04-PLAN.md (Assistant client session: store + useChat hook, wave 4): src/stores/assistantStore.ts (zustand, no persistence — panel state + activeConversationId + newConversation). src/hooks/useAssistantChat.ts wraps ai@6 useChat to 04-03's wire contract via DefaultChatTransport.prepareSendMessagesRequest — per-SEND tagging reads getState() fresh (role on X-User-Role header only/never body T-04-08; caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into the store (conversation-on-first-message); GET-replay on mount reconstructs the SAME data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13); sendExample/retry(preserves typed question, no auto-retry)/newConversation. roleStore.setActiveUser resets the conversation on role change via a lazy dynamic import (avoids a store import cycle). 175 passed|3 skipped vitest, build+tsc clean."
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 26
-  completed_plans: 21
+  completed_plans: 22
   percent: 60
 ---
 
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plans 01 + 02 + 03 of 5 complete)
-Status: Plan 04-03 complete (chat route + persistence + wire contract, wave 3) — ready for 04-04 (client session hook: useChat via DefaultChatTransport, reads X-Conversation-Id + the 'data-citations' stream part per 04-03's SUMMARY)
-Last activity: 2026-10-07 — Completed 04-03-PLAN.md (Assistant chat route + persistence + wire contract, wave 3): src/services/assistant.ts single-writer persistence (createConversation/persistTurn atomic/getConversationDetail replay) with exhibitId+eventId link fields. POST /api/assistant/chat = streamText temp0 + pinned Anthropic + 8-tool set bound to header role + cite-or-decline; 503-guard-first; error-vs-decline (stream error channel, never a Decline token; 20s timeout); conversation-on-first-message; citation extraction for ALL 8 tools -> persistTurn in onFinish; citations in-stream 'data-citations' part + X-Conversation-Id header (THE wire contract). searchExhibits tool WIDENED (lastStatusEventId/lastStatusAt, same projection) so search rows citable. GET /conversations/:id replay (404 CONVERSATION_NOT_FOUND). Real key present => key-gated behavioral block RAN (5 questions grounded-or-decline, sealed DEPUTY decline). 175 passed|3 skipped vitest, build+tsc clean. Real stream frames captured in SUMMARY for 04-05 mock.
+Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plans 01 + 02 + 03 + 04 of 5 complete)
+Status: Plan 04-04 complete (client session: assistantStore + useAssistantChat hook, wave 4) — ready for 04-05 (assistant panel + full-page UI + E2E: consume useAssistantChat/useAssistantStore; render citationsOf(message) pills deep-linking /exhibit/:exhibitId?event=:eventId, switch the three visual states off outcome, wire chips→sendExample / header→newConversation / unavailable "Try again"→retry; E2E mock copies 04-03's captured stream frame byte-for-byte)
+Last activity: 2026-10-07 — Completed 04-04-PLAN.md (Assistant client session: store + useChat hook, wave 4): src/stores/assistantStore.ts (zustand, no persistence — panel state + activeConversationId + newConversation). src/hooks/useAssistantChat.ts wraps ai@6 useChat to 04-03's wire contract via DefaultChatTransport.prepareSendMessagesRequest — per-SEND tagging reads getState() fresh (role on X-User-Role header only/never body T-04-08; caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into the store (conversation-on-first-message); GET-replay on mount reconstructs the SAME data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13); sendExample/retry(preserves typed question, no auto-retry)/newConversation. roleStore.setActiveUser resets the conversation on role change via a lazy dynamic import (avoids a store import cycle). 175 passed|3 skipped vitest, build+tsc clean.
 
 Progress: [██████░░░░] 60%
 
@@ -75,6 +75,7 @@ Progress: [██████░░░░] 60%
 | Phase 04-pivota-assistant P01 | 2 min | 3 tasks | 7 files |
 | Phase 04-pivota-assistant P02 | 5 min | 3 tasks | 3 files |
 | Phase 04-pivota-assistant P03 | 9 min | 3 tasks | 6 files |
+| Phase 04-pivota-assistant P04 | 3 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,8 @@ Recent decisions affecting current work:
 - [Phase 04-pivota-assistant]: [04-03]: Chat route is the single wire-contract authority — request {messages,caseId,userId,conversationId?} + X-User-Role header; response X-Conversation-Id header + in-stream 'data-citations' part {conversationId,citations[]} each carrying recordType/recordId/exhibitId/eventId/timestamp/label; built via createUIMessageStream writer merging streamText().toUIMessageStream()
 - [Phase 04-pivota-assistant]: [04-03]: 503-guard-first + error-vs-decline — isAssistantConfigured() gate before any LLM/DB work returns 503 ASSISTANT_UNAVAILABLE; provider/transport failures ride the stream error channel (fixed code) never a Decline token; Decline is ONLY the model's own zero-citation text (criterion 5)
 - [Phase 04-pivota-assistant]: [04-03]: Citation extraction covers all 8 tools from THIS turn's toolResults (never model-authored); searchExhibits tool WIDENED with lastStatusEventId/lastStatusAt (same getExhibitStatus projection) so search rows are citable — service/UI shape untouched; grounded answer always >=1 citation
+- [Phase 04-pivota-assistant]: [04-04]: useChat tagged per-SEND via DefaultChatTransport.prepareSendMessagesRequest (fresh getState() reads — role on header only/never body T-04-08, caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into assistantStore (conversation-on-first-message)
+- [Phase 04-pivota-assistant]: [04-04]: role-switch→new-conversation reset wired in roleStore.setActiveUser via a lazy dynamic import of assistantStore (avoids a static store import cycle); GET-replay reconstructs the identical data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13)
 
 ### Pending Todos
 
@@ -154,6 +157,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T16:34:19.240Z
-Stopped at: Completed 04-03-PLAN.md
+Last session: 2026-10-07T16:43:09.767Z
+Stopped at: Completed 04-04-PLAN.md
 Resume file: None
