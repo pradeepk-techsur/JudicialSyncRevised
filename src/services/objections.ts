@@ -105,27 +105,37 @@ export async function recordObjection(args: {
   // 4. Generate the thread id shared by this raise event and its future ruling.
   const objectionId = randomUUID();
 
-  // 5. Append the ledger event (sole writer), then 6. create the projection row.
-  const event = await recordEvent({
-    exhibitId,
-    eventType: 'OBJECTION_RAISED',
-    payload: { objectionId, objectingParty, grounds },
-    actorUserId,
-  });
+  // 5. Append the ledger event (sole writer) and 6. create the projection row
+  //    in the SAME transaction — passing the tx client into recordEvent so the
+  //    OBJECTION_RAISED event and its ObjectionCurrentState row commit or roll
+  //    back together. A crash between the two can no longer leave a ledger event
+  //    with no projection row (invisible to getUnresolvedObjections) — mirrors
+  //    status.ts / custody.ts.
+  return prisma.$transaction(async (tx) => {
+    const event = await recordEvent(
+      {
+        exhibitId,
+        eventType: 'OBJECTION_RAISED',
+        payload: { objectionId, objectingParty, grounds },
+        actorUserId,
+      },
+      tx,
+    );
 
-  const objectionState = await prisma.objectionCurrentState.create({
-    data: {
-      objectionId,
-      exhibitId,
-      status: 'UNRESOLVED',
-      objectingParty,
-      grounds,
-      raisedEventId: event.id,
-      raisedAt: event.recordedAt,
-    },
-  });
+    const objectionState = await tx.objectionCurrentState.create({
+      data: {
+        objectionId,
+        exhibitId,
+        status: 'UNRESOLVED',
+        objectingParty,
+        grounds,
+        raisedEventId: event.id,
+        raisedAt: event.recordedAt,
+      },
+    });
 
-  return { event, objectionState };
+    return { event, objectionState };
+  });
 }
 
 /**
@@ -162,32 +172,43 @@ export async function recordRuling(args: {
     throw new RoleNotPermittedError();
   }
 
-  // 3. Append the RULING_RECORDED ledger event (sole writer) first.
-  const event = await recordEvent({
-    exhibitId: objectionState.exhibitId,
-    eventType: 'RULING_RECORDED',
-    payload: { objectionId, disposition },
-    actorUserId,
+  // 3. Append the RULING_RECORDED ledger event (sole writer) and apply the
+  //    projection update in the SAME transaction — passing the tx client into
+  //    recordEvent so the ledger event and the ObjectionCurrentState change
+  //    commit or roll back together. A crash between them can no longer leave a
+  //    RULING_RECORDED event while the thread stays UNRESOLVED — mirrors
+  //    status.ts / custody.ts.
+  return prisma.$transaction(async (tx) => {
+    const event = await recordEvent(
+      {
+        exhibitId: objectionState.exhibitId,
+        eventType: 'RULING_RECORDED',
+        payload: { objectionId, disposition },
+        actorUserId,
+      },
+      tx,
+    );
+
+    // 4/5. SUSTAINED/OVERRULED close the thread; RESERVED leaves it UNRESOLVED
+    //      and does NOT set rulingEventId/ruledAt (F02 §Process step 7). The
+    //      ledger event above is the durable record of the reservation for
+    //      timeline/history (F10) and keeps the thread counting as unresolved
+    //      for F6.
+    if (disposition === 'RESERVED') {
+      return { event, objectionState };
+    }
+
+    const updated = await tx.objectionCurrentState.update({
+      where: { objectionId },
+      data: {
+        status: disposition,
+        rulingEventId: event.id,
+        ruledAt: event.recordedAt,
+      },
+    });
+
+    return { event, objectionState: updated };
   });
-
-  // 4/5. SUSTAINED/OVERRULED close the thread; RESERVED leaves it UNRESOLVED and
-  //      does NOT set rulingEventId/ruledAt (F02 §Process step 7). The ledger
-  //      event above is the durable record of the reservation for timeline/
-  //      history (F10) and keeps the thread counting as unresolved for F6.
-  if (disposition === 'RESERVED') {
-    return { event, objectionState };
-  }
-
-  const updated = await prisma.objectionCurrentState.update({
-    where: { objectionId },
-    data: {
-      status: disposition,
-      rulingEventId: event.id,
-      ruledAt: event.recordedAt,
-    },
-  });
-
-  return { event, objectionState: updated };
 }
 
 /**
