@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Data Foundation** - Event-sourced ledger + status/objection/custody tracking, with deterministic seed data containing the required discrepancy edge cases (completed 2026-10-07)
 - [x] **Phase 2: Core Screens** - Case Workspace (browse/search) and Exhibit Detail View (full history), reading the Phase 1 service layer (completed 2026-10-07)
-- [ ] **Phase 3: Jury Package + Discrepancy Detection** - Automated cross-domain discrepancy flags gating jury package finalization, surfaced on the Jury Package Workspace
+- [x] **Phase 3: Jury Package + Discrepancy Detection** - Automated cross-domain discrepancy flags gating jury package finalization, surfaced on the Jury Package Workspace (completed 2026-10-07)
 - [ ] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline
 - [ ] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens
 
@@ -65,7 +65,7 @@ Plans:
 
 ### Phase 3: Jury Package + Discrepancy Detection
 **Goal**: The system automatically flags operational risks the moment they occur — an admitted exhibit with no recorded custodian, or an admitted exhibit with a still-unresolved objection — and a deputy/clerk/admin can build a jury package that structurally cannot be finalized while an open discrepancy remains on any included exhibit.
-**Status**: Passed
+**Status**: Complete (2026-10-07)
 **Depends on**: Phase 2
 **Requirements**: F5, F6, F11
 **Success Criteria** (what must be TRUE):
@@ -121,6 +121,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 0/TBD | Complete | 2026-10-07 |
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
-| 3. Jury Package + Discrepancy Detection | 0/TBD | Passed | - |
+| 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 0/5 | Planned | - |
 | 5. Trial Command Center + Live Sync | 0/3 | Planned | - |
