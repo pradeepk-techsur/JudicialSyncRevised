@@ -1,51 +1,78 @@
 ---
 phase: 5
-status: issues_found
+status: clean
 blockers: 0
-warnings: 2
-files_reviewed: 18
+warnings: 0
+files_reviewed: 2
 files_reviewed_list:
-  - src/services/activity.ts
-  - src/services/activity.test.ts
-  - src/services/history.ts
-  - src/services/objections.ts
-  - src/app/api/cases/[id]/activity/route.ts
-  - src/app/api/cases/[id]/activity/route.test.ts
-  - src/app/api/cases/[id]/objections/route.ts
-  - src/lib/errors.ts
-  - src/app/providers.tsx
-  - src/hooks/useRecentActivity.ts
-  - src/hooks/useUnresolvedObjections.ts
-  - src/hooks/useDiscrepancies.ts
-  - src/hooks/useFreshness.ts
-  - src/app/command-center/page.tsx
-  - src/components/command-center/RecentActivityPanel.tsx
-  - src/components/command-center/ObjectionsPanel.tsx
   - src/components/command-center/DiscrepanciesPanel.tsx
-  - src/components/command-center/FreshnessIndicator.tsx
-  - src/components/shell/Sidebar.tsx
-  - src/app/page.tsx
-  - e2e/command-center.spec.ts
-  - e2e/app-shell.spec.ts
-reviewed_at: 2026-10-07T21:40:20Z
-iteration: 1
+  - src/components/command-center/RecentActivityPanel.tsx
+reviewed_at: 2026-10-07T22:05:00Z
+iteration: 2
 ---
 
 # Phase 5 Code Review
 
-The Trial Command Center (F8) landed across its three plans cleanly. The
-backend data path (`getRecentActivity`, role-scoped `getUnresolvedObjections`),
-the three independent polling hooks, and the four panels are well-structured and
-the cross-file seams all reconcile. No BLOCKERs: the role-scoping is a true
-in-query `WHERE` predicate on every read (never a post-filter), the route error
-mapping is correct, and the default-window anchor logic is sound. Two WARNINGs
-below — both error-path/cosmetic, neither breaks the happy path.
+**Iteration 2 (re-review after fixes).** Iteration 1 found 0 BLOCKERs and 2
+WARNINGs. Both were fixed (W1 in c03537d, W2 in 0b3e0ef); this pass read both
+fixer-touched files in full, verified each fix against its original evidence,
+traced for fix-introduced regressions, and ran `tsc --noEmit` (clean). Both
+commits were surgical — scoped to exactly the two target files, 12 and 41 lines
+respectively, touching nothing else. **Both WARNINGs are resolved and no
+regression was introduced; status is now clean.**
+
+## Re-review verification (iteration 2)
+
+### W1 — RESOLVED (c03537d), verified
+- **Fix:** `isError = discrepancies.isError || exhibitList.isError`
+  (DiscrepanciesPanel.tsx:66); Retry `onClick` now refetches BOTH queries
+  (:106-109).
+- **Verified correct:** An exhibit-list failure now drives `isError` → the panel
+  renders the `role="alert"` retry affordance (:101-115) instead of falling
+  through to the `count === 0` all-clear branch (:117-119), which is gated on
+  `!isError`. The original false-negative ("No open discrepancies" while flags
+  exist) is closed.
+- **No regression:** `isLoading` already OR'd both queries (:60), so there is no
+  state where one query's error is masked by the other's loading. The error gate
+  now mirrors the loading gate — symmetric and correct. The jury-package probe is
+  independent and still fail-safe-defaults to Exhibit Detail. No new branch can
+  leave `visibleIds` empty while rendering the success body.
+
+### W2 — RESOLVED (0b3e0ef), verified
+- **Fix:** Replaced the single-timer-per-run design with a
+  `timersRef: Map<id, timeoutId>` (RecentActivityPanel.tsx:45). Each fresh id
+  gets its OWN self-clearing 400ms timer that `timers.delete(id)` + removes only
+  its own id (:66-81); the per-run `clearTimeout` cleanup was removed; a separate
+  unmount-only effect tears down all pending timers (:91-97).
+- **Verified correct:** The original trace (poll A adds X, poll B adds Y within
+  400ms) no longer strands X — X's timer is independent and is never cancelled by
+  B's effect run, so X's highlight clears on its own deadline. The "re-arm
+  defensively" guard (:68-70) prevents duplicate timers if an id re-appears fresh.
+- **No regression checked:**
+  - *Unmount teardown:* the cleanup effect captures `timersRef.current` once
+    (:92), but that Map reference is stable (only mutated, never reassigned), so
+    `timers.values()` at unmount correctly drains whatever timers are live — no
+    stale-reference leak.
+  - *Self-clear safety:* each timer callback guards `if (!prev.has(id)) return prev`
+    (:74) so a highlight already cleared elsewhere is a no-op; `setHighlighted`
+    returns a new Set only when it actually changes.
+  - *Memory:* each timer removes itself from the Map on fire (:72); the Map does
+    not grow unbounded across polls.
+  - *tsc --noEmit:* clean — the new `Map<string, ReturnType<typeof setTimeout>>`
+    typing introduces no type error.
 
 ## BLOCKERs
 
 None.
 
 ## WARNINGs
+
+None remaining. Both prior WARNINGs are resolved (see verification above). The
+original W1/W2 detail is retained below for the audit trail.
+
+---
+
+## Prior-iteration WARNINGs (resolved — retained for audit)
 
 ### W1: Discrepancies panel shows a false "No open discrepancies" when the exhibit-list fetch fails
 - **File:** src/components/command-center/DiscrepanciesPanel.tsx:55-61, 109-111
