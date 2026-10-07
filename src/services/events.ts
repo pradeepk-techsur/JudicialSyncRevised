@@ -1,8 +1,14 @@
-import type { EventType, ExhibitEvent } from '@prisma/client';
+import type { EventType, ExhibitEvent, Prisma, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { ValidationError } from '@/lib/errors';
 import { eventPayloadSchemas } from '@/lib/validation/eventPayloads';
+
+// A Prisma client OR an interactive-transaction client — recordEvent accepts
+// either, so callers that must atomically write a ledger row AND update a
+// projection (e.g. custody transfer) can pass their own `tx` and keep both
+// writes in one transaction. Omitted → recordEvent opens its own transaction.
+type PrismaLike = PrismaClient | Prisma.TransactionClient;
 
 // recordEvent is the SINGLE append-only ledger writer for the entire codebase.
 // Every later feature (status, objections, custody, discrepancies) records
@@ -12,12 +18,15 @@ import { eventPayloadSchemas } from '@/lib/validation/eventPayloads';
 // consistency would all be undermined. Enforced by convention + the grep check
 // in the plan's done criteria (exactly one exhibitEvent.create call site, here).
 
-export async function recordEvent(args: {
-  exhibitId: string;
-  eventType: EventType;
-  payload: unknown;
-  actorUserId: string;
-}): Promise<ExhibitEvent> {
+export async function recordEvent(
+  args: {
+    exhibitId: string;
+    eventType: EventType;
+    payload: unknown;
+    actorUserId: string;
+  },
+  client?: PrismaLike,
+): Promise<ExhibitEvent> {
   const { exhibitId, eventType, payload, actorUserId } = args;
 
   // 1. Validate the payload shape against the schema for this eventType BEFORE
@@ -42,7 +51,12 @@ export async function recordEvent(args: {
   // 2. Inside a single transaction: resolve the exhibit's caseId, compute the
   //    next per-exhibit sequenceNo, then append the row. The transaction keeps
   //    the max-read and the insert atomic for a single writer.
-  return prisma.$transaction(async (tx) => {
+  //
+  //    When a caller supplies its own transaction client, run the append inside
+  //    THAT transaction so the ledger write composes atomically with whatever
+  //    the caller does alongside it (e.g. a projection upsert). Otherwise open
+  //    our own transaction.
+  const write = async (tx: PrismaLike): Promise<ExhibitEvent> => {
     const exhibit = await tx.exhibit.findUnique({
       where: { id: exhibitId },
       select: { caseId: true },
@@ -68,5 +82,10 @@ export async function recordEvent(args: {
         recordedAt: new Date(),
       },
     });
-  });
+  };
+
+  if (client) {
+    return write(client);
+  }
+  return prisma.$transaction((tx) => write(tx));
 }
