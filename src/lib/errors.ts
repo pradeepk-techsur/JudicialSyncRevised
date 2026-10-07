@@ -103,3 +103,19 @@ export class ToolArgsInvalidError extends AppError {
     super('TOOL_ARGS_INVALID', `Invalid arguments for tool ${toolName}: ${detail}`, 422);
   }
 }
+
+/**
+ * 500 — any underlying service query failure while composing the Command Center
+ * activity feed (FRD F08 §Error States: "Unable to load trial activity — please
+ * retry"). Thrown by the /activity route when getRecentActivity fails for a
+ * reason that is not a client-input problem (those stay 422 VALIDATION_ERROR).
+ */
+export class CommandCenterLoadError extends AppError {
+  constructor() {
+    super(
+      'COMMAND_CENTER_LOAD_FAILED',
+      'Unable to load trial activity — please retry',
+      500,
+    );
+  }
+}
