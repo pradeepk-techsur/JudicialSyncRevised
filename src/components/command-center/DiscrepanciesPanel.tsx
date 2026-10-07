@@ -58,7 +58,12 @@ export function DiscrepanciesPanel() {
   const count = flags.length;
 
   const isLoading = discrepancies.isLoading || exhibitList.isLoading;
-  const isError = discrepancies.isError;
+  // BOTH reads back this panel: discrepancies supply the flags, the exhibit list
+  // supplies the role-visible set we intersect against to drop sealed rows. If
+  // EITHER fails we must surface the error — an exhibit-list failure leaves
+  // visibleIds empty, which would otherwise silently filter every flag out and
+  // paint a FALSE "No open discrepancies" all-clear on the highest-risk panel.
+  const isError = discrepancies.isError || exhibitList.isError;
 
   const headerClass =
     count > 0
@@ -98,7 +103,10 @@ export function DiscrepanciesPanel() {
           Unable to load discrepancies — please retry.{' '}
           <button
             type="button"
-            onClick={() => discrepancies.refetch()}
+            onClick={() => {
+              discrepancies.refetch();
+              exhibitList.refetch();
+            }}
             className="font-medium underline hover:no-underline"
           >
             Retry
