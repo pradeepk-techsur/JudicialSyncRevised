@@ -19,8 +19,11 @@ export async function POST(
 
     // Distinguish "exhibit does not exist" (404) from a lifecycle rule violation
     // before we attempt the transition — gives the correct EXHIBIT_NOT_FOUND code
-    // rather than a generic validation error from the ledger writer.
-    const exhibit = await getExhibit(id);
+    // rather than a generic validation error from the ledger writer. getExhibit
+    // now requires a role (plan 02-02 sealed-masking); this F1 write route is out
+    // of scope for role-based visibility (plan 02-02 scope note), so it passes
+    // JUDGE — a visibility superset — to keep its existence check unchanged.
+    const exhibit = await getExhibit(id, 'JUDGE');
     if (!exhibit) {
       throw new NotFoundError('EXHIBIT_NOT_FOUND', 'No exhibit found with the given ID');
     }
