@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-10-07T16:43:09.769Z"
-last_activity: "2026-10-07 — Completed 04-04-PLAN.md (Assistant client session: store + useChat hook, wave 4): src/stores/assistantStore.ts (zustand, no persistence — panel state + activeConversationId + newConversation). src/hooks/useAssistantChat.ts wraps ai@6 useChat to 04-03's wire contract via DefaultChatTransport.prepareSendMessagesRequest — per-SEND tagging reads getState() fresh (role on X-User-Role header only/never body T-04-08; caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into the store (conversation-on-first-message); GET-replay on mount reconstructs the SAME data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13); sendExample/retry(preserves typed question, no auto-retry)/newConversation. roleStore.setActiveUser resets the conversation on role change via a lazy dynamic import (avoids a store import cycle). 175 passed|3 skipped vitest, build+tsc clean."
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-10-07T16:57:28.936Z"
+last_activity: "2026-10-07 — Completed 04-05-PLAN.md (Assistant UI surfaces + citations + E2E, wave 5): two surfaces over ONE shared conversation — AssistantPanel (global slide-over, mounted in AppShell, always-mounted+translated-off so thread state survives close/reopen+navigation, stays open on pill click) + full-page /assistant, both rendering the surface-agnostic AssistantThread over 04-04's useAssistantChat/useAssistantStore. CitationPill reads citation.exhibitId/eventId directly (never re-derived) → /exhibit/:id?event=:id (non-null) or /exhibit/:id top-of-timeline (null). Three unambiguous outcomes: grounded(pills)/decline(neutral,no-pill,data-outcome=decline,not-error)/unavailable(role=alert system-notice + Try-again re-submits preserved question). Timeline ?event= deep-link scrolls+highlights (~400ms, graceful top fallback), useSearchParams in Suspense (Next16). Header Ask✦ enabled→togglePanel; Sidebar Assistant→/assistant live (Jury Package NOT regressed, Command Center sole placeholder). e2e/assistant.spec.ts: 7 deterministic KEY-FREE tests mocking POST /api/assistant/chat with 04-03's captured ai@6 UI-message stream frame + x-vercel-ai-ui-message-stream:v1 header, citations bound to REAL seed ids so #event-<id> exists; path(a) stable, hook-state fallback(b) unneeded. 29 E2E pass (clean seed), 175|3 vitest, build+tsc clean. Phase 4 COMPLETE."
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 26
-  completed_plans: 22
-  percent: 60
+  completed_plans: 23
+  percent: 88
 ---
 
 # Project State
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 4 — Pivota Assistant (F7)
+**Current focus:** Phase 4 — Pivota Assistant (F7) — COMPLETE; Phase 5 (Command Center) next
 
 ## Current Position
 
-Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plans 01 + 02 + 03 + 04 of 5 complete)
-Status: Plan 04-04 complete (client session: assistantStore + useAssistantChat hook, wave 4) — ready for 04-05 (assistant panel + full-page UI + E2E: consume useAssistantChat/useAssistantStore; render citationsOf(message) pills deep-linking /exhibit/:exhibitId?event=:eventId, switch the three visual states off outcome, wire chips→sendExample / header→newConversation / unavailable "Try again"→retry; E2E mock copies 04-03's captured stream frame byte-for-byte)
-Last activity: 2026-10-07 — Completed 04-04-PLAN.md (Assistant client session: store + useChat hook, wave 4): src/stores/assistantStore.ts (zustand, no persistence — panel state + activeConversationId + newConversation). src/hooks/useAssistantChat.ts wraps ai@6 useChat to 04-03's wire contract via DefaultChatTransport.prepareSendMessagesRequest — per-SEND tagging reads getState() fresh (role on X-User-Role header only/never body T-04-08; caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into the store (conversation-on-first-message); GET-replay on mount reconstructs the SAME data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13); sendExample/retry(preserves typed question, no auto-retry)/newConversation. roleStore.setActiveUser resets the conversation on role change via a lazy dynamic import (avoids a store import cycle). 175 passed|3 skipped vitest, build+tsc clean.
+Phase: 4 of 5 (Pivota Assistant) — COMPLETE (all 5 plans: 01 + 02 + 03 + 04 + 05)
+Status: Plan 04-05 complete (assistant UI surfaces + citations + E2E, wave 5) — F7 fully delivered. Phase 4 done; ready for Phase 5 (Trial Command Center) planning / `/pivota_spec-verify-work 04`.
+Last activity: 2026-10-07 — Completed 04-05-PLAN.md (Assistant UI surfaces + citations + E2E, wave 5): two surfaces over ONE shared conversation — AssistantPanel (global slide-over mounted in AppShell, always-mounted+translated-off so thread survives close/reopen+nav, stays open on pill click) + full-page /assistant, both rendering the surface-agnostic AssistantThread over 04-04's useAssistantChat/useAssistantStore. CitationPill reads citation.exhibitId/eventId directly → /exhibit/:id?event=:id or /exhibit/:id top-of-timeline (null eventId). Three unambiguous outcomes: grounded(pills)/decline(neutral,no-pill,not-error)/unavailable(role=alert + Try-again re-submits preserved question). Timeline ?event= deep-link scrolls+highlights (graceful top fallback), useSearchParams in Suspense. Header Ask✦→togglePanel; Sidebar Assistant→/assistant (Jury Package not regressed). e2e/assistant.spec.ts 7 deterministic key-free tests via 04-03's captured ai@6 stream frame + stream header, citations bound to real seed ids; 29 E2E pass (clean seed), 175|3 vitest, build+tsc clean.
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 88%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [██████░░░░] 60%
 | Phase 04-pivota-assistant P02 | 5 min | 3 tasks | 3 files |
 | Phase 04-pivota-assistant P03 | 9 min | 3 tasks | 6 files |
 | Phase 04-pivota-assistant P04 | 3 min | 2 tasks | 3 files |
+| Phase 04-pivota-assistant P05 | 10 min | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -145,6 +146,10 @@ Recent decisions affecting current work:
 - [Phase 04-pivota-assistant]: [04-03]: Citation extraction covers all 8 tools from THIS turn's toolResults (never model-authored); searchExhibits tool WIDENED with lastStatusEventId/lastStatusAt (same getExhibitStatus projection) so search rows are citable — service/UI shape untouched; grounded answer always >=1 citation
 - [Phase 04-pivota-assistant]: [04-04]: useChat tagged per-SEND via DefaultChatTransport.prepareSendMessagesRequest (fresh getState() reads — role on header only/never body T-04-08, caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into assistantStore (conversation-on-first-message)
 - [Phase 04-pivota-assistant]: [04-04]: role-switch→new-conversation reset wired in roleStore.setActiveUser via a lazy dynamic import of assistantStore (avoids a static store import cycle); GET-replay reconstructs the identical data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13)
+- [Phase 04-pivota-assistant]: [04-05]: AssistantPanel mounted ONCE in AppShell (not per-route) + always-mounted/translated-off when closed so the thread+hook state survives close→reopen AND route navigation; a citation click inside the panel routes the screen underneath but leaves the panel OPEN (only explicit close closes it). One surface-agnostic AssistantThread (variant panel|page) renders both the slide-over and the full-page /assistant over the same 04-04 hook/store — the two UIs stay purely presentational
+- [Phase 04-pivota-assistant]: [04-05]: CitationPill reads the deep-link target (exhibitId/eventId) DIRECTLY off the citation object, never re-derived from recordId/recordType — non-null eventId → /exhibit/:id?event=:id (Timeline scroll+~400ms highlight), null eventId → /exhibit/:id top-of-timeline fallback (DiscrepancyFlag/JuryPackageExhibit). Exhibit page reads ?event via useSearchParams inside a Suspense boundary (Next 16); param only used for getElementById+scroll, never an HTML/navigation sink (T-04-15/16)
+- [Phase 04-pivota-assistant]: [04-05]: E2E determinism via path (a) — page.route fulfills 04-03's captured ai@6 UI-message SSE frame (start/text-delta/finish/data-citations/[DONE]) WITH the SDK's own x-vercel-ai-ui-message-stream:v1 header so DefaultChatTransport parses it like the real route; citation payloads bound to REAL seed exhibitId/eventId (resolved at runtime) so #event-<id> exists; 503 fixture rides the SDK error channel (never a decline). The documented hook-state fallback (b) proved unnecessary — raw-SSE mock parsed on first run
+- [Phase 04-pivota-assistant]: [04-05]: Stale e2e/app-shell.spec.ts assertions updated for the now-activated nav (Ask✦ enabled+opens panel; Assistant a live /assistant link, Command Center sole placeholder) — [Rule 1] deviation for intentionally-changed behavior
 
 ### Pending Todos
 
@@ -157,6 +162,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T16:43:09.767Z
-Stopped at: Completed 04-04-PLAN.md
+Last session: 2026-10-07T16:57:28.934Z
+Stopped at: Completed 04-05-PLAN.md
 Resume file: None
