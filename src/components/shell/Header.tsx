@@ -2,9 +2,11 @@
 
 import { useEffect } from 'react';
 import { useRoleStore } from '@/stores/roleStore';
+import { useAssistantStore } from '@/stores/assistantStore';
 
 export function Header() {
   const { caseNumber, users, activeUserId, setActiveUser, hydrate } = useRoleStore();
+  const togglePanel = useAssistantStore((s) => s.togglePanel);
 
   useEffect(() => {
     if (caseNumber) return; // already hydrated
@@ -44,10 +46,11 @@ export function Header() {
         </label>
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          title="Pivota Assistant — coming in a later phase"
-          className="cursor-not-allowed rounded border px-3 py-1 text-sm text-gray-400"
+          onClick={togglePanel}
+          data-testid="ask-assistant"
+          aria-label="Open Pivota Assistant"
+          title="Ask the Pivota Assistant"
+          className="rounded border px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           Ask ✦
         </button>

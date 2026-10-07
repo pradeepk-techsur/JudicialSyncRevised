@@ -26,6 +26,8 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://judicialsync:judicialsync_dev@db:5432/judicialsync
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
 
 volumes:
   pgdata:

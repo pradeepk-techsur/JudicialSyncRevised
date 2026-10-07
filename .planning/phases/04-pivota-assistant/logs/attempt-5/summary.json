@@ -1,0 +1,21 @@
+{
+  "duration_secs": 1669.0,
+  "token_usage": {
+    "input": 136,
+    "output": 43716,
+    "total": 6643738,
+    "cache_read": 6380848,
+    "cache_write": 219038,
+    "cost": 2.2611966000000003
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/04-pivota-assistant/04-UAT.md",
+    ".planning/phases/04-pivota-assistant/04-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 5,
+  "created_at": "2026-10-07T20:23:50.374095+00:00",
+  "completed_at": "2026-10-07T20:51:40.227530110+00:00"
+}

@@ -2,15 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-07T16:05:18.946Z"
-last_activity: "2026-10-07 — Phase 3 complete"
+status: completed
+stopped_at: "Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)"
+last_updated: "2026-10-07T19:47:38.601Z"
+last_activity: "2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean."
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 26
-  completed_plans: 18
-  percent: 60
+  completed_phases: 4
+  total_plans: 27
+  completed_plans: 24
+  percent: 80
 ---
 
 # Project State
@@ -20,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 3 — Jury Package & Discrepancy Detection
+**Current focus:** Phase 4 — Pivota Assistant (F7) — COMPLETE; Phase 5 (Command Center) next
 
 ## Current Position
 
-Phase: 3 of 5 (Jury Package & Discrepancy Detection) — COMPLETE (all 4 plans)
-Status: Plan 03-04 complete (Jury Package Workspace screen, wave 4) — Phase 3 done; ready for Phase 4 planning
-Last activity: 2026-10-07 — Completed 03-04-PLAN.md (Phase 3 Jury Package Workspace screen (F11): /jury-package route rendering empty/draft/finalized from live server truth; useJuryPackage + useDiscrepancyCount hooks; hard-disabled finalize gate reading live per-row OPEN flags with explanatory caption; shared inline AcknowledgeInline (500-char counter, empty-disabled Confirm) on the jury draft AND the new Exhibit Detail discrepancy banner; stale-409 inline banner naming blocking exhibits; FINALIZED green-stamp read-only view with window.print export + @media print CSS; activated sidebar Jury Package nav with live open-discrepancy count badge. 152/152 vitest, 22/22 playwright, build + tsc clean. [Wave 4 — Phase 3 complete.])
+Phase: 4 of 5 (Pivota Assistant) — COMPLETE (all 5 core plans: 01-05, plus gap-closure plan 06)
+Status: Phase 4 completed — 04-06 gap-closure plan (citation-decline gating fix, UAT test 7) landed. Phase 5 (Trial Command Center) is next.
+Last activity: 2026-10-07 — Completed 04-06-PLAN.md (gap closure: citation-decline gating fix): onFinish's citations computation gated on isDeclineText(text) — a tool returning rows this turn is NOT sufficient for "grounded"; only the model's own final text asserting a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven): the live repro ("what exhibits were admitted yesterday" via searchExhibits, no date-filter support) now always yields citations: [] on decline text. No-over-correction proven via a known-grounded question still carrying >=1 citation. Single-conditional, minimal-surface fix — extractCitations/citationsForToolResult/503 guard/persistTurn untouched. Full vitest suite green (182|3 skipped), tsc+build clean.
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -71,6 +72,12 @@ Progress: [██████░░░░] 60%
 | Phase 03-jury-package-discrepancy-detection P02 | 8 min | 3 tasks | 11 files |
 | Phase 03-jury-package-discrepancy-detection P03 | 10 min | 3 tasks | 10 files |
 | Phase 03-jury-package-discrepancy-detection P04 | 17 min | 3 tasks | 16 files |
+| Phase 04-pivota-assistant P01 | 2 min | 3 tasks | 7 files |
+| Phase 04-pivota-assistant P02 | 5 min | 3 tasks | 3 files |
+| Phase 04-pivota-assistant P03 | 9 min | 3 tasks | 6 files |
+| Phase 04-pivota-assistant P04 | 3 min | 2 tasks | 3 files |
+| Phase 04-pivota-assistant P05 | 10 min | 3 tasks | 13 files |
+| Phase 04-pivota-assistant P06 | 4 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -129,6 +136,22 @@ Recent decisions affecting current work:
 - [Phase 03-jury-package-discrepancy-detection]: [03-03]: assertSeedIntegrity asserts >=1 OPEN flag per discrepancy rule (demo-blocking); flags arise only from the live engine, grep now forbids prisma.discrepancyFlag.create in seed.ts (extends T-01-17/T-03-10)
 - [Phase 03-jury-package-discrepancy-detection]: [03-04]: Jury rows carry no DiscrepancyFlag.id, so acknowledge resolves the flag id client-side from the case-wide /api/cases/:id/discrepancies list (shared useDiscrepancyCount) rather than changing the 03-02 server view
 - [Phase 03-jury-package-discrepancy-detection]: [03-04]: Finalize gate reads ONLY per-row flags.some(OPEN); FINALIZE_ROLES=DEPUTY/CLERK/ADMIN, ACK_ROLES adds JUDGE; the draft freshness 1s tick is isolated so live polling never detaches the inline acknowledge controls
+- [Phase 04-pivota-assistant]: [04-01]: AI SDK resolved to current latest majors ai@6 / @ai-sdk/react@3 / @ai-sdk/anthropic@3 (not plan's predicted ^7/^4/^4); clean install, no --legacy-peer-deps. 04-03 binds to ai@6 primitives: streamText().toUIMessageStreamResponse(), DefaultChatTransport + prepareSendMessagesRequest, stopWhen:stepCountIs(n), createUIMessageStream writer for citation data parts
+- [Phase 04-pivota-assistant]: [04-01]: assistantConfig.ts is the single server-side-only reader of ANTHROPIC_API_KEY; placeholder/unset key => isAssistantConfigured() false => 503 ASSISTANT_UNAVAILABLE, never a throw at import (ROADMAP criterion 5); temperature pinned 0, model claude-sonnet-4-5
+- [Phase 04-pivota-assistant]: [04-01]: AssistantCitation diverges from TechArch canonical Citation with additive exhibit_id (required) + event_id (nullable) so a persisted/replayed pill deep-links to /exhibit/:exhibitId?event=:eventId; eventId null for citation types with no single timeline anchor
+- [Phase 04-pivota-assistant]: [04-02]: Assistant tool layer = 8 AI SDK tool() wrappers, each a 1:1 zod-validated pass-through to one service fn (no business logic, no Prisma, no second query path — grep-enforced); role+caseId always from ctx, never model args (T-04-05 no admin override)
+- [Phase 04-pivota-assistant]: [04-02]: Sealed seam = shared exhibitVisible(id,role)->getExhibit gate placed BEFORE the role-LESS reads (getExhibitStatus/getCustodian/getCustodyHistory/per-exhibit getExhibitDiscrepancies); sealed-unauthorized => empty (null/[]) byte-identical to not-found (criterion 4, deep-equal tested); getUnresolvedObjections post-filtered by per-exhibit visibility; history/search/jury/case-wide-discrepancies use the services' own role filter
+- [Phase 04-pivota-assistant]: [04-02]: searchExhibits EMPTY_SEARCH_CRITERIA (422) caught -> [] (model declines, not a stream error); getCustodyHistory tool typed via Awaited<ReturnType<...>> (no exported CustodyHistoryEntry); tool keys follow FRD names incl. getJuryPackageStatus (wraps Phase 3 getJuryPackage) + getDiscrepancies (case-wide OR per-exhibit via optional exhibitId)
+- [Phase 04-pivota-assistant]: [04-03]: Chat route is the single wire-contract authority — request {messages,caseId,userId,conversationId?} + X-User-Role header; response X-Conversation-Id header + in-stream 'data-citations' part {conversationId,citations[]} each carrying recordType/recordId/exhibitId/eventId/timestamp/label; built via createUIMessageStream writer merging streamText().toUIMessageStream()
+- [Phase 04-pivota-assistant]: [04-03]: 503-guard-first + error-vs-decline — isAssistantConfigured() gate before any LLM/DB work returns 503 ASSISTANT_UNAVAILABLE; provider/transport failures ride the stream error channel (fixed code) never a Decline token; Decline is ONLY the model's own zero-citation text (criterion 5)
+- [Phase 04-pivota-assistant]: [04-03]: Citation extraction covers all 8 tools from THIS turn's toolResults (never model-authored); searchExhibits tool WIDENED with lastStatusEventId/lastStatusAt (same getExhibitStatus projection) so search rows are citable — service/UI shape untouched; grounded answer always >=1 citation
+- [Phase 04-pivota-assistant]: [04-04]: useChat tagged per-SEND via DefaultChatTransport.prepareSendMessagesRequest (fresh getState() reads — role on header only/never body T-04-08, caseId/userId/conversationId in body) so the CURRENT role is always sent (T-04-12); server conversationId captured via onData off the data-citations part into assistantStore (conversation-on-first-message)
+- [Phase 04-pivota-assistant]: [04-04]: role-switch→new-conversation reset wired in roleStore.setActiveUser via a lazy dynamic import of assistantStore (avoids a static store import cycle); GET-replay reconstructs the identical data-citations part shape so citationsOf() + 04-05 pills are path-agnostic and replayed pills keep exhibitId+eventId; three-way outcome grounded/decline/unavailable kept distinct by input channel (error channel vs zero-citation message — an error is never a decline, T-04-13)
+- [Phase 04-pivota-assistant]: [04-05]: AssistantPanel mounted ONCE in AppShell (not per-route) + always-mounted/translated-off when closed so the thread+hook state survives close→reopen AND route navigation; a citation click inside the panel routes the screen underneath but leaves the panel OPEN (only explicit close closes it). One surface-agnostic AssistantThread (variant panel|page) renders both the slide-over and the full-page /assistant over the same 04-04 hook/store — the two UIs stay purely presentational
+- [Phase 04-pivota-assistant]: [04-05]: CitationPill reads the deep-link target (exhibitId/eventId) DIRECTLY off the citation object, never re-derived from recordId/recordType — non-null eventId → /exhibit/:id?event=:id (Timeline scroll+~400ms highlight), null eventId → /exhibit/:id top-of-timeline fallback (DiscrepancyFlag/JuryPackageExhibit). Exhibit page reads ?event via useSearchParams inside a Suspense boundary (Next 16); param only used for getElementById+scroll, never an HTML/navigation sink (T-04-15/16)
+- [Phase 04-pivota-assistant]: [04-05]: E2E determinism via path (a) — page.route fulfills 04-03's captured ai@6 UI-message SSE frame (start/text-delta/finish/data-citations/[DONE]) WITH the SDK's own x-vercel-ai-ui-message-stream:v1 header so DefaultChatTransport parses it like the real route; citation payloads bound to REAL seed exhibitId/eventId (resolved at runtime) so #event-<id> exists; 503 fixture rides the SDK error channel (never a decline). The documented hook-state fallback (b) proved unnecessary — raw-SSE mock parsed on first run
+- [Phase 04-pivota-assistant]: [04-05]: Stale e2e/app-shell.spec.ts assertions updated for the now-activated nav (Ask✦ enabled+opens panel; Assistant a live /assistant link, Command Center sole placeholder) — [Rule 1] deviation for intentionally-changed behavior
+- [Phase 04-pivota-assistant]: [04-06]: onFinish gates citation computation on isDeclineText(text) — a tool returning rows this turn is necessary but not sufficient for grounded; only the model's own final text deciding to assert a fact grounded in those rows is. Closes 04-UAT.md test 7 (major, proven) with a single-conditional, minimal-surface fix.
 
 ### Pending Todos
 
@@ -141,6 +164,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T14:37:21.953Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-10-07T19:45:36.750Z
+Stopped at: Completed 04-06-PLAN.md (gap closure: citation-decline gating fix)
 Resume file: None

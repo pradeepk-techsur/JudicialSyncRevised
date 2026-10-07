@@ -91,12 +91,13 @@ Plans:
   3. When asked about a question with no supporting record (a nonexistent exhibit, or a fact outside the user's role visibility), the assistant explicitly declines ("I don't have that information") rather than guessing or inferring.
   4. A user in a role without sealed-exhibit visibility (DEPUTY, CLERK, ATTORNEY) never receives an answer or citation referencing a sealed exhibit, even when asked about it by name or ID — the response is indistinguishable from "no such exhibit."
    5. If the LLM provider is unreachable or times out, the user sees an explicit, visually distinct "assistant temporarily unavailable" message (never rendered as a Decline Response) with their typed question preserved, while every other screen remains fully usable for manual lookup.
-**Plans**: 5 plans
+**Plans**: 6 plans
 - [ ] 04-01-PLAN.md — Foundations: AI SDK + Anthropic deps, assistant schema (3 tables + MessageRole), config constant (temp 0, server-side key), ASSISTANT_UNAVAILABLE/TOOL_ARGS_INVALID error codes
 - [ ] 04-02-PLAN.md — Tool layer: 8 1:1 service pass-through tools (role-scoped sealed seam) + cite-or-decline system prompt
 - [ ] 04-03-PLAN.md — POST /api/assistant/chat (streamText temp 0, missing-key→503, error-vs-decline, citation persistence) + GET conversations/:id + release-blocker tests
 - [ ] 04-04-PLAN.md — Client session: assistantStore (panel + active conversation), role-switch-new-conversation, useAssistantChat (useChat tagging + three-outcome classification)
 - [ ] 04-05-PLAN.md — UI: slide-over panel + /assistant page, example chips, three outcomes, citation pills + Timeline ?event= deep-link, Ask ✦/sidebar activation, Playwright E2E
+- [ ] 04-06-PLAN.md — Gap closure (UAT test 7, major): gate onFinish's citation extraction on whether the model's final text is a textual Decline, so a decline paired with a tool call that returned rows (e.g. searchExhibits) always persists/streams citations: []
 
 ### Phase 5: Trial Command Center + Live Sync
 **Goal**: A judge or deputy can glance at one ambient screen at any point during live proceedings and immediately see the trial's current state — with zero configuration — and that screen, along with every other open screen, reflects new activity within the demo's live-sync window without a manual refresh.

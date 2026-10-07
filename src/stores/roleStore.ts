@@ -40,7 +40,24 @@ export const useRoleStore = create<RoleState>((set, get) => ({
   setActiveUser: (userId) => {
     const user = get().users.find((u) => u.id === userId);
     if (user) {
+      const prevRole = get().role;
       set({ activeUserId: userId, role: user.role });
+      if (user.role !== prevRole) {
+        // Role change crosses a visibility boundary (sealed-exhibit scope) —
+        // start a FRESH assistant conversation so answers computed under
+        // different sealed-visibility scopes never mix in one audit thread, and
+        // the model never reuses a prior-role answer from history (CONTEXT.md;
+        // F7 criterion 4 hygiene; threat T-04-12). The REQUIREMENT is simply:
+        // role change ⇒ activeConversationId becomes null. A lazy dynamic import
+        // avoids a static import cycle between the two session stores
+        // (assistantStore has no reason to import roleStore, and apiClient +
+        // useAssistantChat already import roleStore — a top-level import the
+        // other way would risk a cycle). Fire-and-forget: the reset is a UI
+        // concern, not awaited.
+        void import('@/stores/assistantStore').then((m) =>
+          m.useAssistantStore.getState().newConversation(),
+        );
+      }
     }
   },
 }));
