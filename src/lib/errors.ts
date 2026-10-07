@@ -43,3 +43,15 @@ export class NotFoundError extends AppError {
     super(code, message, 404);
   }
 }
+
+/**
+ * 422 — a semantically-invalid request that carries a more specific code than
+ * the generic VALIDATION_ERROR (e.g. INVALID_STATUS_TRANSITION). Same HTTP
+ * status as ValidationError, but preserves the feature-specific error code so
+ * the client can distinguish it (Y2-errors.md).
+ */
+export class UnprocessableError extends AppError {
+  constructor(code: string, message: string) {
+    super(code, message, 422);
+  }
+}
