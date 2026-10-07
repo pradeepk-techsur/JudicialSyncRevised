@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-10-07T14:06:27.738Z"
-last_activity: "2026-10-07 — Completed 03-02-PLAN.md (Phase 3 jury-package + discrepancy HTTP surface: src/services/juryPackage.ts with computeJuryCandidates/initiate/read-only GET/finalize; 5 route handlers — GET+POST jury-package, POST finalize, GET case+exhibit discrepancies, POST acknowledge; membership is full-visibility case-truth while the returned view is role-filtered; finalize re-evaluates FRESH over membership (sealed included) and names blockers in error.details; GET is strictly read-only (null + zero-row). 150/150 vitest, build clean, tsc clean. [Wave 2.])"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-10-07T14:17:09.572Z"
+last_activity: "2026-10-07 — Completed 03-03-PLAN.md (Phase 3 Case Workspace discrepancy surfacing: widened the shared ExhibitListRow.discrepancyFlags from the [] placeholder to real DiscrepancyFlagSummary[], batch-loaded OPEN+ACKNOWLEDGED flags per page (no N+1) in getExhibits/searchExhibits and populated ExhibitHistoryResponse.discrepancyFlags; new DiscrepancyBadge (amber OPEN / muted ACKNOWLEDGED / 'N issues' collapse, text always visible) wired into the ⚑ column; assertSeedIntegrity now asserts both rules fire on boot and grep forbids direct discrepancyFlag.create. 152/152 vitest, 19/19 playwright, build + tsc clean. [Wave 3.])"
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 23
-  completed_plans: 16
+  completed_plans: 17
   percent: 40
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 ## Current Position
 
 Phase: 3 of 5 (Jury Package & Discrepancy Detection)
-Status: Plan 03-02 complete (jury-package + discrepancy HTTP surface, wave 2) — ready for 03-03
-Last activity: 2026-10-07 — Completed 03-02-PLAN.md (Phase 3 jury-package + discrepancy HTTP surface: src/services/juryPackage.ts with computeJuryCandidates/initiate/read-only GET/finalize; 5 route handlers — GET+POST jury-package, POST finalize, GET case+exhibit discrepancies, POST acknowledge; membership is full-visibility case-truth while the returned view is role-filtered; finalize re-evaluates FRESH over membership (sealed included) and names blockers in error.details; GET is strictly read-only (null + zero-row). 150/150 vitest, build clean, tsc clean. [Wave 2.])
+Status: Plan 03-03 complete (Case Workspace discrepancy surfacing, wave 3) — ready for 03-04
+Last activity: 2026-10-07 — Completed 03-03-PLAN.md (Phase 3 Case Workspace discrepancy surfacing: widened the shared ExhibitListRow.discrepancyFlags from [] to real DiscrepancyFlagSummary[], batch-loaded OPEN+ACKNOWLEDGED flags per page (no N+1) in getExhibits/searchExhibits + populated ExhibitHistoryResponse.discrepancyFlags; new DiscrepancyBadge (amber OPEN / muted ACKNOWLEDGED / 'N issues' collapse, text always visible) in the ⚑ column; assertSeedIntegrity asserts both rules fire on boot, grep forbids direct discrepancyFlag.create. 152/152 vitest, 19/19 playwright, build + tsc clean. [Wave 3.])
 
 Progress: [████░░░░░░] 40%
 
@@ -70,6 +70,7 @@ Progress: [████░░░░░░] 40%
 | Phase 02-core-screens P07 | 36 min | 3 tasks | 6 files |
 | Phase 03-jury-package-discrepancy-detection P01 | 15 min | 3 tasks | 14 files |
 | Phase 03-jury-package-discrepancy-detection P02 | 8 min | 3 tasks | 11 files |
+| Phase 03-jury-package-discrepancy-detection P03 | 10 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 - [Phase 03-jury-package-discrepancy-detection]: [03-02]: GET jury-package is strictly READ-ONLY (null when none, reconcile-only on DRAFT) — ROADMAP criterion 5 supersedes CONTEXT line 23 and Y1-api's non-nullable GET type
 - [Phase 03-jury-package-discrepancy-detection]: [03-02]: JuryPackageExhibitView adds an additive flags: DiscrepancyFlagSummary[] per row so 03-04's finalize gate blocks on OPEN only and re-enables on ACKNOWLEDGED (discrepancyStatus CLEAN|FLAGGED collapses the two)
 - [Phase 03-jury-package-discrepancy-detection]: [03-02]: Jury-package membership is case truth (full-visibility, viewer-independent); sealed filtering is view/export-only — a sealed OPEN discrepancy still blocks finalize for a deputy who cannot see it (gate reads membership, not the role-filtered view)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: ExhibitListRow.discrepancyFlags batch-loaded in ONE grouped query keyed on the already-sealed-filtered exhibitIds (no N+1); a sealed exhibit's flags never reach an unauthorized client (T-03-09)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: DiscrepancyBadge renders plain-language labels always-visible (never icon-only); single flag inline, multiples collapse to 'N issues' with every label in title/aria-label; consumes the single DiscrepancyFlagSummary + ruleLabel sources (no redefinition)
+- [Phase 03-jury-package-discrepancy-detection]: [03-03]: assertSeedIntegrity asserts >=1 OPEN flag per discrepancy rule (demo-blocking); flags arise only from the live engine, grep now forbids prisma.discrepancyFlag.create in seed.ts (extends T-01-17/T-03-10)
 
 ### Pending Todos
 
@@ -135,6 +139,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T14:06:27.736Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-10-07T14:17:09.570Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
