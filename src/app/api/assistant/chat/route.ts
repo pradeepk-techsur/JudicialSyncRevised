@@ -16,7 +16,7 @@ import { parseRequestingRole } from '@/services/visibility';
 import { AssistantUnavailableError } from '@/lib/errors';
 import { errorResponse } from '@/lib/apiError';
 import {
-  createConversation,
+  resolveConversationId,
   persistTurn,
   type Citation,
   type CitationInput,
@@ -110,11 +110,15 @@ export async function POST(request: NextRequest): Promise<Response> {
       return errorResponse(new AssistantUnavailableError());
     }
 
-    // 3. Conversation: create it NOW on the first message (no orphan conversations
-    //    — CONTEXT.md). Capture the id to return via a response header so the
+    // 3. Conversation: resolve the thread to persist against BEFORE the LLM call.
+    //    A supplied conversationId is reused ONLY if it exists and belongs to this
+    //    case+user; otherwise (absent, stale, or spoofed) a FRESH conversation is
+    //    created. This moves validation ahead of the model run so a stale id can
+    //    never FK-crash inside onFinish and lose the turn (W2), and keeps the
+    //    no-orphan-conversation rule (a conversation only exists once a turn is
+    //    about to persist). Capture the id to return via a response header so the
     //    client can hold it in zustand.
-    const conversationId =
-      body.conversationId ?? (await createConversation(caseId, userId)).id;
+    const conversationId = await resolveConversationId(body.conversationId, caseId, userId);
 
     // 4. Derive the latest user message's text for persistence (the model reads
     //    the full converted message array; persistTurn stores just this turn's
@@ -155,13 +159,23 @@ export async function POST(request: NextRequest): Promise<Response> {
           //    assistant message).
           onFinish: async ({ text, steps }) => {
             const citations = extractCitations(steps);
-            // Persist first so the thread is durable even if the client dropped.
-            await persistTurn({
-              conversationId,
-              userMessage,
-              assistantContent: text,
-              citations,
-            });
+            try {
+              // Persist first so the thread is durable even if the client dropped.
+              await persistTurn({
+                conversationId,
+                userMessage,
+                assistantContent: text,
+                citations,
+              });
+            } catch (persistError) {
+              // A persistence failure inside onFinish (e.g. an unexpected DB/FK
+              // error) must NOT reject unhandled in the stream callback. Route it
+              // to the createUIMessageStream error channel below so the client sees
+              // the stable "temporarily unavailable" notice rather than a silently
+              // dropped turn with no feedback (W2). Re-throw: createUIMessageStream's
+              // onError maps it to the fixed ASSISTANT_UNAVAILABLE code.
+              throw persistError;
+            }
             // Then surface them to the live client (with exhibitId/eventId) so the
             // pills render without a second fetch. toCitations maps ISO strings.
             writer.write({

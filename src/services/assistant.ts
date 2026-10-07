@@ -91,6 +91,41 @@ export async function createConversation(
 }
 
 /**
+ * Resolve the conversation to persist this turn against. If `suppliedId` is
+ * absent, OR it does not resolve to an existing conversation that belongs to the
+ * SAME case+user, a FRESH conversation is created and its id returned.
+ *
+ * Why validate before reuse: the chat route previously reused a client-supplied
+ * conversationId as-is and only `persistTurn`'d it inside streamText's onFinish —
+ * AFTER the model ran. A stale/invalid id (a thread cleared elsewhere, a
+ * different browser session, or a hand-crafted request) would then trip the
+ * assistant_messages → assistant_conversations FK inside onFinish, rejecting
+ * unhandled in the stream callback and LOSING the turn (W2). Validating here
+ * moves that check BEFORE the LLM call and degrades gracefully to a new thread
+ * instead of a crash. Ownership scoping (same case+user) also stops a turn being
+ * grafted onto someone else's conversation by a spoofed id.
+ */
+export async function resolveConversationId(
+  suppliedId: string | undefined | null,
+  caseId: string,
+  userId: string,
+): Promise<string> {
+  if (suppliedId) {
+    const existing = await prisma.assistantConversation.findUnique({
+      where: { id: suppliedId },
+      select: { id: true, caseId: true, userId: true },
+    });
+    if (existing && existing.caseId === caseId && existing.userId === userId) {
+      return existing.id;
+    }
+    // Falls through: unknown id, or an id owned by a different case/user → start
+    // a fresh conversation rather than reuse (and rather than FK-crash later).
+  }
+  const created = await createConversation(caseId, userId);
+  return created.id;
+}
+
+/**
  * Persist one full turn — the user's message, the assistant's reply, and the
  * reply's citations — ATOMICALLY in one transaction, so a crash can never leave a
  * grounded answer with no citation rows (or an assistant message with no matching
