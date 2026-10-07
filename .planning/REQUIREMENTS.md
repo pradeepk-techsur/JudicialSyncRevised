@@ -65,25 +65,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| F0 | TBD | Pending |
-| F0a | TBD | Pending |
-| F1 | TBD | Pending |
-| F2 | TBD | Pending |
-| F3 | TBD | Pending |
-| F4 | TBD | Pending |
-| F5 | TBD | Pending |
-| F6 | TBD | Pending |
-| F7 | TBD | Pending |
-| F8 | TBD | Pending |
-| F9 | TBD | Pending |
-| F10 | TBD | Pending |
-| F11 | TBD | Pending |
+| F0 | Phase 1 (Data Foundation) | Pending |
+| F0a | Phase 1 (Data Foundation) | Pending |
+| F1 | Phase 1 (Data Foundation) | Pending |
+| F2 | Phase 1 (Data Foundation) | Pending |
+| F3 | Phase 1 (Data Foundation) | Pending |
+| F4 | Phase 2 (Core Screens) | Pending |
+| F5 | Phase 3 (Jury Package + Discrepancy Detection) | Pending |
+| F6 | Phase 3 (Jury Package + Discrepancy Detection) | Pending |
+| F7 | Phase 4 (Pivota Assistant) | Pending |
+| F8 | Phase 5 (Trial Command Center + Live Sync) | Pending |
+| F9 | Phase 2 (Core Screens) | Pending |
+| F10 | Phase 2 (Core Screens) | Pending |
+| F11 | Phase 3 (Jury Package + Discrepancy Detection) | Pending |
 
 **Coverage:**
 - v1 requirements: 13 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 13 ⚠️ (will be resolved by roadmap)
+- Mapped to phases: 13 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-06*
-*Last updated: 2026-10-06 after initial definition*
+*Last updated: 2026-10-06 after roadmap creation (all 13 v1 requirements mapped to 5 phases)*
