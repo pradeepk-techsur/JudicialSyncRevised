@@ -30,7 +30,16 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. An invalid action is rejected rather than silently applied: an out-of-order status transition, a ruling disposition recorded by a non-judge, and a custody transfer recorded from the wrong current holder are each refused.
   4. Running the seed loader — including re-running it from a clean state — deterministically produces the same complete demo case, containing at least one unresolved objection, one custody gap, and one jury-package-eligible discrepancy, with zero manual data entry.
   5. Rebuilding the current-state projections from scratch by replaying the ledger produces results identical to the live projections, confirming projections are purely derived, never independently-editable state.
-**Plans**: TBD
+**Plans**: 7 plans (5 waves)
+
+Plans:
+- [ ] 01-01-PLAN.md — Scaffold Next.js 16 project, lock in the Prisma event-ledger schema, stand up Docker Compose dev stack (Postgres + app)
+- [ ] 01-02-PLAN.md — recordEvent (sole ledger writer) + exhibit identity service + API routes + context-boot test
+- [ ] 01-03-PLAN.md — Status admission-lifecycle state machine (F1) + API routes
+- [ ] 01-04-PLAN.md — Objection/ruling thread tracking with judge-only enforcement (F2) + API routes
+- [ ] 01-05-PLAN.md — Chain-of-custody tracking with wrong-holder rejection (F3) + API routes
+- [ ] 01-06-PLAN.md — Deterministic seed loader with planted edge cases (F0a), wired into Docker boot sequence
+- [ ] 01-07-PLAN.md — Full history reconstruction + projection rebuild verification against seeded data
 
 ### Phase 2: Core Screens
 **Goal**: Any courtroom user can browse the full case exhibit list, search/filter it by multiple combinable criteria, and drill into any single exhibit's complete chronological history — through two screens that read the exact same service layer validated in Phase 1, with no screen-local derivation that could diverge from it.
