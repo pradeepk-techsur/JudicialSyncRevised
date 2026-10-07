@@ -28,6 +28,23 @@ function relativeTime(fromMs: number): string {
   return `${mins}m ago`;
 }
 
+// The "updated Xs ago" freshness label ticks every second. It is isolated in its
+// OWN component so its 1s re-render never re-renders the table rows (which would
+// detach the inline acknowledge controls mid-interaction — a real usability bug
+// in addition to a test-flakiness one).
+function FreshnessIndicator({ dataUpdatedAt }: { dataUpdatedAt: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="text-xs text-gray-400" data-testid="jury-freshness">
+      updated {relativeTime(dataUpdatedAt)}
+    </span>
+  );
+}
+
 export function JuryPackageDraft({
   juryPackage,
   exhibits,
@@ -76,14 +93,6 @@ export function JuryPackageDraft({
       ? finalizeError.details?.blockingExhibits ?? []
       : null;
 
-  // Live "updated Xs ago" tick.
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  void now; // used only to force re-render for the relative-time label
-
   const handleAckConfirm = async (
     exhibitId: string,
     ruleCode: string,
@@ -114,9 +123,7 @@ export function JuryPackageDraft({
             {summary}
           </p>
         </div>
-        <span className="text-xs text-gray-400" data-testid="jury-freshness">
-          updated {relativeTime(dataUpdatedAt)}
-        </span>
+        <FreshnessIndicator dataUpdatedAt={dataUpdatedAt} />
       </div>
 
       {staleBlockers && (

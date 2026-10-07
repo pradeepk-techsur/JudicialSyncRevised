@@ -67,15 +67,23 @@ test.describe('Exhibit Detail View', () => {
       await route.continue({ headers });
     });
 
+    // Compare the MAIN content region (the exhibit-detail render), not the whole
+    // body: the app-shell sidebar now carries a role-scoped open-discrepancy count
+    // badge (Phase 3), which legitimately differs between the default-JUDGE view
+    // and the forced-ATTORNEY view. That ambient chrome is not part of the
+    // exhibit-detail anti-enumeration surface — the not-found CONTENT must be
+    // byte-identical, and that content lives in <main>.
+    const mainContent = page.getByRole('main');
+
     // Genuinely-missing id (default JUDGE role is fine — the id truly does not exist).
     await page.goto('/exhibit/00000000-0000-0000-0000-000000000000');
     await expect(page.getByText('Exhibit not found')).toBeVisible();
-    const missingHtml = await page.locator('body').innerText();
+    const missingHtml = await mainContent.innerText();
 
     // Sealed exhibit, viewed as ATTORNEY (forced above) — must be indistinguishable.
     await page.goto(`/exhibit/${sealedId}`);
     await expect(page.getByText('Exhibit not found')).toBeVisible();
-    const sealedHtml = await page.locator('body').innerText();
+    const sealedHtml = await mainContent.innerText();
 
     expect(sealedHtml).toBe(missingHtml);
   });

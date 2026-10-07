@@ -38,12 +38,14 @@ test.describe('App shell', () => {
     await expect(askButton).toBeDisabled();
   });
 
-  test('sidebar shows Case Workspace as a live link and the other three items as disabled placeholders', async ({ page }) => {
+  test('sidebar shows Case Workspace and Jury Package as live links, Command Center and Assistant as disabled placeholders', async ({ page }) => {
     await page.goto('/case');
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    // Phase 2 + Phase 3 live routes.
     await expect(nav.getByRole('link', { name: 'Case Workspace' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: /Jury Package/ })).toBeVisible();
+    // Phases 4-5 remain disabled placeholders.
     await expect(nav.getByText('Command Center')).toHaveAttribute('aria-disabled', 'true');
-    await expect(nav.getByText('Jury Package')).toHaveAttribute('aria-disabled', 'true');
     await expect(nav.getByText('Assistant')).toHaveAttribute('aria-disabled', 'true');
   });
 
