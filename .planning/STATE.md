@@ -2,14 +2,15 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-07T16:05:18.946Z"
-last_activity: "2026-10-07 — Phase 3 complete"
+status: completed
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-07T16:13:14.261Z"
+last_activity: "2026-10-07 — Completed 04-01-PLAN.md (Phase 4 foundation: installed Vercel AI SDK — ai@6.0.301 / @ai-sdk/react@3.0.304 / @ai-sdk/anthropic@3.0.127, current latest majors, no vector/LangChain deps, clean install no --legacy-peer-deps; added src/lib/assistantConfig.ts single server-side-only config — model claude-sonnet-4-5, temperature 0, isAssistantConfigured() fail-safe so a missing/placeholder key never crashes the app; added AssistantUnavailableError 503 + ToolArgsInvalidError 422 to the typed error layer; migrated MessageRole enum + AssistantConversation/AssistantMessage/AssistantCitation incl. additive exhibit_id (required) + event_id (nullable) for pill deep-link/replay + conversations back-relations on Case/User; added schema+config sanity test. 157/157 vitest, build + tsc clean. 04-03 WIRE-CONTRACT PRIMITIVES (ai@6): streamText().toUIMessageStreamResponse(); DefaultChatTransport + prepareSendMessagesRequest; stopWhen:stepCountIs(n) [no maxSteps]; createUIMessageStream writer data parts for citations. [Wave 1.])"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 26
-  completed_plans: 18
+  completed_plans: 19
   percent: 60
 ---
 
@@ -20,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 3 — Jury Package & Discrepancy Detection
+**Current focus:** Phase 4 — Pivota Assistant (F7)
 
 ## Current Position
 
-Phase: 3 of 5 (Jury Package & Discrepancy Detection) — COMPLETE (all 4 plans)
-Status: Plan 03-04 complete (Jury Package Workspace screen, wave 4) — Phase 3 done; ready for Phase 4 planning
-Last activity: 2026-10-07 — Completed 03-04-PLAN.md (Phase 3 Jury Package Workspace screen (F11): /jury-package route rendering empty/draft/finalized from live server truth; useJuryPackage + useDiscrepancyCount hooks; hard-disabled finalize gate reading live per-row OPEN flags with explanatory caption; shared inline AcknowledgeInline (500-char counter, empty-disabled Confirm) on the jury draft AND the new Exhibit Detail discrepancy banner; stale-409 inline banner naming blocking exhibits; FINALIZED green-stamp read-only view with window.print export + @media print CSS; activated sidebar Jury Package nav with live open-discrepancy count badge. 152/152 vitest, 22/22 playwright, build + tsc clean. [Wave 4 — Phase 3 complete.])
+Phase: 4 of 5 (Pivota Assistant) — IN PROGRESS (plan 01 of 5 complete)
+Status: Plan 04-01 complete (assistant foundation, wave 1) — ready for 04-02 (tool layer) / 04-03 (chat route + wire contract)
+Last activity: 2026-10-07 — Completed 04-01-PLAN.md (Phase 4 foundation: installed Vercel AI SDK — ai@6.0.301 / @ai-sdk/react@3.0.304 / @ai-sdk/anthropic@3.0.127, current latest majors, no vector/LangChain deps, clean install no --legacy-peer-deps; added src/lib/assistantConfig.ts single server-side-only config — model claude-sonnet-4-5, temperature 0, isAssistantConfigured() fail-safe so a missing/placeholder key never crashes the app; added AssistantUnavailableError 503 + ToolArgsInvalidError 422 to the typed error layer; migrated MessageRole enum + AssistantConversation/AssistantMessage/AssistantCitation incl. additive exhibit_id (required) + event_id (nullable) for pill deep-link/replay + conversations back-relations on Case/User; added schema+config sanity test. 157/157 vitest, build + tsc clean. 04-03 WIRE-CONTRACT PRIMITIVES (ai@6): streamText().toUIMessageStreamResponse(); DefaultChatTransport + prepareSendMessagesRequest; stopWhen:stepCountIs(n) [no maxSteps]; createUIMessageStream writer data parts for citations. [Wave 1.])
 
 Progress: [██████░░░░] 60%
 
@@ -71,6 +72,7 @@ Progress: [██████░░░░] 60%
 | Phase 03-jury-package-discrepancy-detection P02 | 8 min | 3 tasks | 11 files |
 | Phase 03-jury-package-discrepancy-detection P03 | 10 min | 3 tasks | 10 files |
 | Phase 03-jury-package-discrepancy-detection P04 | 17 min | 3 tasks | 16 files |
+| Phase 04-pivota-assistant P01 | 2 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -129,6 +131,9 @@ Recent decisions affecting current work:
 - [Phase 03-jury-package-discrepancy-detection]: [03-03]: assertSeedIntegrity asserts >=1 OPEN flag per discrepancy rule (demo-blocking); flags arise only from the live engine, grep now forbids prisma.discrepancyFlag.create in seed.ts (extends T-01-17/T-03-10)
 - [Phase 03-jury-package-discrepancy-detection]: [03-04]: Jury rows carry no DiscrepancyFlag.id, so acknowledge resolves the flag id client-side from the case-wide /api/cases/:id/discrepancies list (shared useDiscrepancyCount) rather than changing the 03-02 server view
 - [Phase 03-jury-package-discrepancy-detection]: [03-04]: Finalize gate reads ONLY per-row flags.some(OPEN); FINALIZE_ROLES=DEPUTY/CLERK/ADMIN, ACK_ROLES adds JUDGE; the draft freshness 1s tick is isolated so live polling never detaches the inline acknowledge controls
+- [Phase 04-pivota-assistant]: [04-01]: AI SDK resolved to current latest majors ai@6 / @ai-sdk/react@3 / @ai-sdk/anthropic@3 (not plan's predicted ^7/^4/^4); clean install, no --legacy-peer-deps. 04-03 binds to ai@6 primitives: streamText().toUIMessageStreamResponse(), DefaultChatTransport + prepareSendMessagesRequest, stopWhen:stepCountIs(n), createUIMessageStream writer for citation data parts
+- [Phase 04-pivota-assistant]: [04-01]: assistantConfig.ts is the single server-side-only reader of ANTHROPIC_API_KEY; placeholder/unset key => isAssistantConfigured() false => 503 ASSISTANT_UNAVAILABLE, never a throw at import (ROADMAP criterion 5); temperature pinned 0, model claude-sonnet-4-5
+- [Phase 04-pivota-assistant]: [04-01]: AssistantCitation diverges from TechArch canonical Citation with additive exhibit_id (required) + event_id (nullable) so a persisted/replayed pill deep-links to /exhibit/:exhibitId?event=:eventId; eventId null for citation types with no single timeline anchor
 
 ### Pending Todos
 
@@ -141,6 +146,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T14:37:21.953Z
-Stopped at: Completed 03-04-PLAN.md
+Last session: 2026-10-07T16:13:14.260Z
+Stopped at: Completed 04-01-PLAN.md
 Resume file: None
