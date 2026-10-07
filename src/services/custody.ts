@@ -1,6 +1,8 @@
 import type { CustodyCurrentState, ExhibitEvent } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { AppError, NotFoundError, ValidationError } from '@/lib/errors';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import { advisoryLockKey } from '@/lib/advisoryLock';
 import { recordEvent } from '@/services/events';
 
 // Chain-of-custody tracking (FRD F03).
@@ -58,26 +60,15 @@ export async function recordCustodyTransfer(args: {
     throw new NotFoundError('EXHIBIT_NOT_FOUND', 'No exhibit found with the given ID');
   }
 
-  // 1. Read the exhibit's current derived custodian (null = custody gap / first transfer).
-  const current = await prisma.custodyCurrentState.findUnique({ where: { exhibitId } });
-  const currentCustodianUserId = current?.currentCustodianUserId ?? null;
-
-  // 2. Chain validation — the invariant this feature exists to enforce. Strict
-  //    equality against the actual current custodian; no fuzzy matching, no
-  //    auto-correction. For the first-ever transfer, both must be null/absent.
-  //    A mismatch is refused BEFORE any ledger write — the projection is left
-  //    untouched.
-  const claimedFrom = fromCustodianUserId ?? null;
-  if (claimedFrom !== currentCustodianUserId) {
-    throw new CustodyChainBrokenError();
-  }
-
-  // 3. No-op transfers are never valid, even when the chain would otherwise match.
+  // No-op transfers are never valid, independent of the chain state — reject
+  // this input-level condition early (it is unaffected by concurrency).
   if (fromCustodianUserId !== null && fromCustodianUserId === toCustodianUserId) {
     throw new NoOpTransferError();
   }
 
-  // 4. The target custodian must reference an existing, active user.
+  // The target custodian must reference an existing, active user. This is a
+  // stable property of the referenced user, not of the exhibit's custody row,
+  // so it can be validated outside the per-exhibit lock.
   const toUser = await prisma.user.findUnique({
     where: { id: toCustodianUserId },
     select: { isActive: true },
@@ -86,36 +77,79 @@ export async function recordCustodyTransfer(args: {
     throw new InvalidCustodianError();
   }
 
-  // 5. Append the immutable ledger event (via the single ledger writer), then
-  //    6. upsert the projection in the SAME transaction — the two can never drift.
-  return prisma.$transaction(async (tx) => {
-    const event = await recordEvent(
-      {
-        exhibitId,
-        eventType: 'CUSTODY_TRANSFER',
-        payload: { fromCustodianUserId, toCustodianUserId, reason },
-        actorUserId,
-      },
-      tx,
-    );
+  const claimedFrom = fromCustodianUserId ?? null;
 
-    const custodyState = await tx.custodyCurrentState.upsert({
-      where: { exhibitId },
-      create: {
-        exhibitId,
-        currentCustodianUserId: toCustodianUserId,
-        since: event.recordedAt,
-        lastEventId: event.id,
-      },
-      update: {
-        currentCustodianUserId: toCustodianUserId,
-        since: event.recordedAt,
-        lastEventId: event.id,
-      },
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Serialize concurrent transfers for this exhibit, mirroring
+      //    recordStatusChange. The transaction-scoped advisory lock is held
+      //    until commit/rollback, making the read-check-write below atomic
+      //    against other custody transfers for the same exhibit — two
+      //    concurrent A→B / A→C requests can no longer both pass the chain
+      //    check and overwrite each other. Works on the first-ever transfer
+      //    (no custody row to row-lock).
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey(exhibitId)})`;
+
+      // 2. Read the exhibit's current derived custodian INSIDE the lock
+      //    (null = custody gap / first transfer).
+      const current = await tx.custodyCurrentState.findUnique({ where: { exhibitId } });
+      const currentCustodianUserId = current?.currentCustodianUserId ?? null;
+
+      // 3. Chain validation — the invariant this feature exists to enforce.
+      //    Strict equality against the actual current custodian; no fuzzy
+      //    matching, no auto-correction. For the first-ever transfer, both must
+      //    be null/absent. A mismatch is refused BEFORE any ledger write — the
+      //    projection is left untouched.
+      if (claimedFrom !== currentCustodianUserId) {
+        throw new CustodyChainBrokenError();
+      }
+
+      // 4. Append the immutable ledger event (via the single ledger writer),
+      //    then 5. upsert the projection in the SAME transaction — the two can
+      //    never drift, and both are serialized by the lock above.
+      const event = await recordEvent(
+        {
+          exhibitId,
+          eventType: 'CUSTODY_TRANSFER',
+          payload: { fromCustodianUserId, toCustodianUserId, reason },
+          actorUserId,
+        },
+        tx,
+      );
+
+      const custodyState = await tx.custodyCurrentState.upsert({
+        where: { exhibitId },
+        create: {
+          exhibitId,
+          currentCustodianUserId: toCustodianUserId,
+          since: event.recordedAt,
+          lastEventId: event.id,
+        },
+        update: {
+          currentCustodianUserId: toCustodianUserId,
+          since: event.recordedAt,
+          lastEventId: event.id,
+        },
+      });
+
+      return { event, custodyState };
     });
-
-    return { event, custodyState };
-  });
+  } catch (err) {
+    // A serialization failure / deadlock surfaces as a retryable conflict, not
+    // a 500 — the caller refetches the current custodian and retries, mirroring
+    // recordStatusChange's handling.
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      (err.code === 'P2034' /* write conflict / deadlock, retry */ ||
+        err.code === 'P2028') /* transaction API error / timeout */
+    ) {
+      throw new ConflictError(
+        'CUSTODY_CONFLICT',
+        "Exhibit's custody has changed since this view was loaded — refresh and retry",
+      );
+    }
+    throw err;
+  }
 }
 
 export async function getCustodian(exhibitId: string): Promise<CustodyCurrentState | null> {
