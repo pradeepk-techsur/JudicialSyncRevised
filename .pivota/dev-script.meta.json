@@ -1,0 +1,11 @@
+{
+  "generator_version": "init-dev-server@1",
+  "catalog_entry": null,
+  "generated_at": "2026-10-07T03:27:50Z",
+  "inspection_inputs_hash": "75a11da44c802486bc6f65640aa48a730f0f684c5c07a42ba3cd1735eb3fb070",
+  "inspection_inputs": {
+    "matched_globs": [],
+    "manifest_signatures": [],
+    "existing_scripts": []
+  }
+}
