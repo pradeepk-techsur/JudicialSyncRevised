@@ -1,9 +1,10 @@
-import type { Exhibit } from '@prisma/client';
+import type { Exhibit, Role } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { ConflictError, ValidationError } from '@/lib/errors';
 import { offeringPartyEnum } from '@/lib/validation/eventPayloads';
+import { canViewSealed } from '@/services/visibility';
 
 // Exhibit identity-record CRUD (FRD F00 §Inputs/§Validation).
 //
@@ -13,12 +14,13 @@ import { offeringPartyEnum } from '@/lib/validation/eventPayloads';
 // status/custody field directly." Status/custody are set exclusively via a
 // later recordEvent() call (F1/F3).
 //
-// Scope decision (documented, deliberate): role-based visibility filtering
-// (sealed-exhibit exclusion per 00-header.md §Role-Based Visibility) is NOT
-// implemented in getExhibit/getExhibits here — it is deferred to Phase 2, where
-// the first UI/API consumer actually needs requestingUserRole plumbed through.
-// isSealed is stored faithfully now; filtering is added when a real caller needs
-// it, avoiding speculative plumbing ahead of its consumer.
+// Role-based visibility (sealed-exhibit exclusion per 00-header.md §Role-Based
+// Visibility): getExhibit (singular) now applies the sealed-masking WHERE
+// predicate via the single shared canViewSealed() predicate in visibility.ts
+// (Phase 2 — this is the first role-scoped consumer). getExhibits (plural)
+// still returns raw identity rows; its upgrade to the richer ExhibitListRow
+// shape with the same predicate is plan 02-04's scope, so the two plans do not
+// touch the same function body with overlapping diffs.
 
 const createExhibitSchema = z.object({
   caseId: z.string().min(1),
@@ -89,10 +91,25 @@ export async function createExhibit(input: {
   }
 }
 
-export async function getExhibit(exhibitId: string): Promise<Exhibit | null> {
-  // Returns null (not a throw) for a missing id — the API route layer maps null
-  // to 404 EXHIBIT_NOT_FOUND.
-  return prisma.exhibit.findUnique({ where: { id: exhibitId } });
+export async function getExhibit(
+  exhibitId: string,
+  requestingUserRole: Role,
+): Promise<Exhibit | null> {
+  // Returns null (not a throw) both for a genuinely missing id AND for a sealed
+  // exhibit read by a role that cannot view sealed exhibits — the two cases are
+  // byte-identical at this layer (anti-enumeration, threat T-02-05). The API
+  // route maps null to 404 EXHIBIT_NOT_FOUND.
+  //
+  // findFirst (not findUnique): findUnique's `where` is restricted to
+  // unique-indexed fields only, so adding the isSealed predicate alongside id
+  // requires findFirst. id remains the primary key, so this is not a
+  // performance regression.
+  return prisma.exhibit.findFirst({
+    where: {
+      id: exhibitId,
+      ...(canViewSealed(requestingUserRole) ? {} : { isSealed: false }),
+    },
+  });
 }
 
 export async function getExhibits(caseId: string): Promise<Exhibit[]> {

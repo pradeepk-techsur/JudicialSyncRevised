@@ -45,7 +45,7 @@ describe('exhibits service', () => {
     expect(created.offeringParty).toBe('PROSECUTION');
     expect(created.isSealed).toBe(false);
 
-    const fetched = await getExhibit(created.id);
+    const fetched = await getExhibit(created.id, 'JUDGE');
     expect(fetched).not.toBeNull();
     expect(fetched?.id).toBe(created.id);
 
@@ -96,7 +96,39 @@ describe('exhibits service', () => {
   });
 
   it('getExhibit returns null for a nonexistent id (not a throw)', async () => {
-    const result = await getExhibit('00000000-0000-0000-0000-000000000000');
+    const result = await getExhibit('00000000-0000-0000-0000-000000000000', 'JUDGE');
     expect(result).toBeNull();
+  });
+
+  describe('getExhibit sealed-exhibit role-based visibility', () => {
+    let sealedId: string;
+
+    beforeEach(async () => {
+      const { caseId, suffix } = fixture;
+      const sealed = await createExhibit({
+        caseId,
+        exhibitLabel: `Sealed ${suffix}`,
+        description: 'A sealed exhibit — restricted visibility',
+        offeringParty: 'PROSECUTION',
+        isSealed: true,
+      });
+      sealedId = sealed.id;
+    });
+
+    it('returns the sealed row for every role that can view sealed exhibits', async () => {
+      for (const role of ['JUDGE', 'CHAMBERS_STAFF', 'ADMIN'] as const) {
+        const fetched = await getExhibit(sealedId, role);
+        expect(fetched, `role ${role} should see the sealed exhibit`).not.toBeNull();
+        expect(fetched?.id).toBe(sealedId);
+        expect(fetched?.isSealed).toBe(true);
+      }
+    });
+
+    it('returns null for a sealed exhibit read by every role that cannot view sealed exhibits', async () => {
+      for (const role of ['ATTORNEY', 'DEPUTY', 'CLERK'] as const) {
+        const fetched = await getExhibit(sealedId, role);
+        expect(fetched, `role ${role} must NOT see the sealed exhibit`).toBeNull();
+      }
+    });
   });
 });
