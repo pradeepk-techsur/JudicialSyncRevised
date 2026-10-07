@@ -22,7 +22,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 1: Data Foundation
 **Goal**: The system records every exhibit's identity and every status/objection/ruling/custody change as immutable, replayable ledger events — with deterministic seed data loaded through that same path — producing a demo-ready case containing the specific discrepancy edge cases the later differentiator features depend on.
-**Status**: Awaiting verify
+**Status**: In progress
 **Depends on**: Nothing (first phase)
 **Requirements**: F0, F0a, F1, F2, F3
 **Success Criteria** (what must be TRUE):
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Foundation | 0/TBD | Awaiting verify | - |
+| 1. Data Foundation | 0/TBD | In progress | - |
 | 2. Core Screens | 0/TBD | Not started | - |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Not started | - |
 | 4. Pivota Assistant | 0/TBD | Not started | - |
