@@ -82,7 +82,19 @@ async function resetSeedCase(): Promise<void> {
   const exhibitIds = exhibits.map((e) => e.id);
 
   await prisma.$transaction([
-    // Phase 3 tables first — DiscrepancyFlag FKs to exhibit, user, AND ledger
+    // Phase 4 assistant tables first — AssistantConversation FKs to case AND
+    // user, so its rows (and their messages/citations) must be cleared before
+    // the identity tables below or user.deleteMany trips
+    // assistant_conversations_user_id_fkey. Order within: citations → messages →
+    // conversations (each FKs to the prior).
+    prisma.assistantCitation.deleteMany({
+      where: { message: { conversation: { caseId } } },
+    }),
+    prisma.assistantMessage.deleteMany({
+      where: { conversation: { caseId } },
+    }),
+    prisma.assistantConversation.deleteMany({ where: { caseId } }),
+    // Phase 3 tables next — DiscrepancyFlag FKs to exhibit, user, AND ledger
     // events; JuryPackageExhibit FKs to exhibit; JuryPackage FKs to case/user.
     // They must be cleared before the ledger and exhibits are deleted.
     prisma.discrepancyFlag.deleteMany({ where: { caseId } }),
