@@ -8,34 +8,34 @@ updated: 2026-10-07T17:41:05Z
 
 ## Current Test
 
-number: 1
-position: 1 of 9
-name: Ask a grounded question and see a cited answer
+number: 5
+position: 5 of 9
+name: Panel persists across navigation
 expected: |
-  Typing or tapping "Is Exhibit 14 in the jury package?" (or any of the five
-  example chips) streams back a plain-language answer. If the fact is grounded
-  in a specific record, the answer carries one or more citation pills; if no
-  supporting record exists, the assistant says "I don't have that information"
-  with no pills.
+  Open the assistant slide-over panel (Ask ✦), ask a question, then click a
+  citation pill. The underlying screen navigates to the cited exhibit, but
+  the panel STAYS OPEN with the conversation still visible — only an
+  explicit close action closes it.
 awaiting: user response
 
 ## Tests
 
 ### 1. Ask a grounded question and see a cited answer
 expected: Open the assistant (Ask ✦ in the header, or go to /assistant). Ask "what is the status of exhibit D-1" (or tap an example chip). The answer streams in, states the exhibit's status using the exact status word (e.g. ADMITTED), and shows a citation pill.
-result: [pending]
+result: pass
+reported: "what is the status of exhibit D-1 Exhibit D-1 is ADMITTED (event f6956ac5-46c1-4018-92fc-6d13baaf9fa9, 2026-10-07 17:37:30 UTC).  [D-1 · ADMITTED · ExhibitEvent · 07/10/2026, 23:07:30]"
 
 ### 2. Click a citation pill and land on the cited event
 expected: On a grounded answer with a pill, click the pill. The page navigates to that exhibit's detail page; if the citation has an event anchor, the Timeline scrolls to and briefly highlights that specific event.
-result: [pending]
+result: pass
 
 ### 3. Ask about a nonexistent or out-of-scope exhibit and get an explicit decline
 expected: Ask about an exhibit that doesn't exist (e.g. "what happened to Exhibit 99"). The assistant replies "I don't have that information..." with NO citation pill — a plain, confident decline, never an apology or error-looking message.
-result: [pending]
+result: pass
 
 ### 4. Sealed exhibit is invisible to an unauthorized role
 expected: Switch to a role without sealed-exhibit visibility (DEPUTY, CLERK, or ATTORNEY). Ask about the sealed exhibit S-1 by name. The assistant declines exactly as it would for a nonexistent exhibit — no hint that a sealed record exists, no privileged data.
-result: [pending]
+result: pass
 
 ### 5. Panel persists across navigation
 expected: Open the assistant slide-over panel (Ask ✦), ask a question, then click a citation pill. The underlying screen navigates to the cited exhibit, but the panel STAYS OPEN with the conversation still visible — only an explicit close action closes it.
@@ -62,9 +62,9 @@ result: [pending]
 ## Summary
 
 total: 9
-passed: 0
+passed: 4
 issues: 1
-pending: 8
+pending: 4
 skipped: 0
 
 ## Self-Check
