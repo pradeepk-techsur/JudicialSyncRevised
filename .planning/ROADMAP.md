@@ -44,7 +44,7 @@ Plans:
 
 ### Phase 2: Core Screens
 **Goal**: Any courtroom user can browse the full case exhibit list, search/filter it by multiple combinable criteria, and drill into any single exhibit's complete chronological history — through two screens that read the exact same service layer validated in Phase 1, with no screen-local derivation that could diverge from it.
-**Status**: Verified
+**Status**: Passed
 **Depends on**: Phase 1
 **Requirements**: F4, F9, F10
 **Success Criteria** (what must be TRUE):
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 0/TBD | Complete | 2026-10-07 |
-| 2. Core Screens | 0/TBD | Verified | - |
+| 2. Core Screens | 0/TBD | Passed | - |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Not started | - |
 | 4. Pivota Assistant | 0/TBD | Not started | - |
 | 5. Trial Command Center + Live Sync | 0/TBD | Not started | - |
