@@ -2,13 +2,13 @@
   "schema": "pivota_spec.uat_summary",
   "version": 1,
   "phase": "04",
-  "status": "complete",
+  "status": "testing",
   "counts": {
     "total": 1,
-    "passed": 0,
-    "issues": 1,
+    "passed": 1,
+    "issues": 0,
     "pending": 0,
     "skipped": 0
   },
-  "generated_at": "2026-10-07T18:57:27.870Z"
+  "generated_at": "2026-10-07T20:50:09.683Z"
 }
