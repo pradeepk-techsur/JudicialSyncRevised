@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: completed
 stopped_at: Completed 06-08-PLAN.md
-last_updated: "2026-10-08T02:08:51.659Z"
+last_updated: "2026-10-08T02:09:08.882Z"
 last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 6
@@ -182,6 +182,8 @@ Recent decisions affecting current work:
 - [Phase 06-02]: AcknowledgeInline → Carbon TextArea + Button (Carbon forwards data-testid+maxLength onto inner textarea/button); live counter, 500-char cap, trim canConfirm gate kept; error line stays plain <p role=alert> per compact-inline/never-modal constraint
 - [Phase 06-03]: App shell migrated to Carbon UI Shell: Header/HeaderGlobalBar + Carbon Select (real native <select>, aria-label passthrough forces accessible name 'Switch active role' while visible label stays 'Role:') for the role switcher; SideNav/SideNavLink with as={Link} to preserve Next.js client-side routing; Ask button kept as a ghost Button (visible-text) not icon-only HeaderGlobalAction; AssistantPanel still mounted once at shell level. All 6 app-shell.spec tests green.
 - [Phase 06-03]: [Rule 3 blocking] Fixed 06-08's committed MessageBubble.module.scss which referenced undefined Carbon button token $button-primary (not forwarded by scss/theme) and broke the shared phase-6 dev-server compile; swapped to $interactive. Second instance this milestone of the concurrent-shared-branch hazard.
+- [Phase 06-08]: Assistant (F7) migrated to Carbon: CitationPill = Carbon Tag INSIDE next/link (Tag alone renders a div, so wrapping keeps a real <a> in the tab order per Y2-accessibility) with all data-*/href/aria-label preserved; ExampleChips = clickable Carbon Tags (real <button>s); unavailable state = Carbon InlineNotification with an explicit role='alert' override (Carbon default is role='status') kept STRUCTURALLY distinct from the decline MessageBubble (T-06-09); slide-over stays a translate-aside CSS Module, NOT Carbon Modal (no focus trap, background stays interactive); full 7-test assistant.spec.ts suite green
+- [Phase 06-08]: [Rule 1 bug] Task 2's MessageBubble.module.scss used $button-primary — a Carbon COMPONENT token (@carbon/styles/scss/components/button/tokens), NOT exported by scss/theme; the global @use '@carbon/react' masked it in some compile paths but it is a real undefined-token error. A concurrent sibling plan hit the same broken HEAD and committed the fix (a57b9c2: add the button/tokens @use, switch to $interactive). Reinforces the STATE.md shared-working-tree hazard — recommend per-plan git worktrees or serialized intra-phase execution
 
 ### Pending Todos
 
