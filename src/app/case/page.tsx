@@ -5,6 +5,7 @@ import { InlineLoading, InlineNotification } from '@carbon/react';
 import { useExhibitList, type ExhibitFilters } from '@/hooks/useExhibitList';
 import { SearchFilterBar } from '@/components/case/SearchFilterBar';
 import { ExhibitTable } from '@/components/case/ExhibitTable';
+import styles from './page.module.scss';
 
 function hasAnyCriterion(filters: ExhibitFilters): boolean {
   return Boolean(
@@ -23,7 +24,7 @@ export default function CaseWorkspacePage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Case Workspace</h1>
+      <h1 className={styles.heading}>Case Workspace</h1>
       <SearchFilterBar filters={filters} onChange={setFilters} />
       {isLoading && <InlineLoading description="Loading exhibits…" />}
       {isError && (
@@ -34,7 +35,7 @@ export default function CaseWorkspacePage() {
           title="Unable to load case exhibits — please retry."
         />
       )}
-      {genuinelyEmpty && <p className="text-sm text-gray-500">No exhibits recorded yet.</p>}
+      {genuinelyEmpty && <p className={styles.empty}>No exhibits recorded yet.</p>}
       {data && !genuinelyEmpty && <ExhibitTable rows={data} />}
     </div>
   );

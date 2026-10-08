@@ -1,0 +1,25 @@
+// Case Workspace exhibit table styles. Phase 6 replaces the former Tailwind
+// utilities (the muted empty-state text, the row cursor-pointer affordance, and
+// the truncated description cell width) with Carbon design tokens after the
+// Tailwind pipeline removal (wave 06-09).
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Muted empty-state caption (was: text-sm text-gray-500).
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+// Clickable row affordance (was: cursor-pointer).
+.row {
+  cursor: pointer;
+}
+
+// Truncated description cell (was: max-w-xs truncate).
+.descriptionCell {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

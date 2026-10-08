@@ -12,12 +12,13 @@ import {
   TableCell,
 } from '@carbon/react';
 import type { ExhibitListRow } from '@/lib/types';
+import styles from './ExhibitTable.module.scss';
 
 export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
   const router = useRouter();
 
   if (rows.length === 0) {
-    return <p className="text-sm text-gray-500">No exhibits match these filters.</p>;
+    return <p className={styles.empty}>No exhibits match these filters.</p>;
   }
 
   return (
@@ -42,12 +43,12 @@ export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
           <TableRow
             key={row.exhibitId}
             onClick={() => router.push(`/exhibit/${row.exhibitId}`)}
-            className="cursor-pointer"
+            className={styles.row}
             data-testid="exhibit-row"
             data-exhibit-label={row.exhibitLabel}
           >
             <TableCell>{row.exhibitLabel}</TableCell>
-            <TableCell className="max-w-xs truncate">{row.description}</TableCell>
+            <TableCell className={styles.descriptionCell}>{row.description}</TableCell>
             <TableCell>{row.offeringParty}</TableCell>
             <TableCell>{row.associatedWitness ?? '—'}</TableCell>
             <TableCell>

@@ -1,0 +1,40 @@
+// Case Workspace search/filter bar styles. Phase 6 replaces the former Tailwind
+// utilities (mb-4 space-y-2, the flex-wrap filter/chip rows, max-w field widths,
+// and text-xs muted captions) with Carbon design tokens so the horizontal filter
+// row and chip row layout is restored after the Tailwind pipeline removal
+// (wave 06-09).
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Outer wrapper (was: mb-4 space-y-2).
+.bar {
+  margin-bottom: $spacing-05;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+// Filter row + chip row (was: flex flex-wrap items-center gap-2).
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+// Keyword search field width (was: max-w-xs).
+.searchField {
+  max-width: 20rem;
+}
+
+// Witness field width (was: max-w-[10rem]).
+.witnessField {
+  max-width: 10rem;
+}
+
+// Muted helper/caption text (was: text-xs text-gray-500).
+.hint {
+  @include type-style('label-01');
+  color: $text-secondary;
+}

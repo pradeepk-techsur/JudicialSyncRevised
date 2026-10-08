@@ -2,6 +2,7 @@
 
 import { Search, Dropdown, TextInput, DismissibleTag, Button } from '@carbon/react';
 import type { ExhibitFilters } from '@/hooks/useExhibitList';
+import styles from './SearchFilterBar.module.scss';
 
 const STATUS_OPTIONS = [
   'MARKED',
@@ -28,8 +29,8 @@ export function SearchFilterBar({
   );
 
   return (
-    <div className="mb-4 space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={styles.bar}>
+      <div className={styles.row}>
         <Search
           id="exhibit-keyword-search"
           labelText="Keyword search"
@@ -39,7 +40,7 @@ export function SearchFilterBar({
           value={filters.keyword ?? ''}
           onChange={(e) => onChange({ ...filters, keyword: e.target.value || undefined })}
           onClear={() => onChange({ ...filters, keyword: undefined })}
-          className="max-w-xs"
+          className={styles.searchField}
         />
         <Dropdown
           id="exhibit-status-filter"
@@ -71,7 +72,7 @@ export function SearchFilterBar({
           placeholder="Witness"
           value={filters.witness ?? ''}
           onChange={(e) => onChange({ ...filters, witness: e.target.value || undefined })}
-          className="max-w-[10rem]"
+          className={styles.witnessField}
         />
         <TextInput
           id="exhibit-date-from"
@@ -93,13 +94,13 @@ export function SearchFilterBar({
         />
       </div>
       {!hasAny && (
-        <p className="text-xs text-gray-500">
+        <p className={styles.hint}>
           Enter at least one filter above to search — showing the full list.
         </p>
       )}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-500">Active filters:</span>
+        <div className={styles.row}>
+          <span className={styles.hint}>Active filters:</span>
           {chips.map(([key, value]) => (
             <DismissibleTag
               key={key}

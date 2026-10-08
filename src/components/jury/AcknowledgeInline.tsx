@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { TextArea, Button } from '@carbon/react';
+import styles from './AcknowledgeInline.module.scss';
 
 const MAX_JUSTIFICATION = 500;
 
@@ -35,7 +36,7 @@ export function AcknowledgeInline({
   const canConfirm = trimmed.length > 0 && !pending;
 
   return (
-    <div className="mt-2 rounded border border-amber-200 bg-amber-50/50 p-2" data-testid="acknowledge-inline">
+    <div className={styles.container} data-testid="acknowledge-inline">
       {/* Carbon TextArea forwards rest props (data-testid, maxLength, value,
           disabled) onto its inner <textarea>, so the testid lands on the element
           the Wave 3 specs target. */}
@@ -50,15 +51,15 @@ export function AcknowledgeInline({
         onChange={(e) => setValue(e.target.value.slice(0, MAX_JUSTIFICATION))}
         placeholder="Why is this discrepancy acceptable for the jury package?"
       />
-      <div className="mt-1 flex items-center justify-between">
+      <div className={styles.controlRow}>
         <span
           data-testid="acknowledge-counter"
-          className="text-xs text-amber-700"
+          className={styles.counter}
           aria-live="polite"
         >
           {value.length}/{MAX_JUSTIFICATION}
         </span>
-        <div className="flex gap-2">
+        <div className={styles.buttons}>
           <Button
             kind="ghost"
             size="sm"
@@ -81,7 +82,7 @@ export function AcknowledgeInline({
         </div>
       </div>
       {error && (
-        <p className="mt-1 text-xs text-red-600" role="alert">
+        <p className={styles.error} role="alert">
           {error}
         </p>
       )}
