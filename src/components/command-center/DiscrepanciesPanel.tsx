@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
+import { Tile, SkeletonText, ActionableNotification, Tag } from '@carbon/react';
 import { useDiscrepancies } from '@/hooks/useDiscrepancies';
 import { useExhibitList } from '@/hooks/useExhibitList';
 import { apiFetch } from '@/lib/apiClient';
 import { useRoleStore } from '@/stores/roleStore';
 import { ruleLabel } from '@/lib/discrepancyLabels';
+import styles from './DiscrepanciesPanel.module.scss';
 
 // F8 Command Center — Discrepancies panel (lower-row RIGHT), the HIGHEST-risk
 // signal (UX: warning-amber, count badge "visible from across the room").
@@ -66,79 +68,71 @@ export function DiscrepanciesPanel() {
   const isError = discrepancies.isError || exhibitList.isError;
 
   const headerClass =
-    count > 0
-      ? 'mb-3 flex items-center gap-2 rounded bg-amber-100 px-2 py-1 text-sm font-semibold uppercase tracking-wide text-amber-900'
-      : 'mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-700';
+    count > 0 ? `${styles.heading} ${styles.headingWarning}` : styles.heading;
 
   return (
-    <section
+    <Tile
       data-testid="discrepancies-panel"
-      className="rounded-lg border bg-white p-4"
       aria-label="Discrepancies"
     >
       <h2 className={headerClass}>
         Discrepancies
         {count > 0 ? (
-          <span
-            data-testid="discrepancy-count"
-            className="inline-flex min-w-7 items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-base font-bold text-white"
-          >
+          <Tag type="red" size="md" data-testid="discrepancy-count">
             {count}
-          </span>
+          </Tag>
         ) : (
-          <span className="font-normal text-gray-500">(0)</span>
+          <span className={styles.countZero}>(0)</span>
         )}
       </h2>
 
       {isLoading && (
-        <ul className="space-y-2" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="h-5 w-full animate-pulse rounded bg-gray-100" />
-          ))}
-        </ul>
-      )}
-
-      {isError && (
-        <div className="text-sm text-red-600" role="alert">
-          Unable to load discrepancies — please retry.{' '}
-          <button
-            type="button"
-            onClick={() => {
-              discrepancies.refetch();
-              exhibitList.refetch();
-            }}
-            className="font-medium underline hover:no-underline"
-          >
-            Retry
-          </button>
+        <div aria-hidden="true">
+          <SkeletonText paragraph lineCount={3} width="100%" />
         </div>
       )}
 
+      {isError && (
+        <ActionableNotification
+          kind="error"
+          lowContrast
+          inline
+          hideCloseButton
+          role="alert"
+          title="Unable to load discrepancies — please retry"
+          actionButtonLabel="Reload"
+          onActionButtonClick={() => {
+            discrepancies.refetch();
+            exhibitList.refetch();
+          }}
+        />
+      )}
+
       {!isLoading && !isError && count === 0 && (
-        <p className="text-sm text-gray-500">No open discrepancies.</p>
+        <p className={styles.empty}>No open discrepancies.</p>
       )}
 
       {!isLoading && !isError && count > 0 && (
-        <ul className="divide-y divide-gray-100">
+        <ul className={styles.list}>
           {flags.map((f) => (
-            <li key={f.id}>
+            <li key={f.id} className={styles.row}>
               <Link
                 href={draftExists ? '/jury-package' : `/exhibit/${f.exhibitId}`}
                 data-testid="discrepancy-row"
-                className="flex items-baseline gap-2 px-1 py-2 text-sm hover:bg-amber-50"
+                className={styles.link}
               >
-                <span className="text-amber-600" aria-hidden="true">
+                <span className={styles.flag} aria-hidden="true">
                   ⚑
                 </span>
                 {/* Plain-language rule text always visible (Y0-patterns
                     Discrepancy Flag Treatment) — mapped through the single
                     ruleLabel source, falling back to the raw code. */}
-                <span className="flex-1 text-gray-800">{ruleLabel(f.ruleCode)}</span>
+                <span className={styles.ruleLabel}>{ruleLabel(f.ruleCode)}</span>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Tile>
   );
 }

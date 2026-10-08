@@ -48,9 +48,8 @@ export function ObjectionsPanel() {
           inline
           hideCloseButton
           role="alert"
-          title="Unable to load objections"
-          subtitle="Please retry."
-          actionButtonLabel="Retry"
+          title="Unable to load objections — please retry"
+          actionButtonLabel="Reload"
           onActionButtonClick={() => refetch()}
         />
       )}

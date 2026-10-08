@@ -121,9 +121,8 @@ export function RecentActivityPanel({
           inline
           hideCloseButton
           role="alert"
-          title="Unable to load trial activity"
-          subtitle="Please retry."
-          actionButtonLabel="Retry"
+          title="Unable to load trial activity — please retry"
+          actionButtonLabel="Reload"
           onActionButtonClick={() => refetch()}
         />
       )}
