@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { InlineLoading, InlineNotification } from '@carbon/react';
 import { useExhibitList, type ExhibitFilters } from '@/hooks/useExhibitList';
 import { SearchFilterBar } from '@/components/case/SearchFilterBar';
 import { ExhibitTable } from '@/components/case/ExhibitTable';
@@ -24,9 +25,14 @@ export default function CaseWorkspacePage() {
     <div>
       <h1 className="mb-4 text-xl font-semibold">Case Workspace</h1>
       <SearchFilterBar filters={filters} onChange={setFilters} />
-      {isLoading && <p className="text-sm text-gray-500">Loading exhibits…</p>}
+      {isLoading && <InlineLoading description="Loading exhibits…" />}
       {isError && (
-        <p className="text-sm text-red-600">Unable to load case exhibits — please retry.</p>
+        <InlineNotification
+          kind="error"
+          lowContrast
+          hideCloseButton
+          title="Unable to load case exhibits — please retry."
+        />
       )}
       {genuinelyEmpty && <p className="text-sm text-gray-500">No exhibits recorded yet.</p>}
       {data && !genuinelyEmpty && <ExhibitTable rows={data} />}

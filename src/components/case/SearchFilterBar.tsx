@@ -43,9 +43,13 @@ export function SearchFilterBar({
         />
         <Dropdown
           id="exhibit-status-filter"
-          // titleText drives the accessible name (getByLabel('Filter by status'))
-          // and is hidden inline via hideLabel; `label` is the placeholder text.
-          titleText="Filter by status"
+          // The toggle BUTTON carries the "Filter by status" accessible name via
+          // aria-label (getByLabel resolves to the combobox). titleText must NOT
+          // also be "Filter by status": Carbon labels the inner <ul role=listbox>
+          // via aria-labelledby→titleText, so a matching titleText would make
+          // getByLabel strict-mode-collide with the listbox. Keep titleText as a
+          // distinct hidden label ("Status").
+          titleText="Status"
           hideLabel
           aria-label="Filter by status"
           label="Status"
