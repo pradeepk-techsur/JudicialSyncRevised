@@ -298,6 +298,8 @@ test.describe('Pivota Assistant', () => {
     await page.getByTestId('assistant-retry').click();
     await expect.poll(() => seen.length).toBeGreaterThanOrEqual(2);
     expect(seen[seen.length - 1]).toContain('What is the status of D-1?');
+    // Retried, not re-asked: the question is still shown once.
+    await expect(page.getByTestId('message-user')).toHaveCount(1);
   });
 
   test('sealed-decline via role injection leaks no sealed data (criterion 4)', async ({
@@ -330,6 +332,120 @@ test.describe('Pivota Assistant', () => {
     await expect(page.getByTestId('citation-pill')).toHaveCount(0);
     // No sealed record data leaked into the rendered text.
     await expect(bubble).toContainText("I don't have that information.");
+  });
+
+  // ---- bring-your-own-key ----------------------------------------------------
+
+  test('BYOK: no key anywhere → asks for a key, and saving one re-sends the question with it', async ({
+    page,
+  }) => {
+    const userKey = `sk-ant-api03-${'e'.repeat(40)}`;
+    const seenKeys: Array<string | null> = [];
+    await page.route('**/api/assistant/chat', async (route) => {
+      const key = route.request().headers()['x-anthropic-api-key'] ?? null;
+      seenKeys.push(key);
+      if (!key) {
+        // What the real route returns with no server key and no user key.
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: {
+              code: 'ASSISTANT_UNAVAILABLE',
+              message: 'The assistant is temporarily unavailable — please try again',
+              details: { keyRequired: true },
+            },
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: { ...STREAM_HEADERS, 'x-conversation-id': 'conv-byok' },
+        body: uiMessageStream({
+          messageId: 'msg-byok',
+          text: "I don't have that information.",
+          conversationId: 'conv-byok',
+          citations: [],
+        }),
+      });
+    });
+
+    await page.goto('/case');
+    await page.getByTestId('ask-assistant').click();
+    await page.getByTestId('assistant-input').fill('What is the status of D-1?');
+    await page.getByTestId('assistant-send').click();
+
+    // A key prompt, not "try again later".
+    const notice = page.getByTestId('assistant-unavailable');
+    await expect(notice).toContainText('Add your Anthropic API key');
+    await expect(page.getByTestId('assistant-retry')).toHaveCount(0);
+
+    await page.getByTestId('assistant-add-key').click();
+    const settings = page.getByTestId('assistant-api-key-settings');
+
+    // A mis-paste is caught before anything is sent.
+    await settings.getByLabel('Anthropic API key').fill('not-a-key');
+    await settings.getByTestId('assistant-api-key-save').click();
+    await expect(settings).toContainText("doesn't look like an Anthropic API key");
+    expect(seenKeys).toEqual([null]);
+
+    await settings.getByLabel('Anthropic API key').fill(userKey);
+    await settings.getByTestId('assistant-api-key-save').click();
+
+    // Saving re-sent the preserved question, now carrying the key.
+    await expect.poll(() => seenKeys.length).toBe(2);
+    expect(seenKeys[1]).toBe(userKey);
+    await expect(page.getByTestId('assistant-unavailable')).toHaveCount(0);
+    await expect(page.getByTestId('message-assistant')).toBeVisible();
+    // The question was re-run, not asked a second time.
+    await expect(page.getByTestId('message-user')).toHaveCount(1);
+    await expect(page.getByTestId('assistant-api-key-toggle')).toContainText('API key ✓');
+
+    // Not remembered by default: kept for the tab session only, and the full
+    // key is never shown again.
+    expect(await page.evaluate(() => localStorage.getItem('judicialsync.anthropicApiKey'))).toBeNull();
+    expect(await page.evaluate(() => sessionStorage.getItem('judicialsync.anthropicApiKey'))).toBe(
+      userKey,
+    );
+    await page.getByTestId('assistant-api-key-toggle').click();
+    await expect(page.getByTestId('assistant-api-key-status')).toContainText('…eeee');
+    await expect(page.getByTestId('assistant-api-key-settings')).not.toContainText(userKey);
+
+    // Removing it clears storage and stops sending it.
+    await page.getByTestId('assistant-api-key-remove').click();
+    expect(await page.evaluate(() => sessionStorage.getItem('judicialsync.anthropicApiKey'))).toBeNull();
+    await expect(page.getByTestId('assistant-api-key-toggle')).toHaveText('API key');
+  });
+
+  test('BYOK: a key the provider rejects says so, distinct from an outage', async ({ page }) => {
+    await page.addInitScript((key) => {
+      localStorage.setItem('judicialsync.anthropicApiKey', key);
+    }, `sk-ant-api03-${'r'.repeat(40)}`);
+    await page.route('**/api/assistant/chat', async (route) => {
+      // The route's stream error channel for a provider 401.
+      await route.fulfill({
+        status: 200,
+        headers: STREAM_HEADERS,
+        body:
+          `data: ${JSON.stringify({ type: 'start', messageId: 'msg-rej' })}\n\n` +
+          `data: ${JSON.stringify({ type: 'error', errorText: 'ASSISTANT_KEY_REJECTED' })}\n\n` +
+          'data: [DONE]\n\n',
+      });
+    });
+
+    await page.goto('/case');
+    await page.getByTestId('ask-assistant').click();
+    // The remembered key was loaded from localStorage.
+    await expect(page.getByTestId('assistant-api-key-toggle')).toContainText('API key ✓');
+    await page.getByTestId('assistant-input').fill('What is the status of D-1?');
+    await page.getByTestId('assistant-send').click();
+
+    const notice = page.getByTestId('assistant-unavailable');
+    await expect(notice).toContainText('Your Anthropic API key was rejected');
+    await expect(notice).not.toContainText('temporarily unavailable');
+    await expect(page.getByTestId('assistant-add-key')).toHaveText('Update API key');
+    await expect(page.getByTestId('message-assistant')).toHaveCount(0);
   });
 
   test('/assistant renders the shared thread and the sidebar link works', async ({ page }) => {

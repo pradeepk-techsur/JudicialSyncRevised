@@ -86,8 +86,23 @@ export class RoleNotPermittedError extends AppError {
  * criterion 5; Y2-errors.md §Assistant).
  */
 export class AssistantUnavailableError extends AppError {
-  constructor(message = 'The assistant is temporarily unavailable — please try again') {
-    super('ASSISTANT_UNAVAILABLE', message, 503);
+  constructor(
+    message = 'The assistant is temporarily unavailable — please try again',
+    details?: unknown,
+  ) {
+    super('ASSISTANT_UNAVAILABLE', message, 503, details);
+  }
+}
+
+/**
+ * 401 — the browser-supplied Anthropic API key (bring-your-own-key) is malformed
+ * or was rejected by the provider. Distinct from ASSISTANT_UNAVAILABLE so the UI
+ * can tell the user to fix their key rather than "try again later" — retrying a
+ * bad key can never succeed. Still an ERROR-channel outcome, never a Decline.
+ */
+export class AssistantKeyRejectedError extends AppError {
+  constructor(message = 'The Anthropic API key was rejected') {
+    super('ASSISTANT_KEY_REJECTED', message, 401);
   }
 }
 

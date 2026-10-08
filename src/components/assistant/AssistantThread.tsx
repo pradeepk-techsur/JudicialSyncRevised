@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, TextInput, InlineLoading, InlineNotification } from '@carbon/react';
-import { useAssistantChat } from '@/hooks/useAssistantChat';
+import { useAssistantChat, type AssistantUnavailableReason } from '@/hooks/useAssistantChat';
+import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { MessageBubble } from './MessageBubble';
 import { ExampleChips } from './ExampleChips';
+import { ApiKeySettings } from './ApiKeySettings';
 import styles from './AssistantThread.module.scss';
 
 // =============================================================================
@@ -36,7 +38,19 @@ import styles from './AssistantThread.module.scss';
 // Enter-submits keyboard contract is preserved exactly and Shift+Enter is a
 // no-op on this control just as before (no multiline support was ever present,
 // and none is silently dropped).
+//
+// BRING-YOUR-OWN-KEY: an "API key" header control opens ApiKeySettings inline.
+// The unavailable notice is refined by the hook's unavailableReason — a missing
+// or rejected key gets its own wording and an "Add/Update API key" action
+// instead of implying a retry will help. An ordinary outage keeps the original
+// "temporarily unavailable" notice. All three remain the ERROR channel.
 // =============================================================================
+
+const UNAVAILABLE_TITLES: Record<AssistantUnavailableReason, string> = {
+  outage: 'The assistant is temporarily unavailable',
+  keyRequired: 'Add your Anthropic API key to use the assistant',
+  keyRejected: 'Your Anthropic API key was rejected',
+};
 
 /** Pull the plain assistant/user text out of a UIMessage's text parts. The
  *  citations ride a separate data part (read via the hook's citationsOf). */
@@ -65,7 +79,20 @@ export function AssistantThread({ variant = 'page', onClose }: AssistantThreadPr
     newConversation,
     retry,
     isUnavailable,
+    unavailableReason,
   } = useAssistantChat();
+
+  const apiKey = useApiKeyStore((s) => s.apiKey);
+  const hydrateApiKey = useApiKeyStore((s) => s.hydrate);
+  const [showKeySettings, setShowKeySettings] = useState(false);
+
+  // Load a saved key after mount (not during render) so SSR and the first
+  // client render agree.
+  useEffect(() => {
+    hydrateApiKey();
+  }, [hydrateApiKey]);
+
+  const keyProblem = unavailableReason === 'keyRequired' || unavailableReason === 'keyRejected';
 
   const hasMessages = messages.length > 0;
   const isStreaming = outcome === 'streaming';
@@ -82,6 +109,15 @@ export function AssistantThread({ variant = 'page', onClose }: AssistantThreadPr
       <div className={styles.header}>
         <h2 className={styles.title}>Pivota Assistant</h2>
         <div className={styles.headerActions}>
+          <Button
+            kind="ghost"
+            size="sm"
+            data-testid="assistant-api-key-toggle"
+            aria-expanded={showKeySettings}
+            onClick={() => setShowKeySettings((v) => !v)}
+          >
+            {apiKey ? 'API key ✓' : 'API key'}
+          </Button>
           <Button
             kind="ghost"
             size="sm"
@@ -103,6 +139,16 @@ export function AssistantThread({ variant = 'page', onClose }: AssistantThreadPr
           )}
         </div>
       </div>
+
+      {showKeySettings && (
+        <ApiKeySettings
+          onDone={() => {
+            setShowKeySettings(false);
+            // A key was the problem: re-send the preserved question with it.
+            if (keyProblem) retry();
+          }}
+        />
+      )}
 
       {/* Message scroll area. */}
       <div className={styles.messages}>
@@ -130,12 +176,20 @@ export function AssistantThread({ variant = 'page', onClose }: AssistantThreadPr
           // citations (grounded = ≥1 pill, decline = zero). This is per-MESSAGE,
           // independent of the hook's overall transient outcome.
           const citations = citationsOf(m);
+          const text = messageText(m);
+          // An assistant message with no text and no citations is not an
+          // answer. The SDK opens one as soon as the stream starts, so a stream
+          // that fails before any text (e.g. a rejected API key) would otherwise
+          // leave an empty "decline" bubble beside the unavailable notice —
+          // an error rendered as a decline (T-04-13). Mid-stream it is also
+          // the typing indicator's job, not a bubble's.
+          if (text === '' && citations.length === 0) return null;
           const msgOutcome = citations.length > 0 ? 'grounded' : 'decline';
           return (
             <MessageBubble
               key={m.id}
               role="ASSISTANT"
-              content={messageText(m)}
+              content={text}
               citations={citations}
               outcome={msgOutcome}
             />
@@ -164,18 +218,36 @@ export function AssistantThread({ variant = 'page', onClose }: AssistantThreadPr
               role="alert"
               data-testid="assistant-unavailable"
               hideCloseButton
-              title="The assistant is temporarily unavailable"
-              subtitle=""
+              title={UNAVAILABLE_TITLES[unavailableReason ?? 'outage']}
+              subtitle={
+                unavailableReason === 'keyRejected'
+                  ? 'Check the key and try again.'
+                  : unavailableReason === 'keyRequired'
+                    ? 'Your key stays in this browser and is never saved on the server.'
+                    : ''
+              }
             />
-            <Button
-              kind="tertiary"
-              size="sm"
-              data-testid="assistant-retry"
-              onClick={retry}
-              className={styles.retryButton}
-            >
-              Try again
-            </Button>
+            {keyProblem ? (
+              <Button
+                kind="tertiary"
+                size="sm"
+                data-testid="assistant-add-key"
+                onClick={() => setShowKeySettings(true)}
+                className={styles.retryButton}
+              >
+                {apiKey ? 'Update API key' : 'Add API key'}
+              </Button>
+            ) : (
+              <Button
+                kind="tertiary"
+                size="sm"
+                data-testid="assistant-retry"
+                onClick={retry}
+                className={styles.retryButton}
+              >
+                Try again
+              </Button>
+            )}
           </div>
         )}
 

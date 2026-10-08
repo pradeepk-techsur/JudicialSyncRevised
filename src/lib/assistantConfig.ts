@@ -1,3 +1,5 @@
+import { ANTHROPIC_KEY_PATTERN } from '@/lib/constants';
+
 // Provider/model/temperature config for the Pivota Assistant (F7).
 // SERVER-SIDE ONLY — never import from a client component. The API key is read
 // from process.env here and nowhere else; it must never appear in the client
@@ -30,4 +32,62 @@ export function getAnthropicApiKey(): string | undefined {
 // boots and every other screen works (ROADMAP criterion 5).
 export function isAssistantConfigured(): boolean {
   return getAnthropicApiKey() !== undefined;
+}
+
+// -----------------------------------------------------------------------------
+// Bring-your-own-key (BYOK). A user may paste their own Anthropic key in the
+// assistant UI; it is kept in their browser and sent per request in the
+// ASSISTANT_API_KEY_HEADER header. The server uses it for that one request and
+// never persists or logs it. A request key takes precedence over the server's
+// ANTHROPIC_API_KEY, so a deployment with no server key still has a working
+// assistant for anyone who brings one — without putting a shared key behind an
+// unauthenticated URL.
+// -----------------------------------------------------------------------------
+
+/** A browser-supplied key, trimmed, if it is shaped like a real Anthropic key;
+ *  otherwise undefined (including the .env.example placeholder). */
+export function normalizeUserApiKey(raw: string | null | undefined): string | undefined {
+  const key = raw?.trim();
+  if (!key || key === PLACEHOLDER_KEY || !ANTHROPIC_KEY_PATTERN.test(key)) return undefined;
+  return key;
+}
+
+export type ResolvedAnthropicKey =
+  | { ok: true; apiKey: string; source: 'request' | 'server' }
+  | { ok: false; reason: 'rejected' | 'missing' };
+
+/**
+ * Pick the key for one chat request. A request that carries the BYOK header is
+ * judged on that key alone — a malformed one is rejected rather than silently
+ * falling back to the server key, so the user learns their key is wrong. With no
+ * header, the server key (if any) is used.
+ */
+export function resolveAnthropicApiKey(requestKey: string | null | undefined): ResolvedAnthropicKey {
+  if (requestKey != null && requestKey.trim() !== '') {
+    const apiKey = normalizeUserApiKey(requestKey);
+    return apiKey ? { ok: true, apiKey, source: 'request' } : { ok: false, reason: 'rejected' };
+  }
+  const serverKey = getAnthropicApiKey();
+  return serverKey ? { ok: true, apiKey: serverKey, source: 'server' } : { ok: false, reason: 'missing' };
+}
+
+/**
+ * The fixed error CODE a mid-stream failure is reported as. Never the raw
+ * provider error (which could echo config). An authentication failure from the
+ * provider is the one case worth distinguishing: with BYOK it means "your key is
+ * wrong", which retrying cannot fix.
+ */
+export function assistantStreamErrorCode(error: unknown): 'ASSISTANT_KEY_REJECTED' | 'ASSISTANT_UNAVAILABLE' {
+  const status = providerStatusCode(error);
+  return status === 401 || status === 403 ? 'ASSISTANT_KEY_REJECTED' : 'ASSISTANT_UNAVAILABLE';
+}
+
+/** statusCode of an APICallError, looking through a RetryError's lastError.
+ *  Read structurally so this module stays free of SDK class identity checks. */
+function providerStatusCode(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const e = error as { statusCode?: unknown; lastError?: unknown };
+  if (typeof e.statusCode === 'number') return e.statusCode;
+  if (e.lastError !== undefined) return providerStatusCode(e.lastError);
+  return undefined;
 }

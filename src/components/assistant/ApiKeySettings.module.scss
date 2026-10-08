@@ -1,0 +1,30 @@
+// ApiKeySettings — layout only; Carbon components carry their own styling.
+
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+  padding: $spacing-05;
+  border-bottom: 1px solid $border-subtle;
+  background: $layer-01;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $text-primary;
+}
+
+.help {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $text-secondary;
+}
+
+.actions {
+  display: flex;
+  gap: $spacing-03;
+}

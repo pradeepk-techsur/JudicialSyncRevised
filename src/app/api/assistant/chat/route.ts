@@ -7,13 +7,19 @@ import {
   createUIMessageStreamResponse,
   type UIMessage,
 } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createAnthropic } from '@ai-sdk/anthropic';
 
-import { ANTHROPIC_MODEL, ASSISTANT_TEMPERATURE, isAssistantConfigured } from '@/lib/assistantConfig';
+import {
+  ANTHROPIC_MODEL,
+  ASSISTANT_TEMPERATURE,
+  assistantStreamErrorCode,
+  resolveAnthropicApiKey,
+} from '@/lib/assistantConfig';
+import { ASSISTANT_API_KEY_HEADER } from '@/lib/constants';
 import { buildAssistantToolSet } from '@/lib/assistant/tools';
 import { buildSystemPrompt } from '@/lib/assistant/systemPrompt';
 import { parseRequestingRole } from '@/services/visibility';
-import { AssistantUnavailableError } from '@/lib/errors';
+import { AssistantKeyRejectedError, AssistantUnavailableError } from '@/lib/errors';
 import { errorResponse } from '@/lib/apiError';
 import {
   resolveConversationId,
@@ -50,6 +56,9 @@ import {
 //   - Header: `X-User-Role: <Role>` — the demo's role (same header every other
 //     route reads via parseRequestingRole; fail-closed to ATTORNEY). The role is
 //     NEVER taken from the body (T-04-08 role-spoofing defense).
+//   - Header (optional): `X-Anthropic-Api-Key: <key>` — bring-your-own-key. Used
+//     for this request only, never persisted or logged; takes precedence over
+//     the server's ANTHROPIC_API_KEY. A malformed key → 401 ASSISTANT_KEY_REJECTED.
 //
 // RESPONSE (ai@6 UI-message stream via toUIMessageStreamResponse()):
 //   - Header: `X-Conversation-Id: <uuid>` — the conversation id (freshly created
@@ -103,12 +112,21 @@ export async function POST(request: NextRequest): Promise<Response> {
       );
     }
 
-    // 2. 503 GUARD FIRST (criterion 5): if the assistant is not configured, return
-    //    503 ASSISTANT_UNAVAILABLE BEFORE any LLM call or DB write. The app itself
-    //    boots fine without a key (04-01); only this route gates on it.
-    if (!isAssistantConfigured()) {
-      return errorResponse(new AssistantUnavailableError());
+    // 2. 503 GUARD FIRST (criterion 5): if there is no usable key, return BEFORE
+    //    any LLM call or DB write. The app itself boots fine without a key
+    //    (04-01); only this route gates on it. A key comes from the request
+    //    (bring-your-own-key) or the server env. With neither, the 503 carries
+    //    details.keyRequired so the UI can offer to take a key rather than
+    //    suggesting a retry that cannot succeed.
+    const key = resolveAnthropicApiKey(request.headers.get(ASSISTANT_API_KEY_HEADER));
+    if (!key.ok) {
+      return errorResponse(
+        key.reason === 'rejected'
+          ? new AssistantKeyRejectedError()
+          : new AssistantUnavailableError(undefined, { keyRequired: true }),
+      );
     }
+    const anthropic = createAnthropic({ apiKey: key.apiKey });
 
     // 3. Conversation: resolve the thread to persist against BEFORE the LLM call.
     //    A supplied conversationId is reused ONLY if it exists and belongs to this
@@ -195,16 +213,16 @@ export async function POST(request: NextRequest): Promise<Response> {
           },
         });
 
-        // Merge the model's streamed chunks into our writer's stream.
-        writer.merge(result.toUIMessageStream());
+        // Merge the model's streamed chunks into our writer's stream. Provider
+        // failures surface here (streamText is lazy), so map them to the same
+        // fixed codes — a rejected key gets its own code, everything else is
+        // ASSISTANT_UNAVAILABLE. Never the raw provider message.
+        writer.merge(result.toUIMessageStream({ onError: assistantStreamErrorCode }));
       },
       // The client renders this as the fixed "temporarily unavailable" system
       // notice, NEVER as a Decline (criterion 5 / T-04-09). Emit the stable error
       // CODE only — never the raw provider error (which could echo config).
-      onError: (error) => {
-        void error;
-        return new AssistantUnavailableError().code;
-      },
+      onError: assistantStreamErrorCode,
     });
 
     // 8. Return the SDK's UI-message stream Response. conversationId rides on a

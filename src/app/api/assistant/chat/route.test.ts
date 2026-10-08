@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -55,9 +55,11 @@ function buildChatRequest(opts: {
   userId?: string;
   conversationId?: string;
   role?: Role;
+  apiKey?: string;
 }): NextRequest {
   const headers = new Headers({ 'Content-Type': 'application/json' });
   if (opts.role) headers.set('X-User-Role', opts.role);
+  if (opts.apiKey !== undefined) headers.set('X-Anthropic-Api-Key', opts.apiKey);
   const body: Record<string, unknown> = {
     messages: [
       {
@@ -227,6 +229,18 @@ describe('POST /api/assistant/chat', () => {
         expect(body.error?.code).toBe('ASSISTANT_UNAVAILABLE');
       });
 
+      it('flags the 503 as keyRequired so the UI can ask for a key (BYOK)', async () => {
+        const response = await POST(
+          buildChatRequest({ message: DEMO_QUESTIONS[0], caseId, userId, role: 'DEPUTY' }),
+        );
+        expect(response.status).toBe(503);
+        const body = (await response.json()) as {
+          error?: { code?: string; details?: { keyRequired?: boolean } };
+        };
+        expect(body.error?.code).toBe('ASSISTANT_UNAVAILABLE');
+        expect(body.error?.details?.keyRequired).toBe(true);
+      });
+
       it('returns 503 for a malformed request (missing caseId/userId) — never a crash', async () => {
         const response = await POST(
           buildChatRequest({ message: 'hello', role: 'DEPUTY' }),
@@ -237,6 +251,79 @@ describe('POST /api/assistant/chat', () => {
       });
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // BRING-YOUR-OWN-KEY — always runs, no real key or network needed.
+  // ---------------------------------------------------------------------------
+  describe('bring-your-own-key (X-Anthropic-Api-Key header)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('rejects a malformed key with 401 ASSISTANT_KEY_REJECTED before any DB write', async () => {
+      const messagesBefore = await prisma.assistantMessage.count();
+      const conversationsBefore = await prisma.assistantConversation.count();
+
+      const response = await POST(
+        buildChatRequest({
+          message: DEMO_QUESTIONS[0],
+          caseId,
+          userId,
+          role: 'JUDGE',
+          apiKey: 'definitely-not-a-key',
+        }),
+      );
+
+      expect(response.status).toBe(401);
+      const body = (await response.json()) as { error?: { code?: string } };
+      expect(body.error?.code).toBe('ASSISTANT_KEY_REJECTED');
+      expect(await prisma.assistantMessage.count()).toBe(messagesBefore);
+      expect(await prisma.assistantConversation.count()).toBe(conversationsBefore);
+    });
+
+    it('sends the request key to Anthropic and reports a provider 401 as ASSISTANT_KEY_REJECTED', async () => {
+      const userKey = `sk-ant-api03-${'k'.repeat(40)}`;
+      const seenKeys: Array<string | null> = [];
+      // Stand in for api.anthropic.com: record the key it was called with and
+      // refuse it, as Anthropic does for an invalid key.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (_url: unknown, init?: RequestInit) => {
+          seenKeys.push(new Headers(init?.headers).get('x-api-key'));
+          return new Response(
+            JSON.stringify({
+              type: 'error',
+              error: { type: 'authentication_error', message: 'invalid x-api-key' },
+            }),
+            { status: 401, headers: { 'content-type': 'application/json' } },
+          );
+        }),
+      );
+      const messagesBefore = await prisma.assistantMessage.count();
+
+      const response = await POST(
+        buildChatRequest({
+          message: DEMO_QUESTIONS[0],
+          caseId,
+          userId,
+          role: 'JUDGE',
+          apiKey: userKey,
+        }),
+      );
+      const cid = response.headers.get('X-Conversation-Id');
+      if (cid) createdConversationIds.push(cid);
+      const streamed = await drain(response);
+
+      expect(seenKeys).toEqual([userKey]);
+      // The error rides the stream's error channel as the fixed code — never the
+      // provider's message, never assistant text.
+      expect(streamed).toContain('ASSISTANT_KEY_REJECTED');
+      expect(streamed).not.toContain('invalid x-api-key');
+      expect(streamed).not.toContain(userKey);
+      // No turn persisted for a failed call.
+      expect(await prisma.assistantMessage.count()).toBe(messagesBefore);
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // KEY-GATED BEHAVIORAL PROOF — runs only when a real key is present

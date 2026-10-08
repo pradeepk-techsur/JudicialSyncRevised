@@ -6,7 +6,9 @@ import { DefaultChatTransport, type UIMessage } from 'ai';
 
 import { useRoleStore } from '@/stores/roleStore';
 import { useAssistantStore } from '@/stores/assistantStore';
+import { useApiKeyStore } from '@/stores/apiKeyStore';
 import { apiFetch } from '@/lib/apiClient';
+import { ASSISTANT_API_KEY_HEADER } from '@/lib/constants';
 
 // =============================================================================
 // useAssistantChat — the F7 client session hook.
@@ -76,6 +78,26 @@ export type AssistantOutcome =
   | 'decline'
   | 'unavailable';
 
+/** Why the assistant is unavailable, when it is (bring-your-own-key):
+ *   - 'keyRequired' — no key anywhere (server has none, user has not added one);
+ *                     the 503 carries details.keyRequired.
+ *   - 'keyRejected' — the user's key was malformed (HTTP 401) or the provider
+ *                     refused it mid-stream; both carry ASSISTANT_KEY_REJECTED.
+ *   - 'outage'      — anything else: timeout, provider/transport failure.
+ *  Read from the error CHANNEL only — never from message text — so it refines
+ *  'unavailable' without ever touching the decline classification. */
+export type AssistantUnavailableReason = 'keyRequired' | 'keyRejected' | 'outage';
+
+function unavailableReason(error: Error | undefined): AssistantUnavailableReason | null {
+  if (!error) return null;
+  // HTTP errors arrive as the response body text (our JSON envelope); stream
+  // errors arrive as the bare code the route's onError emitted.
+  const text = error.message ?? '';
+  if (text.includes('ASSISTANT_KEY_REJECTED')) return 'keyRejected';
+  if (text.includes('"keyRequired":true')) return 'keyRequired';
+  return 'outage';
+}
+
 export interface UseAssistantChatResult {
   messages: AssistantUIMessage[];
   input: string;
@@ -101,6 +123,9 @@ export interface UseAssistantChatResult {
   /** True once an ASSISTANT_UNAVAILABLE / transport error surfaced on the error
    *  channel (distinct from a decline). */
   isUnavailable: boolean;
+  /** Refines isUnavailable: whether a key is needed, was rejected, or this is an
+   *  ordinary outage. Null when available. */
+  unavailableReason: AssistantUnavailableReason | null;
 }
 
 /** Pull the citations off a message's `data-citations` part (fresh-stream path)
@@ -186,8 +211,15 @@ export function useAssistantChat(): UseAssistantChatResult {
           const caseId = useRoleStore.getState().caseId;
           const userId = useRoleStore.getState().activeUserId;
           const conversationId = useAssistantStore.getState().activeConversationId;
+          // Bring-your-own-key: read at send time like the role, so a key
+          // added or removed between sends applies to the very next one. Only
+          // ever sent to our own chat route, which forwards it to Anthropic.
+          const apiKey = useApiKeyStore.getState().apiKey;
           return {
-            headers: { 'X-User-Role': role },
+            headers: {
+              'X-User-Role': role,
+              ...(apiKey ? { [ASSISTANT_API_KEY_HEADER]: apiKey } : {}),
+            },
             body: {
               messages,
               caseId,
@@ -225,7 +257,7 @@ export function useAssistantChat(): UseAssistantChatResult {
     },
   });
 
-  const { messages, sendMessage, status, error, setMessages } = chat;
+  const { messages, sendMessage, regenerate, status, error, setMessages } = chat;
 
   // REPLAY path: if a conversationId is already set when the hook mounts (e.g.
   // returning to the panel after navigating, or opening the full-page view with
@@ -318,11 +350,16 @@ export function useAssistantChat(): UseAssistantChatResult {
     const text = lastSentRef.current;
     if (!text) return;
     // Clear the error channel first so the unavailable notice dismisses, then
-    // re-submit the preserved question. Manual action only — no auto-retry loop
+    // re-run the failed turn. Manual action only — no auto-retry loop
     // (CONTEXT.md / F7 criterion 5).
+    //
+    // regenerate(), not sendMessage(): the failed question is already the last
+    // user message (followed, if the stream had started, by an empty assistant
+    // message). regenerate drops that empty reply and re-sends the same history,
+    // where sendMessage would append the question a second time.
     chat.clearError();
-    void sendMessage({ text });
-  }, [sendMessage, chat]);
+    void regenerate();
+  }, [regenerate, chat]);
 
   const citationsOf = useCallback(
     (message: AssistantUIMessage) => citationsFromMessage(message),
@@ -360,5 +397,6 @@ export function useAssistantChat(): UseAssistantChatResult {
     newConversation,
     retry,
     isUnavailable,
+    unavailableReason: unavailableReason(error),
   };
 }
