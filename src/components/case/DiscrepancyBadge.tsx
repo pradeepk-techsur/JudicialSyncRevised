@@ -1,5 +1,7 @@
+import { Tag } from '@carbon/react';
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { ruleLabel } from '@/lib/discrepancyLabels';
+import styles from './DiscrepancyBadge.module.scss';
 
 // Presentational discrepancy badge for the Case Workspace ⚑ column (F6/F9,
 // US-9.2 "visible without drill-in"). It renders ONLY what the server-provided
@@ -10,10 +12,16 @@ import { ruleLabel } from '@/lib/discrepancyLabels';
 // either — the wording can never drift between this, the Jury screen, and the
 // Exhibit Detail banner.
 //
+// Phase 6 swaps only the rendering layer: the hand-rolled amber <span> becomes a
+// Carbon `Tag` whose color surface is overridden to Carbon's warning tokens via
+// a scoped CSS Module (Carbon ships no literal "amber" Tag type). Every data
+// attribute, aria-label string, conditional branch, and the OPEN/ACKNOWLEDGED
+// visual distinction (US-6.3) is preserved byte-for-byte — these are asserted
+// directly by e2e/case-workspace-discrepancies.spec.ts.
+//
 // The plain-language rule label is ALWAYS visible as text — never icon-only — so
 // the discrepancy is legible at a glance without hovering or drilling in:
-//   - OPEN       → amber badge (text-amber-800 bg-amber-50 border-amber-200),
-//                  matching ExhibitHeader's amber block.
+//   - OPEN       → full-strength warning-amber Tag.
 //   - ACKNOWLEDGED → the same label in muted/desaturated amber with a small
 //                  "Ack'd" marker — never hidden.
 //   - Multiple   → collapses to "⚠ N issues" (amber if ANY is OPEN, muted if all
@@ -38,21 +46,22 @@ export function DiscrepancyBadge({ flags }: { flags: DiscrepancyFlagSummary[] })
   if (flags.length === 1) {
     const flag = flags[0];
     const isOpen = flag.status === 'OPEN';
-    const className = isOpen
-      ? 'inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800'
-      : 'inline-flex items-center gap-1 rounded border border-amber-100 bg-amber-50/50 px-1.5 py-0.5 text-xs text-amber-600/70';
     const text = isOpen ? flag.label : `${flag.label} (Ack'd)`;
     return (
-      <span
+      <Tag
+        type="gray"
+        size="sm"
+        className={isOpen ? styles.open : styles.acknowledged}
         data-testid="discrepancy-badge"
         data-discrepancy-status={isOpen ? 'OPEN' : 'ACKNOWLEDGED'}
         data-rule-code={flag.ruleCode}
-        className={className}
         aria-label={`Discrepancy: ${text}`}
       >
-        <span aria-hidden="true">⚠</span>
+        <span className={styles.warnGlyph} aria-hidden="true">
+          ⚠
+        </span>
         {text}
-      </span>
+      </Tag>
     );
   }
 
@@ -60,25 +69,22 @@ export function DiscrepancyBadge({ flags }: { flags: DiscrepancyFlagSummary[] })
   // Every label is exposed via title/aria-label (and an inline detail list) so no
   // discrepancy is hidden from either sighted or assistive-tech users.
   const sentence = labelsSentence(flags);
-  const summaryClassName = hasOpen
-    ? 'inline-flex flex-col gap-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-800'
-    : 'inline-flex flex-col gap-0.5 rounded border border-amber-100 bg-amber-50/50 px-1.5 py-0.5 text-xs text-amber-600/70';
 
   return (
-    <span
+    <Tag
+      type="gray"
+      size="sm"
+      className={`${hasOpen ? styles.open : styles.acknowledged} ${styles.multi}`}
       data-testid="discrepancy-badge"
       data-discrepancy-status={hasOpen ? 'OPEN' : 'ACKNOWLEDGED'}
       data-discrepancy-count={flags.length}
-      className={summaryClassName}
       title={sentence}
       aria-label={`${flags.length} discrepancies: ${sentence}`}
     >
       <span>
         <span aria-hidden="true">⚠</span> {flags.length} issues
       </span>
-      <span className="sr-only md:not-sr-only md:text-[10px] md:font-normal md:leading-tight">
-        {sentence}
-      </span>
-    </span>
+      <span className={styles.detailSentence}>{sentence}</span>
+    </Tag>
   );
 }

@@ -1,0 +1,79 @@
+@use '@carbon/colors';
+
+// Warning-styled Carbon Tag for discrepancy flags. Carbon ships no literal
+// "amber/warning" Tag `type`, so — exactly as Carbon's own "Status indicators"
+// pattern recommends for a color the built-in enum doesn't cover — we keep every
+// Tag behavior (DOM structure, sizing) and override only the color surface via
+// this scoped CSS Module, using Carbon's own yellow/warning tokens to match the
+// previous Tailwind amber treatment (amber-800 text / amber-50 bg / amber-200
+// border) as closely as Carbon's token set allows.
+
+// OPEN: full-strength warning amber.
+.open {
+  background-color: colors.$yellow-10; // ≈ amber-50 (#fcf4d6)
+  color: colors.$yellow-70; // ≈ amber-800, high-contrast warning text (#684e00)
+  border: 1px solid colors.$yellow-30; // ≈ amber-200 (#f1c21b)
+}
+
+// ACKNOWLEDGED: the SAME label, desaturated/muted — never hidden. The OPEN vs
+// ACKNOWLEDGED visual distinction is itself a US-6.3 requirement.
+.acknowledged {
+  background-color: colors.$yellow-10;
+  color: colors.$yellow-50; // muted warning text (#b28600)
+  border: 1px solid colors.$yellow-20;
+  opacity: 0.75;
+}
+
+// The multi-flag badge stacks a summary line over a detail sentence. Carbon's
+// .cds--tag__label enforces single-line nowrap + ellipsis, which would clip the
+// two-line layout — relax it only within the multi-flag variant.
+.multi {
+  height: auto;
+  align-items: flex-start;
+  padding-block: 0.125rem;
+}
+
+.multi :global(.cds--tag__label) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  max-width: none;
+}
+
+.warnGlyph {
+  margin-right: 0.25rem;
+}
+
+// Visually-hidden by default (same clip-rect technique Tailwind's `sr-only`
+// uses), un-hidden at tablet+ width — mirrors the previous
+// `sr-only md:not-sr-only` so the detail sentence is read by assistive tech on
+// mobile and shown inline on tablet/desktop (Y1-responsive tablet-priority).
+.detailSentence {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media (min-width: 768px) {
+  .detailSentence {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    font-size: 0.625rem;
+    font-weight: 400;
+    line-height: 1.1;
+  }
+}
