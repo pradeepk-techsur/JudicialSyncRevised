@@ -2,15 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-10-08T00:47:01.367Z"
-last_activity: "2026-10-08 — Phase 5 complete"
+status: verifying
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-10-08T01:52:44.521Z"
+last_activity: "2026-10-07 — Completed 05-03-PLAN.md (Trial Command Center screen F8 — final plan): /command-center default landing, three ambient read-only panels + freshness, sealed-filtered, Command-Center-first sidebar, [Rule 2] hooks retry:false for prompt per-panel error surfacing, 7 new Playwright tests (all 3 criteria + sealed absence + error isolation + link-through), full 36-test suite green, tsc+build clean."
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 5
-  total_plans: 27
-  completed_plans: 27
-  percent: 100
+  total_plans: 36
+  completed_plans: 28
+  percent: 83
 ---
 
 # Project State
@@ -20,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** MILESTONE COMPLETE — Phase 5 (Trial Command Center & Live Sync, F8) finished; all 5 phases / 27 plans done.
+**Current focus:** Phase 6 (Carbon Design System UI Upgrade) in progress — 06-01 (Carbon build pipeline foundation) complete.
 
 ## Current Position
 
-Phase: 5 of 5 (Trial Command Center & Live Sync) — COMPLETE (05-03 of 3 plans done; phase + milestone complete)
-Status: 05-01 (Recent-Activity backend) + 05-02 (live-sync hooks) + 05-03 (Command Center screen F8) all complete. 05-03 shipped the ambient read-only /command-center (default landing): RecentActivity full-width over Objections/Discrepancies two-column + FreshnessIndicator, three independent panels, sealed absence across all panels (objections route role-pass + Discrepancies ∩ role-visible exhibit set), Command Center first/live in sidebar, / → /command-center redirect. All three ROADMAP criteria proven by Playwright (zero-config panels / multi-tab live-update / read-only). Next: milestone transition (/pivota_spec-complete-milestone, /pivota_spec-verify-work).
-Last activity: 2026-10-07 — Completed 05-03-PLAN.md (Trial Command Center screen F8 — final plan): /command-center default landing, three ambient read-only panels + freshness, sealed-filtered, Command-Center-first sidebar, [Rule 2] hooks retry:false for prompt per-panel error surfacing, 7 new Playwright tests (all 3 criteria + sealed absence + error isolation + link-through), full 36-test suite green, tsc+build clean.
+Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (06-01 of N plans done)
+Status: 06-01 (Carbon build pipeline foundation) complete. Stood up IBM Carbon's Sass build pipeline IN PARALLEL with the still-active Tailwind/shadcn pipeline: @carbon/react ^1.118.0 / @carbon/styles ^1.117.0 / @carbon/icons-react ^11.90.0 + sass ^1.105.1 installed (React 19 compatible, no --legacy-peer-deps); new src/app/globals.scss (@use '@carbon/react', White/light theme) + F11 print CSS carried over verbatim, wired into layout.tsx replacing globals.css; next.config.ts sassOptions.quietDeps added. [Rule 3] disabled Carbon $css--font-face (legacy ~@ibm/plex path unresolvable by Turbopack). next build + tsc both green. globals.css/postcss.config.mjs left on disk unimported until 06-09 cleanup. Next: 06-02+ (Carbon component/screen migration waves).
+Last activity: 2026-10-08 — Completed 06-01-PLAN.md (Carbon build pipeline foundation): Carbon deps + Dart Sass installed, Carbon globals.scss entry point with preserved print CSS wired into root layout, next.config sassOptions; one [Rule 3] blocking fix (disabled $css--font-face to clear Turbopack ~@ibm/plex module-not-found); next build + tsc clean.
 
-Progress: [██████████] 100%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -80,6 +81,7 @@ Progress: [██████████] 100%
 | Phase 05-trial-command-center-live-sync P01 | 5 min | 3 tasks | 7 files |
 | Phase 05-trial-command-center-live-sync P02 | 7 min | 2 tasks | 5 files |
 | Phase 05-trial-command-center-live-sync P03 | 9 min | 3 tasks tasks | 13 files files |
+| Phase 06-carbon-design-system-ui-upgrade P01 | 2 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -168,6 +170,8 @@ Recent decisions affecting current work:
 - [Phase 05-03]: Discrepancies sealed filtering by COMPOSITION — intersect Phase-3's viewer-independent /discrepancies flags with useExhibitList's role-visible (server-sealed-filtered) exhibit set, so sealed flags are absent AND uncounted (T-05-07); panel derives no state. Objections panel made sealed-safe by the route passing parseRequestingRole (T-05-08). Discrepancy rows route to /jury-package when a draft exists (one read of GET /jury-package) else /exhibit/:id, defaulting to Exhibit Detail on any error
 - [Phase 05-03]: [Rule 2] Live-sync hooks set retry:false so a failed poll surfaces its panel's INDEPENDENT inline error promptly (the 4s interval re-attempts on recovery) instead of sitting in a skeleton through react-query's default 3× backoff — required for the per-panel error-isolation criterion. Command Center activated FIRST/live in the sidebar (placeholder removed; Jury Package/Assistant preserved); / → /command-center. New-row fade-in = useRef<Set> of prior eventIds + transient ~400ms highlight, keyed by eventId (no re-sort/toast). E2E multi-tab write pinned to P-5 (unreferenced elsewhere) so the one real ledger write never perturbs another suite's seed
 - [Phase 05-03]: MILESTONE COMPLETE — all 5 phases / 27 plans done; F8 Command Center proves all 3 ROADMAP criteria end-to-end via Playwright (zero-config panels, multi-tab live-update within one 4s interval, strictly read-only); full 36-test E2E suite green, tsc + next build clean
+- [Phase 06-01]: Disabled Carbon $css--font-face — its @font-face rules load IBM Plex via the legacy ~@ibm/plex path that Turbopack (Next 16) cannot resolve; app keeps its system font stack (Rule 3 blocking fix, no visual regression)
+- [Phase 06-01]: Carbon added in PARALLEL with Tailwind/shadcn via all-in-one @use '@carbon/react' in a new globals.scss (White/light theme, no dark switch); globals.css + postcss.config.mjs left on disk unimported until 06-09 removes them after all screens migrate; F11 print CSS carried over verbatim
 
 ### Pending Todos
 
@@ -180,6 +184,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-07T21:34:22.054Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-10-08T01:52:44.519Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
