@@ -7,6 +7,7 @@ import { useRoleStore } from '@/stores/roleStore';
 import { useAcknowledgeDiscrepancy, JuryPackageError } from '@/hooks/useAcknowledgeDiscrepancy';
 import { useDiscrepancyCount, resolveFlagId } from '@/hooks/useDiscrepancyCount';
 import { AcknowledgeInline } from '@/components/jury/AcknowledgeInline';
+import styles from './DiscrepancyBanner.module.scss';
 
 const ACK_ROLES: Role[] = ['DEPUTY', 'CLERK', 'JUDGE', 'ADMIN'];
 
@@ -52,19 +53,16 @@ export function DiscrepancyBanner({
   };
 
   return (
-    <div
-      className="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm"
-      data-testid="exhibit-discrepancy-banner"
-    >
-      <p className="font-medium text-amber-900">Discrepancies</p>
-      <ul className="mt-2 space-y-2">
+    <div className={styles.banner} data-testid="exhibit-discrepancy-banner">
+      <p className={styles.title}>Discrepancies</p>
+      <ul className={styles.list}>
         {flags.map((flag) => {
           const isOpen = flag.status === 'OPEN';
           return (
             <li key={flag.ruleCode} data-testid="exhibit-discrepancy-flag" data-rule-code={flag.ruleCode}>
-              <div className="flex items-center justify-between gap-2">
+              <div className={styles.flagRow}>
                 <span
-                  className={isOpen ? 'text-amber-800' : 'text-amber-600/70'}
+                  className={isOpen ? styles.flagOpen : styles.flagAcked}
                   data-discrepancy-status={flag.status}
                 >
                   <span aria-hidden="true">⚠</span> {flag.label}
@@ -74,7 +72,7 @@ export function DiscrepancyBanner({
                   <button
                     type="button"
                     data-testid="exhibit-acknowledge-trigger"
-                    className="shrink-0 text-xs text-amber-700 hover:underline"
+                    className={styles.trigger}
                     onClick={() => setOpenRule(openRule === flag.ruleCode ? null : flag.ruleCode)}
                   >
                     Acknowledge

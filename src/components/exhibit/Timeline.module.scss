@@ -1,0 +1,43 @@
+// Exhibit history timeline styles. Carbon ships no dedicated "timeline"
+// component, so the semantic <ol>/<li> structure is kept verbatim (its exact
+// aria-label and per-entry anchor id are a cross-plan contract) and only the
+// Tailwind utilities are replaced with Carbon tokens. The transient highlight
+// (former `border-amber-500 bg-amber-100`) now uses Carbon's support-warning
+// token, preserving the same 500ms "flash then settle" fade the citation
+// deep-link drives.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry {
+  // Former `border-l-2 pl-3 transition-colors duration-500`.
+  border-left: 2px solid $border-subtle;
+  padding-left: $spacing-03;
+  transition: background-color 500ms ease, border-color 500ms ease;
+
+  & + & {
+    margin-top: $spacing-05;
+  }
+}
+
+// Former `border-amber-500 bg-amber-100` highlight, via Carbon warning tokens.
+.highlighted {
+  border-left-color: $support-warning-inverse;
+  background-color: $support-warning;
+}
+
+.summary {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.meta {
+  @include type-style('label-01');
+  color: $text-helper;
+}
