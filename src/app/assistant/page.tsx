@@ -1,6 +1,7 @@
 'use client';
 
 import { AssistantThread } from '@/components/assistant/AssistantThread';
+import styles from './page.module.scss';
 
 // =============================================================================
 // /assistant — the full-page assistant surface.
@@ -10,11 +11,15 @@ import { AssistantThread } from '@/components/assistant/AssistantThread';
 // too. It renders the SAME AssistantThread over the SAME useAssistantChat hook /
 // assistantStore as the slide-over panel — so the conversation is CONTINUOUS
 // across both surfaces (CONTEXT.md: one shared thread).
+//
+// CARBON MIGRATION (Phase 6): only the outer container wrapper moved from
+// Tailwind utilities to a Carbon-token CSS Module. The SAME shared thread over
+// the SAME hook/store is rendered — unchanged.
 // =============================================================================
 
 export default function AssistantPage() {
   return (
-    <div className="mx-auto h-[calc(100vh-8rem)] max-w-3xl rounded-lg border">
+    <div className={styles.container}>
       <AssistantThread variant="page" />
     </div>
   );

@@ -1,0 +1,45 @@
+// AssistantPanel — GLOBAL slide-over container styling (Carbon-token CSS Module).
+//
+// NOTE (06-07 Rule 3 unblock): commit 7be9a64 "feat(06-08): migrate MessageBubble
+// and AssistantThread to Carbon" imported this module from AssistantPanel.tsx but
+// never created it, which broke the whole app shell (layout.tsx → AppShell →
+// AssistantPanel) and therefore 06-07's own acceptance gate. This file is a
+// faithful reconstruction from the class names AssistantPanel.tsx references
+// (backdrop / panel / panelOpen / panelClosed) and the always-mounted,
+// translate-off-when-closed behaviour the component documents. 06-08 (or the phase
+// verify/gap-closure step) owns the final styling — see deferred-items.md.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  background-color: $overlay;
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 8001;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 28rem;
+  height: 100vh;
+  background-color: $layer-01;
+  border-left: 1px solid $border-subtle;
+  box-shadow: 0 0 1.5rem rgba(0, 0, 0, 0.2);
+  transition: transform 240ms ease;
+}
+
+.panelOpen {
+  transform: translateX(0);
+}
+
+.panelClosed {
+  // Translated fully off-screen (kept mounted so the thread/hook state survives
+  // close → reopen).
+  transform: translateX(100%);
+}
