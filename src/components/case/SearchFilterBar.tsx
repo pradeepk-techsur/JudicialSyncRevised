@@ -1,15 +1,8 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
+import { Search, Dropdown, TextInput, DismissibleTag, Button } from '@carbon/react';
 import type { ExhibitFilters } from '@/hooks/useExhibitList';
+import styles from './SearchFilterBar.module.scss';
 
 const STATUS_OPTIONS = [
   'MARKED',
@@ -36,75 +29,91 @@ export function SearchFilterBar({
   );
 
   return (
-    <div className="mb-4 space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
+    <div className={styles.bar}>
+      <div className={styles.row}>
+        <Search
+          id="exhibit-keyword-search"
+          labelText="Keyword search"
+          aria-label="Keyword search"
           placeholder="Search exhibits…"
+          size="md"
           value={filters.keyword ?? ''}
           onChange={(e) => onChange({ ...filters, keyword: e.target.value || undefined })}
-          className="max-w-xs"
-          aria-label="Keyword search"
+          onClear={() => onChange({ ...filters, keyword: undefined })}
+          className={styles.searchField}
         />
-        <Select
-          value={filters.status ?? ''}
-          onValueChange={(v) => onChange({ ...filters, status: (v as string) || undefined })}
-        >
-          <SelectTrigger className="w-40" aria-label="Filter by status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
+        <Dropdown
+          id="exhibit-status-filter"
+          // The toggle BUTTON carries the "Filter by status" accessible name via
+          // aria-label (getByLabel resolves to the combobox). titleText must NOT
+          // also be "Filter by status": Carbon labels the inner <ul role=listbox>
+          // via aria-labelledby→titleText, so a matching titleText would make
+          // getByLabel strict-mode-collide with the listbox. Keep titleText as a
+          // distinct hidden label ("Status").
+          titleText="Status"
+          hideLabel
+          aria-label="Filter by status"
+          label="Status"
+          items={STATUS_OPTIONS as unknown as string[]}
+          itemToString={(item) => item ?? ''}
+          selectedItem={filters.status ?? null}
+          // Carbon's Dropdown onChange yields { selectedItem } (not a raw string
+          // like shadcn's onValueChange) — mechanical adaptation, same resulting
+          // ExhibitFilters shape.
+          onChange={({ selectedItem }) =>
+            onChange({ ...filters, status: selectedItem || undefined })
+          }
+        />
+        <TextInput
+          id="exhibit-witness-filter"
+          labelText="Filter by witness"
+          hideLabel
+          aria-label="Filter by witness"
           placeholder="Witness"
           value={filters.witness ?? ''}
           onChange={(e) => onChange({ ...filters, witness: e.target.value || undefined })}
-          className="max-w-[10rem]"
-          aria-label="Filter by witness"
+          className={styles.witnessField}
         />
-        <Input
+        <TextInput
+          id="exhibit-date-from"
+          labelText="Date from"
+          hideLabel
+          aria-label="Date from"
           type="date"
           value={filters.dateFrom ?? ''}
           onChange={(e) => onChange({ ...filters, dateFrom: e.target.value || undefined })}
-          aria-label="Date from"
         />
-        <Input
+        <TextInput
+          id="exhibit-date-to"
+          labelText="Date to"
+          hideLabel
+          aria-label="Date to"
           type="date"
           value={filters.dateTo ?? ''}
           onChange={(e) => onChange({ ...filters, dateTo: e.target.value || undefined })}
-          aria-label="Date to"
         />
       </div>
       {!hasAny && (
-        <p className="text-xs text-gray-500">
+        <p className={styles.hint}>
           Enter at least one filter above to search — showing the full list.
         </p>
       )}
       {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-500">Active filters:</span>
+        <div className={styles.row}>
+          <span className={styles.hint}>Active filters:</span>
           {chips.map(([key, value]) => (
-            <span
+            <DismissibleTag
               key={key}
-              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
-            >
-              {key}={value}
-              <button
-                type="button"
-                aria-label={`Remove ${key} filter`}
-                onClick={() => onChange({ ...filters, [key]: undefined })}
-                className="font-bold"
-              >
-                ×
-              </button>
-            </span>
+              type="gray"
+              size="sm"
+              text={`${key}=${value}`}
+              // `title` labels the dismiss button (preserves the old
+              // "Remove {key} filter" affordance aria/tooltip).
+              title={`Remove ${key} filter`}
+              onClose={() => onChange({ ...filters, [key]: undefined })}
+            />
           ))}
-          <Button variant="ghost" size="sm" onClick={() => onChange({})}>
+          <Button kind="ghost" size="sm" onClick={() => onChange({})}>
             Clear filters
           </Button>
         </div>

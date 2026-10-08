@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Tile, SkeletonText, ActionableNotification } from '@carbon/react';
 import { useUnresolvedObjections } from '@/hooks/useUnresolvedObjections';
+import styles from './ObjectionsPanel.module.scss';
 
 // F8 Command Center — Unresolved Objections panel (lower-row LEFT). Presentational
 // over its OWN useUnresolvedObjections hook (one hook per panel — three independent
@@ -24,40 +26,37 @@ export function ObjectionsPanel() {
   const objections = data ?? [];
 
   return (
-    <section
+    <Tile
       data-testid="objections-panel"
-      className="rounded-lg border bg-white p-4"
       aria-label="Unresolved objections"
     >
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
+      <h2 className={styles.heading}>
         Unresolved Objections{' '}
-        <span className="font-normal text-gray-500">({objections.length})</span>
+        <span className={styles.count}>({objections.length})</span>
       </h2>
 
       {isLoading && (
-        <ul className="space-y-2" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <li key={i} className="h-5 w-full animate-pulse rounded bg-gray-100" />
-          ))}
-        </ul>
-      )}
-
-      {isError && (
-        <div className="text-sm text-red-600" role="alert">
-          Unable to load objections — please retry.{' '}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="font-medium underline hover:no-underline"
-          >
-            Retry
-          </button>
+        <div aria-hidden="true">
+          <SkeletonText paragraph lineCount={3} width="100%" />
         </div>
       )}
 
+      {isError && (
+        <ActionableNotification
+          kind="error"
+          lowContrast
+          inline
+          hideCloseButton
+          role="alert"
+          title="Unable to load objections — please retry"
+          actionButtonLabel="Reload"
+          onActionButtonClick={() => refetch()}
+        />
+      )}
+
       {!isLoading && !isError && objections.length === 0 && (
-        <p className="text-sm text-gray-500">
-          <span className="text-green-600" aria-hidden="true">
+        <p className={styles.empty}>
+          <span className={styles.check} aria-hidden="true">
             ✓
           </span>{' '}
           No unresolved objections — all clear
@@ -65,25 +64,23 @@ export function ObjectionsPanel() {
       )}
 
       {!isLoading && !isError && objections.length > 0 && (
-        <ul className="divide-y divide-gray-100">
+        <ul className={styles.list}>
           {objections.map((o) => (
-            <li key={o.objectionId}>
+            <li key={o.objectionId} className={styles.row}>
               <Link
                 href={`/exhibit/${o.exhibitId}`}
                 data-testid="objection-row"
-                className="flex items-baseline gap-2 px-1 py-2 text-sm hover:bg-gray-50"
+                className={styles.link}
               >
-                <span className="flex-1 text-gray-800">
+                <span className={styles.party}>
                   {o.objectingParty} — {o.grounds}
                 </span>
-                <span className="shrink-0 text-xs text-gray-400">
-                  {formatTime(o.raisedAt)}
-                </span>
+                <span className={styles.time}>{formatTime(o.raisedAt)}</span>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Tile>
   );
 }

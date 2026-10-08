@@ -1,0 +1,14 @@
+// /assistant full-page container — Carbon-token wrapper replacing the previous
+// Tailwind utilities (mx-auto h-[calc(100vh-8rem)] max-w-3xl rounded-lg border).
+
+@use '@carbon/styles/scss/theme' as *;
+
+.container {
+  margin-inline: auto;
+  height: calc(100vh - 8rem);
+  max-width: 48rem;
+  border: 1px solid $border-subtle;
+  border-radius: 0.5rem;
+  background: $background;
+  overflow: hidden;
+}

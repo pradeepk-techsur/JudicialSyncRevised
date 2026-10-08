@@ -1,0 +1,65 @@
+// Exhibit Detail discrepancy banner styles. Consistent with 06-02's
+// DiscrepancyBadge approach, Carbon has no literal "amber/warning" container, so
+// the former Tailwind amber utilities (`border-amber-200 bg-amber-50`,
+// `text-amber-900/800/700/600`) are reproduced with Carbon's yellow/warning
+// tokens via this scoped CSS Module. All component logic, testids, and the
+// AcknowledgeInline composition are unchanged — only the color surface moves to
+// Carbon tokens.
+@use '@carbon/colors';
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.banner {
+  margin-top: $spacing-03;
+  padding: $spacing-03;
+  border: 1px solid colors.$yellow-30; // ≈ amber-200
+  border-radius: 0.25rem;
+  background-color: colors.$yellow-10; // ≈ amber-50
+  @include type-style('body-compact-01');
+}
+
+.title {
+  font-weight: 600;
+  color: colors.$yellow-70; // ≈ amber-900
+}
+
+.list {
+  list-style: none;
+  margin-top: $spacing-03;
+  padding: 0;
+
+  & > li + li {
+    margin-top: $spacing-03;
+  }
+}
+
+.flagRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+// OPEN: full-strength warning text.
+.flagOpen {
+  color: colors.$yellow-70; // ≈ amber-800
+}
+
+// ACKNOWLEDGED: the SAME label, muted — never hidden (US-6.3).
+.flagAcked {
+  color: colors.$yellow-50; // ≈ amber-600/70 muted
+}
+
+.trigger {
+  flex-shrink: 0;
+  @include type-style('label-01');
+  color: colors.$yellow-70;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

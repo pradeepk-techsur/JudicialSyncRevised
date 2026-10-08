@@ -1,5 +1,6 @@
 'use client';
 
+import { InlineLoading, InlineNotification } from '@carbon/react';
 import { useJuryPackage } from '@/hooks/useJuryPackage';
 import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 import { JuryPackageEmpty } from '@/components/jury/JuryPackageEmpty';
@@ -20,11 +21,16 @@ export default function JuryPackagePage() {
   const { flags: caseFlags } = useDiscrepancyCount();
 
   if (isLoading) {
-    return <p className="text-sm text-gray-500">Loading jury package…</p>;
+    return <InlineLoading description="Loading jury package…" />;
   }
   if (isError || !data) {
     return (
-      <p className="text-sm text-red-600">Unable to load the jury package — please retry.</p>
+      <InlineNotification
+        kind="error"
+        lowContrast
+        hideCloseButton
+        title="Unable to load the jury package — please retry."
+      />
     );
   }
 

@@ -1,0 +1,21 @@
+{
+  "duration_secs": 1163.0,
+  "token_usage": {
+    "input": 172,
+    "output": 43823,
+    "total": 14828455,
+    "cache_read": 14388514,
+    "cache_write": 395946,
+    "cost": 4.306141800000001
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/06-carbon-design-system-ui-upgrade/06-UAT.md",
+    ".planning/phases/06-carbon-design-system-ui-upgrade/06-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 2,
+  "created_at": "2026-10-08T02:52:11.886775+00:00",
+  "completed_at": "2026-10-08T03:11:35.190375473+00:00"
+}

@@ -1,0 +1,80 @@
+// AssistantThread — layout for the shared conversation renderer (panel + page).
+// Carbon components (Button / TextInput / InlineLoading / InlineNotification)
+// carry their own styling; this module only lays out the thread chrome using
+// Carbon spacing/theme tokens (replacing the previous Tailwind utilities).
+
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+// ---- header -----------------------------------------------------------------
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $spacing-03 $spacing-05;
+  border-bottom: 1px solid $border-subtle;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+// ---- messages scroll area ---------------------------------------------------
+.messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: $spacing-05;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-04;
+}
+
+.emptyState {
+  padding-top: $spacing-02;
+}
+
+.typingRow {
+  display: flex;
+  justify-content: flex-start;
+  padding: $spacing-02 $spacing-03;
+}
+
+// ---- unavailable (error channel) --------------------------------------------
+.unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.retryButton {
+  align-self: flex-start;
+}
+
+// ---- input row --------------------------------------------------------------
+.inputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-05;
+  border-top: 1px solid $border-subtle;
+}
+
+.inputField {
+  flex: 1 1 auto;
+}

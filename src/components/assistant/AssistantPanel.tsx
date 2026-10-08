@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useAssistantStore } from '@/stores/assistantStore';
 import { AssistantThread } from './AssistantThread';
+import styles from './AssistantPanel.module.scss';
 
 // =============================================================================
 // AssistantPanel — the GLOBAL slide-over ("Ask ✦" on every screen).
@@ -20,6 +21,14 @@ import { AssistantThread } from './AssistantThread';
 //
 // When closed we keep the container mounted but translated off-screen / hidden,
 // so the AssistantThread (and therefore the hook's message state) stays alive.
+//
+// CARBON MIGRATION (Phase 6): this is Phase 4 ARCHITECTURE, not presentation —
+// the backdrop + translate-on/off aside, the /assistant suppression, and the
+// always-mounted-but-hidden-when-closed behaviour are UNCHANGED. It is
+// deliberately NOT a Carbon Modal/ComposedModal (those trap focus and block
+// background interaction, which would break "a citation click routes the screen
+// underneath while the panel stays open"). Only the backdrop + slide-over
+// container styling moved from Tailwind utilities to a Carbon-token CSS Module.
 // =============================================================================
 
 export function AssistantPanel() {
@@ -46,7 +55,7 @@ export function AssistantPanel() {
         <div
           data-testid="assistant-backdrop"
           onClick={closePanel}
-          className="fixed inset-0 z-40 bg-black/20"
+          className={styles.backdrop}
           aria-hidden="true"
         />
       )}
@@ -61,9 +70,7 @@ export function AssistantPanel() {
           data-testid="assistant-panel"
           data-open={isPanelOpen ? 'true' : 'false'}
           aria-hidden={isPanelOpen ? undefined : true}
-          className={`fixed right-0 top-0 z-50 flex h-screen w-full max-w-md flex-col border-l bg-white shadow-xl transition-transform duration-200 ${
-            isPanelOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full'
-          }`}
+          className={`${styles.panel} ${isPanelOpen ? styles.panelOpen : styles.panelClosed}`}
         >
           <AssistantThread variant="panel" onClose={closePanel} />
         </aside>

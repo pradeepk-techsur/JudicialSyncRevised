@@ -1,0 +1,19 @@
+// Case Workspace page styles. Phase 6 replaces the former Tailwind utilities
+// (the page heading sizing/weight and the muted empty-state text) with Carbon
+// design tokens after the Tailwind pipeline removal (wave 06-09).
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Page heading (was: mb-4 text-xl font-semibold).
+.heading {
+  @include type-style('heading-03');
+  margin-bottom: $spacing-05;
+  color: $text-primary;
+}
+
+// Muted empty-state caption (was: text-sm text-gray-500).
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}

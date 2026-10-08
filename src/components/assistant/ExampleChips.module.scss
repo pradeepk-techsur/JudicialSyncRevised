@@ -1,0 +1,35 @@
+// ExampleChips — Carbon-token-driven empty-state layout. The chips themselves
+// are Carbon `Tag`s (outline, md); this module only lays them out and styles the
+// "Try asking" caption with Carbon spacing/type/theme tokens.
+
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.heading {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: $text-secondary;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// Carbon Tag already provides the pill shape/border; make each chip left-align
+// its text and behave like a tappable chip.
+.chip {
+  cursor: pointer;
+  text-align: left;
+  max-width: none;
+}

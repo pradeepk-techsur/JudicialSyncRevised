@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { SideNavLink, Tag } from '@carbon/react';
 import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 
 // The live Jury Package nav link with an ambient open-discrepancy count pill
@@ -10,25 +11,32 @@ import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 // so it can read the live useDiscrepancyCount query (4s polling). The count is
 // role-scoped: a sealed exhibit's flags aren't returned for an unauthorized role,
 // so the badge reflects what that role can see (acceptable and correct).
+//
+// Carbon migration: the link is now a Carbon SideNavLink rendered through
+// Next.js's <Link> (`as={Link}`) so it sits in the SideNav rail with the same
+// client-side routing; the amber circle becomes a Carbon red Tag. The two
+// testids (nav-jury-package, jury-count-badge) and the pill's aria-label are
+// preserved verbatim, and the badge is still only rendered when openCount > 0.
 export function JuryPackageNavItem() {
   const { openCount } = useDiscrepancyCount();
 
   return (
-    <Link
-      href="/jury-package"
-      data-testid="nav-jury-package"
-      className="flex items-center justify-between rounded px-2 py-1.5 text-sm font-medium hover:bg-gray-100"
-    >
-      <span>Jury Package</span>
+    <SideNavLink as={Link} href="/jury-package" data-testid="nav-jury-package">
+      Jury Package
       {openCount > 0 && (
-        <span
+        // SideNavLink wraps children in <SideNavLinkText> (a <span>), and a
+        // non-interactive Carbon Tag defaults to a block <div>, which is invalid
+        // nested inside a <span>. Render the pill as an inline <span> via `as`.
+        <Tag
+          as="span"
+          type="red"
+          size="sm"
           data-testid="jury-count-badge"
-          className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-xs font-semibold text-white"
           aria-label={`${openCount} open discrepancies`}
         >
           {openCount}
-        </span>
+        </Tag>
       )}
-    </Link>
+    </SideNavLink>
   );
 }

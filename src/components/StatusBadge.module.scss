@@ -1,0 +1,58 @@
+@use '@carbon/colors';
+
+// Small colored status dot rendered INSIDE the Carbon Tag, preserving the
+// `●Label` convention from Y0-patterns.md. Colors map 1:1 to the previous
+// Tailwind dot colors using the closest Carbon color token (no invented hex):
+//   bg-gray-400  → $gray-40      (MARKED)
+//   bg-blue-500  → $blue-60      (OFFERED)
+//   bg-amber-500 → $yellow-30    (OBJECTED)
+//   bg-green-600 → $green-60     (ADMITTED)
+//   bg-red-600   → $red-60       (EXCLUDED)
+//   bg-slate-600 → $cool-gray-70 (WITHDRAWN)
+//   bg-gray-300  → $gray-40      (null / not-yet-entered, plain-text branch)
+
+.dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-right: 0.375rem;
+  flex-shrink: 0;
+}
+
+.statusDotGray {
+  background-color: colors.$gray-40;
+}
+
+.statusDotBlue {
+  background-color: colors.$blue-60;
+}
+
+.statusDotAmber {
+  background-color: colors.$yellow-30;
+}
+
+.statusDotGreen {
+  background-color: colors.$green-60;
+}
+
+.statusDotRed {
+  background-color: colors.$red-60;
+}
+
+.statusDotSlate {
+  background-color: colors.$cool-gray-70;
+}
+
+// Plain-text "not yet entered" branch — a genuinely absent status is not a
+// status color, so it is not a Tag. Muted text + muted dot.
+.nullBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.875rem;
+  color: colors.$gray-70;
+}
+
+.statusDotMuted {
+  background-color: colors.$gray-40;
+}

@@ -1,0 +1,75 @@
+// F8 Command Center — Discrepancies panel styles (HIGHEST-risk signal). Carbon
+// warning tokens replace the former Tailwind amber utilities. The count badge is
+// a Carbon Tag (type="red") in the component; this module styles the heading row
+// (warning-tinted when count > 0) and the list rows.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-bottom: $spacing-05;
+  @include type-style('heading-compact-01');
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: $text-primary;
+}
+
+// Warning-tinted header-row treatment when there are open discrepancies —
+// matches the former `bg-amber-100 text-amber-900` "visible from across the room"
+// intent using Carbon's support-warning token.
+.headingWarning {
+  padding: $spacing-02 $spacing-03;
+  border-radius: 0.25rem;
+  background-color: $support-warning;
+  color: $text-primary;
+}
+
+.countZero {
+  font-weight: 400;
+  color: $text-secondary;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  border-top: 1px solid $border-subtle;
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.link {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-02;
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $support-warning;
+  }
+}
+
+.flag {
+  color: $support-warning-inverse;
+}
+
+.ruleLabel {
+  flex: 1 1 auto;
+  color: $text-primary;
+}
+
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}

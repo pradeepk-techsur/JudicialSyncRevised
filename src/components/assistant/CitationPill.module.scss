@@ -1,0 +1,41 @@
+// CitationPill — Carbon-token-driven pill styling. The visible chip is a Carbon
+// `Tag` (gray, sm); this module only tunes the wrapping <Link> (inline flow,
+// tab-reachable, secondary to the answer text) and the Tag's internal text so it
+// stays monospace/compact like the pre-Carbon pill.
+
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.pillLink {
+  display: inline-flex;
+  align-items: baseline;
+  margin-inline: $spacing-01;
+  text-decoration: none;
+  vertical-align: baseline;
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: 1px;
+  }
+}
+
+// Carbon Tag renders its own border/background; keep it compact and clickable-
+// looking (pointer) since the wrapping link navigates.
+.pillTag {
+  cursor: pointer;
+  max-width: none;
+}
+
+.pillContent {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-01;
+  font-family: var(--cds-code-font-family, 'IBM Plex Mono', monospace);
+  font-size: 0.6875rem; // 11px — matches the pre-Carbon pill
+  line-height: 1.1;
+}
+
+.pillLabel {
+  font-weight: 600;
+}

@@ -1,35 +1,45 @@
+'use client';
+
 import Link from 'next/link';
+import { SideNav, SideNavItems, SideNavLink } from '@carbon/react';
 import { JuryPackageNavItem } from './JuryPackageNavItem';
 
-// Per UX-Mockup 00-overview.md's 4-item nav model. Command Center (Phase 5) is
-// now the FIRST, live nav item and the default landing (/ redirects here); Case
-// Workspace (Phase 2), Jury Package (Phase 3) and Assistant (Phase 4) follow as
-// live routes. Every item is a real route — there is no remaining placeholder.
-// This Phase 5 edit is ADDITIVE: it activates Command Center first/live and
-// leaves the Jury Package and Assistant activations (03-04 / 04-05) untouched.
+// Per UX-Mockup 00-overview.md's 4-item nav model, now rendered via Carbon's
+// UI Shell left-panel components (SideNav / SideNavItems / SideNavLink) instead
+// of a hand-rolled <nav>/<ul>. Command Center (Phase 5) stays the FIRST, live
+// nav item and the default landing (/ redirects here); Case Workspace (Phase 2),
+// Jury Package (Phase 3) and Assistant (Phase 4) follow as live routes.
+//
+// Carbon's SideNavLink renders through its internal polymorphic Link, so
+// `as={Link}` makes each nav item a Next.js <Link> carrying the Carbon
+// `cds--side-nav__link` class — client-side routing (and the zustand role-store
+// state that rides across routes) is preserved, no full-page reload.
+//
+// `isFixedNav expanded` keeps the rail always open (no collapse/inert state) so
+// every link stays in the accessibility tree. The whole sidebar is wrapped in a
+// `no-print` container so 06-01's print CSS hides it during Jury Package export.
 export function Sidebar() {
   return (
-    <nav aria-label="Main navigation" className="no-print w-48 shrink-0 border-r p-3">
-      <ul className="space-y-1">
-        <li>
-          <Link href="/command-center" className="block rounded px-2 py-1.5 text-sm font-medium hover:bg-gray-100">
+    <div className="no-print">
+      <SideNav
+        aria-label="Main navigation"
+        isFixedNav
+        expanded
+        isChildOfHeader={false}
+      >
+        <SideNavItems>
+          <SideNavLink as={Link} href="/command-center">
             Command Center
-          </Link>
-        </li>
-        <li>
-          <Link href="/case" className="block rounded px-2 py-1.5 text-sm font-medium hover:bg-gray-100">
+          </SideNavLink>
+          <SideNavLink as={Link} href="/case">
             Case Workspace
-          </Link>
-        </li>
-        <li>
+          </SideNavLink>
           <JuryPackageNavItem />
-        </li>
-        <li>
-          <Link href="/assistant" className="block rounded px-2 py-1.5 text-sm font-medium hover:bg-gray-100">
+          <SideNavLink as={Link} href="/assistant">
             Assistant
-          </Link>
-        </li>
-      </ul>
-    </nav>
+          </SideNavLink>
+        </SideNavItems>
+      </SideNav>
+    </div>
   );
 }

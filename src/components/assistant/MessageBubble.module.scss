@@ -1,0 +1,59 @@
+// MessageBubble — custom chat-bubble shape (Carbon has no bubble primitive),
+// styled entirely with Carbon THEME tokens instead of Tailwind utilities.
+//
+// The decline bubble shares `.assistantBubble` with grounded (same background,
+// same radius, same padding) — the ONLY difference is the absence of the citation
+// list. No red/warning treatment for decline (Decline-as-Valid-Response).
+
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+// $button-primary is a component token, not a theme token — it is NOT exported
+// by scss/theme, so it must be pulled from the button component tokens.
+// (06-07 Rule 3 unblock for 06-08's broken commit 7be9a64 — see deferred-items.md)
+@use '@carbon/styles/scss/components/button/tokens' as *;
+
+$bubble-radius: 0.5rem;
+$bubble-max-width: 80%;
+
+// ---- user turn: right-aligned, high-contrast "interactive" color -------------
+.userRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.userBubble {
+  max-width: $bubble-max-width;
+  padding: $spacing-03 $spacing-04;
+  border-radius: $bubble-radius;
+  background: $interactive;
+  color: $text-on-color;
+  font-size: 0.875rem;
+}
+
+// ---- assistant turn: left-aligned; grounded AND decline share this bubble ----
+.assistantRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.assistantBubble {
+  max-width: $bubble-max-width;
+  padding: $spacing-03 $spacing-04;
+  border-radius: $bubble-radius;
+  background: $layer-02;
+}
+
+.answerText {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  color: $text-primary;
+}
+
+.citationList {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-02;
+  margin-top: $spacing-02;
+}

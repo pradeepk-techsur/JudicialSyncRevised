@@ -1,5 +1,8 @@
 'use client';
 
+import { Tag } from '@carbon/react';
+import styles from './ExampleChips.module.scss';
+
 // =============================================================================
 // ExampleChips — the empty-state zero-typing path (CONTEXT.md).
 //
@@ -7,6 +10,13 @@
 // `onPick(text)`, which the thread wires to the hook's `sendExample` (pre-fill +
 // AUTO-SUBMIT). Chips are ONLY rendered in the empty state — once the
 // conversation has messages they disappear (the thread stops rendering this).
+//
+// CARBON MIGRATION (Phase 6): each chip is a clickable Carbon `Tag` (outline,
+// md). A clickable Tag renders as a real `<button type="button">` (keyboard
+// reachable), and Carbon passes `data-testid`/`onClick` straight through to that
+// button — so `data-testid="example-chip"` lands on the actual interactive
+// element the test clicks. `Tag` is the closest Carbon visual match to the
+// previous rounded pill-shaped chip.
 //
 // These exact five questions are the demo's scripted keystone (F7 / the roadmap's
 // five named questions that must resolve grounded-or-decline). Keep them verbatim.
@@ -22,21 +32,20 @@ const EXAMPLE_QUESTIONS = [
 
 export function ExampleChips({ onPick }: { onPick: (text: string) => void }) {
   return (
-    <div className="flex flex-col gap-2" data-testid="example-chips">
-      <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-        Try asking
-      </p>
-      <div className="flex flex-wrap gap-2">
+    <div className={styles.container} data-testid="example-chips">
+      <p className={styles.heading}>Try asking</p>
+      <div className={styles.chips}>
         {EXAMPLE_QUESTIONS.map((q) => (
-          <button
+          <Tag
             key={q}
-            type="button"
+            type="outline"
+            size="md"
             data-testid="example-chip"
             onClick={() => onPick(q)}
-            className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-left text-sm text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+            className={styles.chip}
           >
             {q}
-          </button>
+          </Tag>
         ))}
       </div>
     </div>

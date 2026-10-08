@@ -1,8 +1,10 @@
 'use client';
 
+import { Button, InlineNotification } from '@carbon/react';
 import { useRoleStore } from '@/stores/roleStore';
 import type { Role } from '@prisma/client';
 import { JuryPackageError } from '@/hooks/useJuryPackage';
+import styles from './JuryPackageEmpty.module.scss';
 
 const INITIATE_ROLES: Role[] = ['DEPUTY', 'CLERK', 'ADMIN'];
 
@@ -12,6 +14,14 @@ const INITIATE_ROLES: Role[] = ['DEPUTY', 'CLERK', 'ADMIN'];
 // explicit Initiate button below. For DEPUTY/CLERK/ADMIN we render that button;
 // for view-only roles we render a caption explaining a deputy/clerk/admin must
 // start the package.
+//
+// Phase 6 swaps only the rendering layer: the hand-rolled dashed-border div and
+// Tailwind button become a Carbon-token-styled container + Carbon `Button`, and
+// the hard-error paragraph becomes a Carbon `InlineNotification kind="error"`
+// (this IS a genuine failure). The NO_ELIGIBLE_EXHIBITS copy stays plain
+// informational text — it is explicitly "not a hard error" — not a red
+// notification. Every data-testid and the exact heading/body copy are preserved
+// byte-for-byte for jury-package.spec.ts.
 export function JuryPackageEmpty({
   onInitiate,
   pending,
@@ -31,44 +41,50 @@ export function JuryPackageEmpty({
   const hardError = error instanceof Error && !noEligible ? error : null;
 
   return (
-    <div
-      className="rounded border border-dashed p-8 text-center"
-      data-testid="jury-package-empty"
-    >
-      <h2 className="text-lg font-semibold text-gray-800">No jury package started yet</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-gray-600">
+    <div className={styles.container} data-testid="jury-package-empty">
+      <h2 className={styles.heading}>No jury package started yet</h2>
+      <p className={styles.body}>
         A jury package is the authoritative handoff list of admitted exhibits. Viewing
         this screen does not start one — a deputy, clerk, or administrator must
         explicitly initiate it.
       </p>
 
       {noEligible && (
-        <p className="mt-3 text-sm text-gray-600" data-testid="jury-no-eligible">
+        <p className={styles.noEligible} data-testid="jury-no-eligible">
           No admitted exhibits yet — there is nothing to package until at least one
           exhibit is admitted.
         </p>
       )}
 
       {canInitiate ? (
-        <button
-          type="button"
-          data-testid="jury-initiate"
-          className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-          onClick={onInitiate}
-          disabled={pending}
-        >
-          {pending ? 'Initiating…' : 'Initiate jury package'}
-        </button>
+        <div className={styles.action}>
+          <Button
+            kind="primary"
+            type="button"
+            data-testid="jury-initiate"
+            onClick={onInitiate}
+            disabled={pending}
+          >
+            {pending ? 'Initiating…' : 'Initiate jury package'}
+          </Button>
+        </div>
       ) : (
-        <p className="mt-4 text-sm italic text-gray-500" data-testid="jury-initiate-restricted">
+        <p className={styles.restricted} data-testid="jury-initiate-restricted">
           A deputy, clerk, or administrator must initiate the jury package.
         </p>
       )}
 
       {hardError && (
-        <p className="mt-3 text-sm text-red-600" role="alert">
-          Unable to initiate the jury package — please retry.
-        </p>
+        <div className={styles.hardError}>
+          <InlineNotification
+            kind="error"
+            lowContrast
+            role="alert"
+            hideCloseButton
+            title="Unable to initiate the jury package — please retry."
+            subtitle=""
+          />
+        </div>
       )}
     </div>
   );

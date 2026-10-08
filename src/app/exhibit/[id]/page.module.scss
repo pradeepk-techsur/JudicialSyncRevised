@@ -1,0 +1,19 @@
+// Exhibit Detail page composition styles. Phase 6 replaces the former Tailwind
+// utilities on the back-link and the "History" subheading with Carbon type
+// tokens. The loading/error states move to Carbon InlineLoading /
+// InlineNotification; the ?event= deep-link scroll/highlight logic is unchanged.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.backLink {
+  display: inline-block;
+  margin-bottom: $spacing-05;
+  @include type-style('body-compact-01');
+}
+
+.historyHeading {
+  @include type-style('heading-compact-02');
+  margin-bottom: $spacing-03;
+  color: $text-primary;
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "./globals.scss";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/shell/AppShell";
 

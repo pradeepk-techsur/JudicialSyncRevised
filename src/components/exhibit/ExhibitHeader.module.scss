@@ -1,0 +1,26 @@
+// Exhibit Detail header block styles. Phase 6 swaps the former Tailwind
+// `rounded border p-4` wrapper for a Carbon `Tile`; this module supplies the
+// Carbon-token spacing/typography for the heading and the status/custodian meta
+// row that was `flex flex-wrap items-center gap-4 text-sm`.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.tile {
+  margin-bottom: $spacing-06;
+}
+
+.heading {
+  @include type-style('heading-03');
+  margin-bottom: $spacing-03;
+  color: $text-primary;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-05;
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}

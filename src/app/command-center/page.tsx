@@ -5,6 +5,7 @@ import { RecentActivityPanel } from '@/components/command-center/RecentActivityP
 import { ObjectionsPanel } from '@/components/command-center/ObjectionsPanel';
 import { DiscrepanciesPanel } from '@/components/command-center/DiscrepanciesPanel';
 import { FreshnessIndicator } from '@/components/command-center/FreshnessIndicator';
+import styles from './page.module.scss';
 
 // F8 — Trial Command Center (UX Screen-00): the ambient, zero-config, strictly
 // read-only glance screen and the default landing. Composes the full-width Recent
@@ -22,15 +23,15 @@ export default function CommandCenterPage() {
 
   return (
     <div data-testid="command-center">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Trial Command Center</h1>
+      <div className={styles.header}>
+        <h1 className={styles.title}>Trial Command Center</h1>
         <FreshnessIndicator
           dataUpdatedAt={activity.dataUpdatedAt}
           isFetching={activity.isFetching}
         />
       </div>
       <RecentActivityPanel query={activity} />
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className={styles.lowerRow}>
         <ObjectionsPanel />
         <DiscrepanciesPanel />
       </div>

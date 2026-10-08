@@ -1,0 +1,25 @@
+// The shared "not found" render for a genuinely-missing exhibit AND a
+// sealed-unauthorized one — byte-identical content is an anti-enumeration
+// requirement (T-06-13), so this stays intentionally plain, matching a real
+// 404's calm tone. Phase 6 only replaces the Tailwind utility classes
+// (`text-xl font-semibold`, `text-sm text-gray-500`) with Carbon type tokens.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.heading {
+  @include type-style('heading-03');
+  color: $text-primary;
+}
+
+.body {
+  @include type-style('body-compact-01');
+  margin-top: $spacing-03;
+  color: $text-secondary;
+}
+
+.link {
+  display: inline-block;
+  margin-top: $spacing-05;
+  @include type-style('body-compact-01');
+}

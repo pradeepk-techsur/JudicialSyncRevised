@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { Tile, SkeletonText, ActionableNotification } from '@carbon/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { RecentActivityEntry } from '@/services/activity';
+import styles from './RecentActivityPanel.module.scss';
 
 // F8 Command Center — Recent Activity panel. The full-width TOP panel (UX
 // Screen-00: newest-first, scrollable, NO cap / NO pagination — "scroll, don't
@@ -97,70 +99,60 @@ export function RecentActivityPanel({
   }, []);
 
   return (
-    <section
+    <Tile
       data-testid="recent-activity-panel"
-      className="rounded-lg border bg-white p-4"
       aria-label="Recent activity"
     >
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-700">
+      <h2 className={styles.heading}>
         Recent Activity{' '}
-        <span className="font-normal text-gray-500">({entries.length} today)</span>
+        <span className={styles.count}>({entries.length} today)</span>
       </h2>
 
       {isLoading && (
-        <ul className="space-y-2" aria-hidden="true">
-          {[0, 1, 2, 3].map((i) => (
-            <li key={i} className="h-5 w-full animate-pulse rounded bg-gray-100" />
-          ))}
-        </ul>
-      )}
-
-      {isError && (
-        <div className="text-sm text-red-600" role="alert">
-          Unable to load trial activity — please retry.{' '}
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="font-medium underline hover:no-underline"
-          >
-            Retry
-          </button>
+        <div aria-hidden="true">
+          <SkeletonText paragraph lineCount={4} width="100%" />
         </div>
       )}
 
+      {isError && (
+        <ActionableNotification
+          kind="error"
+          lowContrast
+          inline
+          hideCloseButton
+          role="alert"
+          title="Unable to load trial activity — please retry"
+          actionButtonLabel="Reload"
+          onActionButtonClick={() => refetch()}
+        />
+      )}
+
       {!isLoading && !isError && entries.length === 0 && (
-        <p className="text-sm text-gray-500">No activity recorded yet today.</p>
+        <p className={styles.empty}>No activity recorded yet today.</p>
       )}
 
       {!isLoading && !isError && entries.length > 0 && (
-        <ul
-          data-testid="recent-activity-list"
-          className="max-h-96 divide-y divide-gray-100 overflow-y-auto"
-        >
+        <ul data-testid="recent-activity-list" className={styles.list}>
           {entries.map((e) => (
             <li
               key={e.eventId}
-              className={`transition-colors duration-500 ${
-                highlighted.has(e.eventId) ? 'bg-amber-50' : 'bg-transparent'
-              }`}
+              className={`${styles.row} ${highlighted.has(e.eventId) ? styles.highlighted : ''}`}
             >
               <Link
                 href={`/exhibit/${e.exhibitId}?event=${e.eventId}`}
                 data-testid="recent-activity-row"
-                className="flex items-baseline gap-2 px-1 py-2 text-sm hover:bg-gray-50"
+                className={styles.link}
               >
-                <span className="text-gray-400" aria-hidden="true">
+                <span className={styles.bullet} aria-hidden="true">
                   ●
                 </span>
-                <span className="flex-1 text-gray-800">{e.summary}</span>
-                <span className="shrink-0 text-xs text-gray-400">
-                  {formatTime(e.recordedAt)}
-                </span>
+                <span className={styles.summary}>{e.summary}</span>
+                <span className={styles.time}>{formatTime(e.recordedAt)}</span>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Tile>
   );
 }

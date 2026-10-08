@@ -1,0 +1,51 @@
+// F11 Jury Package — FINALIZED read-only view styles. Phase 6 replaces the
+// Tailwind utilities with Carbon tokens. CRITICAL: this component relies on the
+// 06-01-preserved GLOBAL print selectors `.jury-print-root` / `.no-print`
+// (src/app/globals.scss) — those class names live on the JSX directly, NOT here,
+// so the global @media print rules still apply. This module reimplements the
+// former `hidden print:block` Tailwind variant as a local `.printOnly` class:
+// hidden on screen, shown only when printing.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Print-only handoff header — hidden on screen, revealed only when printing.
+// (Replaces Tailwind's `hidden print:block print:mb-4`, which disappears with
+// Tailwind itself in 06-09.)
+.printOnly {
+  display: none;
+}
+
+@media print {
+  .printOnly {
+    display: block;
+    margin-bottom: $spacing-05;
+  }
+}
+
+.printCaseLine {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.printTitle {
+  @include type-style('heading-03');
+  font-weight: 700;
+  color: $text-primary;
+}
+
+.table {
+  margin-top: $spacing-05;
+}
+
+.label {
+  @include type-style('body-compact-01');
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.actions {
+  margin-top: $spacing-06;
+  display: flex;
+  gap: $spacing-04;
+}

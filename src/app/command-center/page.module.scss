@@ -1,0 +1,30 @@
+// F8 — Trial Command Center page composition styles. Carbon typography/spacing
+// tokens + a simple CSS-grid 2-column lower row (matching the former Tailwind
+// `md:grid-cols-2` breakpoint) for Objections / Discrepancies.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/breakpoint' as *;
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-05;
+}
+
+.title {
+  @include type-style('heading-03');
+  color: $text-primary;
+}
+
+.lowerRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: $spacing-05;
+  margin-top: $spacing-05;
+
+  @include breakpoint('md') {
+    grid-template-columns: 1fr 1fr;
+  }
+}
