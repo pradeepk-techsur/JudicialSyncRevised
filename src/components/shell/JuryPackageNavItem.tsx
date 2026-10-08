@@ -24,7 +24,11 @@ export function JuryPackageNavItem() {
     <SideNavLink as={Link} href="/jury-package" data-testid="nav-jury-package">
       Jury Package
       {openCount > 0 && (
+        // SideNavLink wraps children in <SideNavLinkText> (a <span>), and a
+        // non-interactive Carbon Tag defaults to a block <div>, which is invalid
+        // nested inside a <span>. Render the pill as an inline <span> via `as`.
         <Tag
+          as="span"
           type="red"
           size="sm"
           data-testid="jury-count-badge"
