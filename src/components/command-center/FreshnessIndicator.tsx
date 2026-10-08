@@ -1,6 +1,7 @@
 'use client';
 
 import { useFreshness } from '@/hooks/useFreshness';
+import styles from './FreshnessIndicator.module.scss';
 
 // F8 Command Center — freshness indicator (UX: tertiary, top-right, small type).
 // Pure formatter over useFreshness: it is driven by the screen's freshness anchor
@@ -20,7 +21,7 @@ export function FreshnessIndicator({
   return (
     <span
       data-testid="freshness-indicator"
-      className="inline-flex items-center gap-1.5 text-xs text-gray-400"
+      className={styles.indicator}
       aria-live="polite"
     >
       <span aria-hidden="true">🕐</span>
@@ -30,10 +31,7 @@ export function FreshnessIndicator({
         <span>updated {secondsAgo}s ago</span>
       )}
       {isFetching && secondsAgo !== null && (
-        <span
-          className="h-1.5 w-1.5 animate-pulse rounded-full bg-gray-300"
-          aria-hidden="true"
-        />
+        <span className={styles.dot} aria-hidden="true" />
       )}
     </span>
   );
