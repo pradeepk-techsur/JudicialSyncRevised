@@ -2,46 +2,87 @@
 phase: 6
 status: issues_found
 blockers: 0
-warnings: 3
-files_reviewed: 32
+warnings: 1
+files_reviewed: 12
 files_reviewed_list:
-  - src/app/assistant/page.tsx
-  - src/app/case/page.tsx
-  - src/app/command-center/page.tsx
-  - src/app/exhibit/[id]/page.tsx
-  - src/app/globals.scss
-  - src/app/layout.tsx
-  - src/components/StatusBadge.tsx
-  - src/components/assistant/AssistantPanel.tsx
-  - src/components/assistant/AssistantThread.tsx
-  - src/components/assistant/CitationPill.tsx
-  - src/components/assistant/ExampleChips.tsx
-  - src/components/assistant/MessageBubble.tsx
-  - src/components/case/DiscrepancyBadge.tsx
-  - src/components/case/ExhibitTable.tsx
-  - src/components/case/SearchFilterBar.tsx
-  - src/components/command-center/DiscrepanciesPanel.tsx
-  - src/components/command-center/FreshnessIndicator.tsx
-  - src/components/command-center/ObjectionsPanel.tsx
-  - src/components/command-center/RecentActivityPanel.tsx
-  - src/components/exhibit/DiscrepancyBanner.tsx
-  - src/components/exhibit/ExhibitHeader.tsx
-  - src/components/exhibit/ExhibitNotFound.tsx
-  - src/components/exhibit/Timeline.tsx
   - src/components/jury/AcknowledgeInline.tsx
-  - src/components/jury/JuryPackageDraft.tsx
-  - src/components/jury/JuryPackageEmpty.tsx
-  - src/components/jury/JuryPackageFinalized.tsx
-  - src/components/shell/AppShell.tsx
-  - src/components/shell/Header.tsx
+  - src/components/jury/AcknowledgeInline.module.scss
+  - src/components/case/SearchFilterBar.tsx
+  - src/components/case/SearchFilterBar.module.scss
+  - src/components/case/ExhibitTable.tsx
+  - src/components/case/ExhibitTable.module.scss
+  - src/app/case/page.tsx
+  - src/app/case/page.module.scss
+  - src/components/case/DiscrepancyBadge.tsx
+  - src/components/case/DiscrepancyBadge.module.scss
   - src/components/shell/JuryPackageNavItem.tsx
-  - src/components/shell/Sidebar.tsx
-  - src/lib/utils.ts
+  - src/app/jury-package/page.tsx
 reviewed_at: 2026-10-08T00:00:00Z
-iteration: 1
+iteration: 2
 ---
 
-# Phase 6 Code Review
+# Phase 6 Code Review — Iteration 2
+
+## Iteration 2 verdict (re-review of W1/W2/W3 + N1)
+
+Scope: iteration-1 `files_reviewed_list` restricted to the fixer-touched files
+(AcknowledgeInline.tsx + .module.scss, SearchFilterBar.tsx + .module.scss,
+ExhibitTable.tsx + .module.scss, app/case/page.tsx + .module.scss,
+DiscrepancyBadge.tsx + .module.scss, JuryPackageNavItem.tsx, jury-package/page.tsx).
+Verified fixer commits 348a410 (W1), 95694a7 (W2), 53a38b7 (W3).
+
+- **W1 — FIXED (verified at source).** All four W1 files now carry only CSS-Module
+  class references; the 18 dead Tailwind utilities are gone. New co-located modules
+  (`AcknowledgeInline.module.scss`, `SearchFilterBar.module.scss`,
+  `ExhibitTable.module.scss`, `app/case/page.module.scss`) rebuild the amber
+  bordered container + two flex rows, the flex filter/chip rows + field widths, the
+  clickable-row affordance, and the muted captions using Carbon theme/spacing/type/
+  color tokens. A repo-wide grep for Tailwind utility `className`s across `src/**/*.tsx`
+  now returns exactly two matches — both N1 (see W1-followup) — and `tsc --noEmit`
+  passes (exit 0). No regression.
+- **W2 — FIXED (verified at source).** The multi-flag branch no longer passes
+  `title` to the Carbon `Tag`; the tooltip now lives on a plain inline-block
+  `<span title={sentence} className={styles.multiWrapper}>` wrapping the Tag
+  (DiscrepancyBadge.tsx:77-93, `.multiWrapper` in the module). Every data-* /
+  aria-label the e2e spec asserts (`data-testid`, `data-discrepancy-status`,
+  `data-discrepancy-count`, `aria-label`) still renders on the Tag. No regression.
+  (Note: `SearchFilterBar` passes `title` to `DismissibleTag`, not `Tag` — that is a
+  real, non-reserved prop on `DismissibleTag` (verified `DismissibleTag.d.ts:65`),
+  so it is NOT a reintroduction of the W2 defect.)
+- **W3 — FIXED (verified at source).** The count pill is now `<Tag as="span" …>`
+  (JuryPackageNavItem.tsx:30-38), so a `<span>` renders inside SideNavLinkText's
+  `<span>` instead of a block `<div>`. `data-testid="jury-count-badge"` and the
+  aria-label are unchanged. No regression.
+- **N1 — STILL PRESENT → folded into W1 as a follow-up WARNING below.** The two dead
+  Tailwind classes in `src/app/jury-package/page.tsx:23,27` remain (grep-confirmed as
+  the only two remaining Tailwind `className`s in `src/`). Same cosmetic class as W1.
+
+### Observation (out of phase-6 diff scope — NOT a finding): persistent e2e DB state
+Running the full Playwright suite in this workspace currently shows **3 failures**
+(`case-workspace-discrepancies` P-2, P-3; `jury-package` full-flow). Root cause is
+**persistent backend database state**, not the phase-6 diff:
+- P-2/P-3 assert `data-discrepancy-status="OPEN"` but the server now returns
+  `ACKNOWLEDGED` (the failure log shows the Tag faithfully rendering the server's
+  `ACKNOWLEDGED` status with all data-* attributes intact). The jury full-flow test
+  then times out on `jury-acknowledge-trigger` because there is nothing left to
+  acknowledge — the gate is already clear.
+- These fail even running the discrepancy spec **in isolation with `--workers=1`**,
+  so it is not inter-spec worker bleed; it is accumulated DB mutation.
+- `playwright.config` has **no `globalSetup` and no DB reset/seed** in its
+  `webServer` command (`npm run dev` only); the Prisma DB persists across runs and
+  `npm run seed` must be run manually. A prior run of the jury flow wrote the
+  acknowledgements that now poison re-runs.
+- The three fixer commits touch **only** `.module.scss` + presentational `.tsx`
+  (`git diff --name-only 348a410^ 53a38b7` = components/pages + modules, zero
+  hook/api/route/seed/prisma files), and every asserted selector still resolves.
+  So this is **not a regression from the fixes and not a defect in the styling diff**
+  — it is a test-harness state-reset gap pre-dating this phase. Recommend reseeding
+  (`npm run seed`) before the gate re-runs; flagged here for the orchestrator, not
+  classified as a phase-6 BLOCKER/WARNING.
+
+---
+
+# Phase 6 Code Review (iteration 1, retained below)
 
 Phase 6 migrates the UI from Tailwind/shadcn to IBM Carbon Design System. Non-goal:
 any change to functionality, data behavior, API routes, or Playwright-asserted
@@ -83,6 +124,29 @@ Playwright-asserted selector, consistent with the green phase gate.
 None.
 
 ## WARNINGs
+
+> **Iteration-2 status:** W1, W2, W3 all **FIXED** (verified at source — see the
+> Iteration 2 verdict above). The one open WARNING carried into iteration 2 is **W4**
+> (formerly N1), the last two dead Tailwind classes in `jury-package/page.tsx`.
+
+### W4 (was N1): Two dead Tailwind classes remain in `src/app/jury-package/page.tsx` (same cosmetic class as W1, outside W1's original file list)
+- **File:** src/app/jury-package/page.tsx:23,27
+- **Category:** bug (styling regression — advisory)
+- **Status:** OPEN (not addressed by commits 348a410/95694a7/53a38b7).
+- **Evidence:** The loading state `<p className="text-sm text-gray-500">Loading jury
+  package…</p>` (line 23) and the error state `<p className="text-sm text-red-600">…</p>`
+  (line 27) are live Tailwind utilities that compile to no CSS after the wave 06-09
+  Tailwind-pipeline removal — identical in kind to W1. A repo-wide grep confirms these
+  are now the ONLY two remaining Tailwind `className`s in `src/`, so fixing them makes
+  the 06-09 "zero Tailwind references across src/" claim finally hold. Impact is purely
+  cosmetic: the two transient status lines lose their small-muted / red-error styling
+  and render as default body text. No functionality, data, or Playwright-asserted
+  selector is involved (both are plain `<p>` text with no testid), so this is advisory,
+  not blocking — a WARNING, consistent with the styling-only migration framing.
+- **Fix direction:** Add a co-located `jury-package/page.module.scss` with a muted
+  caption class (`$text-secondary`, `body-compact-01`) and an error class
+  (`$text-error`) mirroring the W1 modules, and replace the two Tailwind strings — same
+  pattern already applied to `app/case/page.tsx`.
 
 ### W1: Dead Tailwind utility classes left on Carbon-migrated elements after the Tailwind pipeline was removed
 - **File:** src/components/jury/AcknowledgeInline.tsx:38,53,56,61,84; src/components/case/SearchFilterBar.tsx:31,32,42,74,96,101,102; src/components/case/ExhibitTable.tsx:20,45,50; src/app/case/page.tsx:26,37
