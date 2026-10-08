@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { TextArea, Button } from '@carbon/react';
 
 const MAX_JUSTIFICATION = 500;
 
@@ -11,6 +12,13 @@ const MAX_JUSTIFICATION = 500;
 // (the acknowledge mutation); the PARENT invalidates/refetches so the row restyles
 // to muted "Ack'd" from LIVE server state and the finalize gate re-enables. The
 // server's 422 JUSTIFICATION_REQUIRED is the backstop, shown inline if returned.
+//
+// Phase 6 swaps only the rendering layer: the hand-rolled <textarea>/<button>
+// markup becomes Carbon `TextArea` + `Button`. All four data-testids, the live
+// counter (aria-live="polite"), the 500-char maxLength cap, the trim-then-empty
+// canConfirm gate (T-06-04), and the compact inline (non-modal) shape are
+// preserved byte-for-byte — exercised transitively by jury-package.spec.ts and
+// exhibit-detail.spec.ts via the Wave 3 screens that mount this component.
 export function AcknowledgeInline({
   onConfirm,
   onCancel,
@@ -28,19 +36,20 @@ export function AcknowledgeInline({
 
   return (
     <div className="mt-2 rounded border border-amber-200 bg-amber-50/50 p-2" data-testid="acknowledge-inline">
-      <label className="block text-xs font-medium text-amber-900">
-        Justification (required)
-        <textarea
-          data-testid="acknowledge-textarea"
-          className="mt-1 w-full rounded border border-amber-300 bg-white p-1.5 text-sm text-gray-900"
-          rows={2}
-          maxLength={MAX_JUSTIFICATION}
-          value={value}
-          disabled={pending}
-          onChange={(e) => setValue(e.target.value.slice(0, MAX_JUSTIFICATION))}
-          placeholder="Why is this discrepancy acceptable for the jury package?"
-        />
-      </label>
+      {/* Carbon TextArea forwards rest props (data-testid, maxLength, value,
+          disabled) onto its inner <textarea>, so the testid lands on the element
+          the Wave 3 specs target. */}
+      <TextArea
+        id="acknowledge-justification"
+        labelText="Justification (required)"
+        data-testid="acknowledge-textarea"
+        rows={2}
+        maxLength={MAX_JUSTIFICATION}
+        value={value}
+        disabled={pending}
+        onChange={(e) => setValue(e.target.value.slice(0, MAX_JUSTIFICATION))}
+        placeholder="Why is this discrepancy acceptable for the jury package?"
+      />
       <div className="mt-1 flex items-center justify-between">
         <span
           data-testid="acknowledge-counter"
@@ -50,23 +59,25 @@ export function AcknowledgeInline({
           {value.length}/{MAX_JUSTIFICATION}
         </span>
         <div className="flex gap-2">
-          <button
+          <Button
+            kind="ghost"
+            size="sm"
             type="button"
-            className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
             onClick={onCancel}
             disabled={pending}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            kind="primary"
+            size="sm"
             type="button"
             data-testid="acknowledge-confirm"
-            className="rounded bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => canConfirm && onConfirm(trimmed)}
             disabled={!canConfirm}
           >
             {pending ? 'Acknowledging…' : 'Confirm'}
-          </button>
+          </Button>
         </div>
       </div>
       {error && (
