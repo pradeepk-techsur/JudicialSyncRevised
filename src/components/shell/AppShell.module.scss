@@ -20,6 +20,14 @@
   display: flex;
   flex: 1 1 auto;
   overflow: hidden;
+  // Carbon's `isFixedNav` SideNav is position: fixed and takes ZERO flow width,
+  // so without this offset the main region would start at x=0 *underneath* the
+  // 16rem rail — the rail's fixed overlay then intercepts pointer events on any
+  // content at the top-left of <main> (e.g. the Exhibit Detail back-link). Push
+  // the flow row right by the rail width so main content clears it. (At the
+  // SideNav's own responsive collapse breakpoint the rail overlays by design;
+  // the app runs the rail always-expanded, so a static offset is correct.)
+  padding-left: 16rem;
 }
 
 .main {
