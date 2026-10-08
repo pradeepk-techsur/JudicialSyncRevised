@@ -1,16 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { Tag } from '@carbon/react';
 import type { Citation } from '@/hooks/useAssistantChat';
+import styles from './CitationPill.module.scss';
 
 // =============================================================================
 // CitationPill — the visible proof behind the never-ungrounded guarantee.
 //
-// Renders a single citation as a monospace, bordered, INLINE pill
+// Renders a single citation as a small, bordered, INLINE pill
 // `[RecordLabel · RecordType · Timestamp]` (CONTEXT.md pill format; Y0-patterns
-// Citation Pill). The pill is a LINK that deep-links into the cited exhibit's
-// Exhibit Detail View — ALL citation types land on `/exhibit/:exhibitId`
-// (CONTEXT.md), the single screen showing every record type for an exhibit.
+// Citation Pill, annotated in Phase 6 as "implemented as a clickable Carbon
+// Tag"). The pill is a LINK that deep-links into the cited exhibit's Exhibit
+// Detail View — ALL citation types land on `/exhibit/:exhibitId` (CONTEXT.md),
+// the single screen showing every record type for an exhibit.
+//
+// CARBON MIGRATION (Phase 6): the visible chip is now a Carbon `Tag` (gray, sm),
+// wrapped in a Next.js `<Link>` so the pill is a REAL `<a>` in the DOM tab order
+// (Y2-accessibility.md: "Citation pills are real `<a>`/button elements in the DOM
+// tab order, never a styled `<span>`"). Carbon's `Tag` renders a `<div>` by
+// itself, so wrapping it in `<Link>` is the composition that preserves both the
+// Carbon visual treatment AND keyboard reachability. All data-* attributes live
+// on the `<Link>` (the anchor the test locators target).
 //
 // It reads `citation.exhibitId` and `citation.eventId` DIRECTLY off the object
 // (surfaced by the hook from 04-03's wire contract) — it does NOT re-derive the
@@ -54,16 +65,21 @@ export function CitationPill({ citation }: { citation: Citation }) {
       data-record-type={citation.recordType}
       data-exhibit-id={citation.exhibitId}
       data-event-id={citation.eventId ?? ''}
-      // Bordered, small, monospace, clearly inline and SECONDARY to the answer
-      // text (never louder than the answer — information-hierarchy rule).
-      className="mx-0.5 inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5 align-baseline font-mono text-[11px] leading-tight text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+      // Real <a> in the tab order; the Carbon Tag inside provides the visual
+      // pill treatment. The link stays SECONDARY to the answer text
+      // (information-hierarchy rule — never louder than the answer).
+      className={styles.pillLink}
       aria-label={`Citation: ${citation.label}, ${citation.recordType}, ${timeToken}. View source record.`}
     >
-      <span className="font-semibold">[{citation.label}</span>
-      <span aria-hidden="true">·</span>
-      <span>{typeToken}</span>
-      <span aria-hidden="true">·</span>
-      <span>{timeToken}]</span>
+      <Tag type="gray" size="sm" className={styles.pillTag}>
+        <span className={styles.pillContent}>
+          <span className={styles.pillLabel}>[{citation.label}</span>
+          <span aria-hidden="true">·</span>
+          <span>{typeToken}</span>
+          <span aria-hidden="true">·</span>
+          <span>{timeToken}]</span>
+        </span>
+      </Tag>
     </Link>
   );
 }
