@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Jury Package + Discrepancy Detection** - Automated cross-domain discrepancy flags gating jury package finalization, surfaced on the Jury Package Workspace (completed 2026-10-07)
 - [x] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline (completed 2026-10-07)
 - [x] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens (completed 2026-10-08)
+- [ ] **Phase 6: Carbon Design System UI Upgrade** - Replace the Tailwind/shadcn visual foundation and every screen's components with IBM Carbon Design System, across all 5 shipped phases
 
 ## Phase Details
 
@@ -115,10 +116,21 @@ Plans:
 - [ ] 05-02-PLAN.md — Live-sync tuning: refetchOnWindowFocus enabled globally + three independent 4s polling hooks (useRecentActivity/useUnresolvedObjections/useDiscrepancies) + useFreshness primitive
 - [ ] 05-03-PLAN.md — Command Center screen: three ambient read-only panels + freshness indicator + fade-in, sidebar activation (first/default), / → /command-center redirect, sealed-safe panels, Playwright E2E (read-only, sealed absence, multi-tab live update, error isolation)
 
+### Phase 6: Carbon Design System UI Upgrade
+
+**Goal:** [To be planned] — Replace the Tailwind/shadcn visual foundation and every existing screen's components with IBM Carbon Design System (carbondesignsystem.com), across all 5 shipped phases, with no change in underlying functionality or data behavior.
+**Status**: Not planned yet
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /pivota_spec-plan-phase 6 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -127,3 +139,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
+| 6. Carbon Design System UI Upgrade | 0/TBD | Not planned yet | — |

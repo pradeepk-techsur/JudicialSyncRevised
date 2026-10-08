@@ -978,7 +978,7 @@ This stack is adopted directly from the PRD (§4 Technical Architecture) and cor
 | AI/Assistant SDK | Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`) | current (Oct 2026 dist-tags) | Tool-calling + streaming chat (`streamText`, `tool()`, `useChat`) for the Pivota Assistant |
 | LLM Provider | Anthropic (via `@ai-sdk/anthropic`) | — | Server-side tool-calling model; swappable to `@ai-sdk/openai` with no architecture change (AI SDK provider abstraction) |
 | Validation | zod | 3.x | Validates API request bodies, tool-call arguments, and `ExhibitEvent.payload` discriminated-union shapes before any Prisma write |
-| UI components | shadcn/ui + Tailwind CSS | current | Consistent, accessible component layer across all screens (status badges, timelines, chat panel) |
+| UI components | IBM Carbon Design System (`@carbon/react`) | current | Consistent, accessible, enterprise-grade component layer across all screens (status badges, timelines, chat panel) — WCAG 2.1 AA conformant by default |
 | Server-state/caching | `@tanstack/react-query` | 5.x | Polling-based live sync (3–5s refetch interval + refetch-on-focus) across Command Center, Case Workspace, Exhibit Detail, Jury Package |
 | Client state | zustand | 4.x/5.x | Lightweight client state for the role switcher and chat-panel UI state |
 | Hosting | Vercel | — | Single deployable artifact hosting UI, API routes, and the assistant route together |
@@ -1010,7 +1010,7 @@ This stack is adopted directly from the PRD (§4 Technical Architecture) and cor
 | `zod` | Schema validation for API payloads, tool-call arguments, and ledger event payloads |
 | `@tanstack/react-query` | Query caching + polling-based live sync |
 | `zustand` | Role-switcher state + lightweight UI state |
-| `tailwindcss`, `shadcn/ui` (CLI-generated components, not an npm runtime dependency in the traditional sense) | Styling and accessible component primitives |
+| `@carbon/react`, `@carbon/styles`, `@carbon/icons-react` | Carbon component library, design tokens/SCSS theming, and icon set |
 | `@neondatabase/serverless` (optional, if using Neon's HTTP/WebSocket driver) | Serverless-friendly Postgres connectivity from Vercel's runtime, as an alternative/complement to a standard pooled TCP connection via Prisma |
 
 ### 6.5 Explicitly Avoided Dependencies

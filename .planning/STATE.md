@@ -83,6 +83,10 @@ Progress: [██████████] 100%
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 6 added: Carbon Design System UI Upgrade - replace Tailwind/shadcn foundation and all screens with IBM Carbon Design System (carbondesignsystem.com) across every shipped phase
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.

@@ -66,6 +66,7 @@ Traceability levels covered in this document:
 | Y1: Consolidated REST API Catalog | TechArch §4 API Design (§4.1–§4.12) |
 | Y2: Cross-Feature Error Catalog | TechArch §4.11 Common Response Envelope; per-feature error tables throughout §4 |
 | Y3: Integrations | TechArch §7 Integration Points (External Services, Internal Triggers, Live Sync, Seed Loader) |
+| Y4: Design System Migration (Phase 6) | TechArch §5 Tech Stack (UI components → IBM Carbon Design System); UX-Mockup Interaction Patterns (Carbon component attribution, Phase 6 design-system note) |
 
 ---
 

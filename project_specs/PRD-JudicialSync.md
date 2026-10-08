@@ -52,7 +52,7 @@ Specific pain points this demo targets:
 | ORM | Prisma | Type-safe queries over the exhibit/objection/ruling/custody graph |
 | AI/Assistant | Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`) | Tool-calling + streaming chat for the Pivota Assistant |
 | Validation | zod | Validates tool-call arguments and API payloads before they reach Prisma |
-| UI components | shadcn/ui + Tailwind CSS | Consistent, accessible component layer across screens |
+| UI components | IBM Carbon Design System (`@carbon/react`) | Consistent, accessible component layer across screens |
 | Client state/data | @tanstack/react-query, zustand | Server-state caching and lightweight client state |
 | Data model pattern | Append-only event ledger + current-state projection | Ground-truth history (status/objection/ruling/custody changes) with fast-read derived views |
 | Service layer | Single typed service module (`getExhibits`, `getCustodian`, `getUnresolvedObjections`, `recordEvent`, etc.) | Sole entry point for both UI screens and assistant tool wrappers — no parallel retrieval path |
@@ -227,6 +227,7 @@ Specific pain points this demo targets:
 - **Demo reliability:** The seeded demo scenario must run start-to-finish without manual data entry or environment fragility, since it will be presented live or recorded for court customers.
 - **Non-technical usability:** All screens and assistant interactions must be understandable to non-technical judges and court staff — clarity and trustworthiness of answers matter more than technical sophistication or feature density.
 - **Realistic seed data complexity:** Seed data must include deliberate edge cases (unresolved objections, custody gaps, jury-package discrepancies) — overly clean seed data would make discrepancy detection undemonstrable.
+- **Design-system foundation:** All screens are built on IBM Carbon Design System as the single component/visual-language foundation, providing accessibility-conformant components and a consistent enterprise visual language across every screen.
 
 ---
 
