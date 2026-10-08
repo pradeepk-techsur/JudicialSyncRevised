@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { SideNav, SideNavItems, SideNavLink } from '@carbon/react';
 import { JuryPackageNavItem } from './JuryPackageNavItem';
