@@ -7,6 +7,10 @@
 
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/theme' as *;
+// $button-primary is a component token, not a theme token — it is NOT exported
+// by scss/theme, so it must be pulled from the button component tokens.
+// (06-07 Rule 3 unblock for 06-08's broken commit 7be9a64 — see deferred-items.md)
+@use '@carbon/styles/scss/components/button/tokens' as *;
 
 $bubble-radius: 0.5rem;
 $bubble-max-width: 80%;
@@ -21,7 +25,7 @@ $bubble-max-width: 80%;
   max-width: $bubble-max-width;
   padding: $spacing-03 $spacing-04;
   border-radius: $bubble-radius;
-  background: $button-primary;
+  background: $interactive;
   color: $text-on-color;
   font-size: 0.875rem;
 }
