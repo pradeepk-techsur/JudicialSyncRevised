@@ -3,8 +3,8 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-10-08T02:20:32.147Z"
+stopped_at: Completed 06-05-PLAN.md
+last_updated: "2026-10-08T02:20:54.575Z"
 last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 6
@@ -96,6 +96,7 @@ Progress: [████████░░] 83%
 | Phase 06-carbon-design-system-ui-upgrade P07 | 18 min | 3 tasks | 10 files |
 | Phase 06-carbon-design-system-ui-upgrade P04 | 3 min | 3 tasks | 3 files |
 | Phase 06-carbon-design-system-ui-upgrade P06 | 4 min | 3 tasks | 6 files |
+| Phase 06-carbon-design-system-ui-upgrade P05 | 9 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -197,6 +198,8 @@ Recent decisions affecting current work:
 - [Phase 06-04]: Case Workspace (F9) + Exhibit Search (F4) migrated to Carbon Table/Search/Dropdown/TextInput/DismissibleTag/Button; static Table (not DataTable), Dropdown (not Select) for role=option status items, TextInput type=date (not DatePicker); removes last consumers of shadcn ui/{table,input,select,button} (unblocks 06-09)
 - [Phase 06-04]: [Rule 1] Carbon Dropdown titleText must differ from its aria-label or getByLabel strict-mode-collides with the aria-labelledby'd listbox — set titleText='Status', aria-label='Filter by status'
 - [Phase 06-06]: Jury Package Workspace (F11) migrated Tailwind->Carbon: Empty->Carbon container/Button + InlineNotification error; Draft->Carbon static Table + native-disabled Finalize Button + InlineNotification error (409 stale-blockers); Finalized->InlineNotification success + Table + Buttons. Consumes StatusBadge/DiscrepancyBadge/AcknowledgeInline unchanged. Hard-disabled gate (disabled={hasOpen||finalizePending}, literal <button disabled>, US-11.2) and jury-print-root/no-print print CSS preserved; Tailwind print: variant reimplemented as CSS Module .printOnly @media print. Full jury-package.spec 3/3 green; tsc+build EXIT=0; 0 deviations; no out-of-scope unblocks needed.
+- [Phase 06-05]: Exhibit Detail migrated to Carbon: ExhibitHeader→Tile, Timeline kept semantic <ol aria-label='Exhibit history timeline'> with id={event-${eventId}} anchors preserved byte-for-byte (3-plan deep-link contract) + warning-token highlight, DiscrepancyBanner→Carbon yellow-token surface, page loading/error→InlineLoading/InlineNotification; consumes Wave 2 StatusBadge/AcknowledgeInline unchanged; full exhibit-detail.spec.ts 4/4 green
+- [Phase 06-05]: [Rule 1 bug] Fixed app-wide shell layout: Carbon isFixedNav SideNav (position:fixed, 0 flow width) overlaid <main> at x=0, intercepting the top-left back-link click; added padding-left:16rem to AppShell .body so main clears the rail. app-shell 6/6 + command-center 7/7 re-verified green
 
 ### Pending Todos
 
@@ -212,6 +215,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-08T02:20:32.145Z
-Stopped at: Completed 06-06-PLAN.md
+Last session: 2026-10-08T02:20:54.574Z
+Stopped at: Completed 06-05-PLAN.md
 Resume file: None
