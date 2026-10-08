@@ -1,0 +1,52 @@
+// F11 Jury Package — explicit empty-state container styles. Phase 6 replaces the
+// former Tailwind `rounded border border-dashed p-8 text-center` treatment with a
+// Carbon-token dashed-border "empty state" card. Carbon ships no dedicated
+// empty-state primitive, so this is a Carbon-token-styled container reading as the
+// same "nothing started yet" affordance.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.container {
+  border: 1px dashed $border-strong;
+  border-radius: 0.25rem;
+  padding: $spacing-07;
+  text-align: center;
+  background-color: $layer-01;
+}
+
+.heading {
+  @include type-style('heading-03');
+  color: $text-primary;
+}
+
+.body {
+  margin: $spacing-03 auto 0;
+  max-width: 28rem;
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.noEligible {
+  margin-top: $spacing-03;
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.restricted {
+  margin-top: $spacing-05;
+  @include type-style('body-compact-01');
+  font-style: italic;
+  color: $text-helper;
+}
+
+.action {
+  margin-top: $spacing-05;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.hardError {
+  margin-top: $spacing-05;
+  text-align: left;
+}
