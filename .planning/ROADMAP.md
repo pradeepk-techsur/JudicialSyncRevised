@@ -101,7 +101,7 @@ Plans:
 
 ### Phase 5: Trial Command Center + Live Sync
 **Goal**: A judge or deputy can glance at one ambient screen at any point during live proceedings and immediately see the trial's current state — with zero configuration — and that screen, along with every other open screen, reflects new activity within the demo's live-sync window without a manual refresh.
-**Status**: Awaiting verify
+**Status**: In progress
 **Depends on**: Phase 4
 **Requirements**: F8
 **Success Criteria** (what must be TRUE):
@@ -126,4 +126,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
-| 5. Trial Command Center + Live Sync | 0/3 | Awaiting verify | - |
+| 5. Trial Command Center + Live Sync | 0/3 | In progress | - |
