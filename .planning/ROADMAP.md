@@ -118,14 +118,22 @@ Plans:
 
 ### Phase 6: Carbon Design System UI Upgrade
 
-**Goal:** [To be planned] — Replace the Tailwind/shadcn visual foundation and every existing screen's components with IBM Carbon Design System (carbondesignsystem.com), across all 5 shipped phases, with no change in underlying functionality or data behavior.
-**Status**: Not planned yet
-**Requirements**: TBD
+**Goal:** Every screen across all 5 shipped phases (Command Center, Case Workspace, Exhibit Detail, Jury Package, Pivota Assistant) renders on IBM Carbon Design System components and tokens instead of Tailwind/shadcn, with zero change to underlying functionality, data behavior, API routes, or the existing 36-test Playwright suite's asserted behaviors.
+**Status**: Planned (2026-10-08)
+**Requirements**: Y4 (cross-cutting, tracked in RTM.md — no F-numbered requirement; this phase migrates rendering/styling only)
 **Depends on:** Phase 5
-**Plans:** 0 plans
+**Plans:** 9 plans (4 waves)
 
 Plans:
-- [ ] TBD (run /pivota_spec-plan-phase 6 to break down)
+- [ ] 06-01-PLAN.md — Carbon dependencies + Sass build pipeline (globals.scss, preserved print CSS, next.config.ts) — wave 1 foundation
+- [ ] 06-02-PLAN.md — Shared StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button — wave 2
+- [ ] 06-03-PLAN.md — App shell (Header/Sidebar/JuryPackageNavItem) → Carbon UI Shell + native Select role switcher — wave 2
+- [ ] 06-04-PLAN.md — Case Workspace (ExhibitTable/SearchFilterBar) → Carbon Table/Search/Dropdown/DismissibleTag — wave 3
+- [ ] 06-05-PLAN.md — Exhibit Detail (Header/Timeline/DiscrepancyBanner/NotFound) → Carbon Tile + semantic timeline — wave 3
+- [ ] 06-06-PLAN.md — Jury Package (Draft/Empty/Finalized) → Carbon Table/Button(native-disabled)/InlineNotification — wave 3
+- [ ] 06-07-PLAN.md — Command Center (3 panels + freshness) → Carbon Tile/SkeletonText/InlineNotification/Tag — wave 2
+- [ ] 06-08-PLAN.md — Pivota Assistant (panel/thread/bubbles/citations) → Carbon Tag/TextInput/InlineNotification/Loading — wave 2
+- [ ] 06-09-PLAN.md — Cleanup: remove Tailwind/shadcn/lucide-react/cn/@base-ui/react, full build+test+Playwright regression gate — wave 4
 
 ## Progress
 
@@ -139,4 +147,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
-| 6. Carbon Design System UI Upgrade | 0/TBD | Not planned yet | — |
+| 6. Carbon Design System UI Upgrade | 0/9 | Planned | — |
