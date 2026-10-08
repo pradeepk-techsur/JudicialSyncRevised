@@ -1,0 +1,78 @@
+// F8 Command Center — Recent Activity panel styles. Carbon-token-based
+// replacements for the former Tailwind utility classes. The new-row fade-in
+// highlight (behavior unchanged — see RecentActivityPanel.tsx) now uses Carbon's
+// warning-support token instead of Tailwind `bg-amber-50`.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.heading {
+  @include type-style('heading-compact-01');
+  margin-bottom: $spacing-05;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: $text-primary;
+}
+
+.count {
+  font-weight: 400;
+  color: $text-secondary;
+}
+
+.list {
+  max-height: 24rem;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  // Transient new-row highlight target. The default (transparent) state and the
+  // highlighted state are both applied here; the transition gives the ~400ms
+  // fade matching Phase 4's Timeline deep-link highlight.
+  transition: background-color 500ms ease;
+  border-top: 1px solid $border-subtle;
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.highlighted {
+  background-color: $support-warning;
+}
+
+.link {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-02;
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+}
+
+.bullet {
+  color: $icon-secondary;
+}
+
+.summary {
+  flex: 1 1 auto;
+  color: $text-primary;
+}
+
+.time {
+  flex-shrink: 0;
+  @include type-style('label-01');
+  color: $text-helper;
+}
+
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
