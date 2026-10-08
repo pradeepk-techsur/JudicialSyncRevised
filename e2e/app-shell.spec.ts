@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('App shell', () => {
-  test('home redirects to /case', async ({ page }) => {
+  test('home redirects to /command-center', async ({ page }) => {
+    // Phase 5 (05-03) made the Command Center the default landing — / now
+    // redirects to /command-center (was /case).
     await page.goto('/');
-    await expect(page).toHaveURL(/\/case$/);
+    await expect(page).toHaveURL(/\/command-center$/);
   });
 
   test('header shows the seeded case number and defaults the role switcher to a JUDGE persona', async ({ page }) => {
@@ -44,15 +46,20 @@ test.describe('App shell', () => {
     await expect(page.getByTestId('assistant-panel')).toHaveAttribute('data-open', 'true');
   });
 
-  test('sidebar shows Case Workspace, Jury Package and Assistant as live links, Command Center as the sole disabled placeholder', async ({ page }) => {
+  test('sidebar shows Command Center (first), Case Workspace, Jury Package and Assistant as live links', async ({ page }) => {
     await page.goto('/case');
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
-    // Phase 2 + Phase 3 + Phase 4 live routes.
+    // Phase 5 (05-03) activated Command Center as the FIRST live nav item — there
+    // is no longer any disabled placeholder.
+    await expect(nav.getByRole('link').first()).toHaveText(/Command Center/);
+    await expect(nav.getByRole('link', { name: 'Command Center' })).toHaveAttribute(
+      'href',
+      '/command-center',
+    );
+    // Phase 2 + Phase 3 + Phase 4 live routes preserved (non-regression).
     await expect(nav.getByRole('link', { name: 'Case Workspace' })).toBeVisible();
     await expect(nav.getByRole('link', { name: /Jury Package/ })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Assistant' })).toHaveAttribute('href', '/assistant');
-    // Phase 5 remains the sole disabled placeholder.
-    await expect(nav.getByText('Command Center')).toHaveAttribute('aria-disabled', 'true');
   });
 
   test('landmark roles are present', async ({ page }) => {

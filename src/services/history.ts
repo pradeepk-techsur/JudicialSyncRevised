@@ -80,7 +80,7 @@ interface DiscrepancyAcknowledgedPayload {
  * Render a raw ledger event into a plain-language summary. `nameOf` resolves a
  * userId to a display name (null → "(none)").
  */
-function summarizeEvent(
+export function summarizeEvent(
   eventType: EventType,
   payload: unknown,
   nameOf: (userId: string | null | undefined) => string | null,
