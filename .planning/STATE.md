@@ -3,9 +3,8 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-10-07T21:34:22.055Z"
-last_activity: "2026-10-07 — Completed 05-03-PLAN.md (Trial Command Center screen F8 — FINAL plan): shipped /command-center (default landing) composing RecentActivity (full-width, newest-first, ~400ms fade-in) over a two-column Objections/Discrepancies row + FreshnessIndicator, all read-only (link-through only). Page owns ONE useRecentActivity instance shared with feed+freshness. Discrepancies sealed-filtered by intersecting Phase-3 flags with useExhibitList's role-visible set (absent AND uncounted); objections route now passes parseRequestingRole. Command Center activated first/live in sidebar (Jury Package/Assistant preserved); / → /command-center. [Rule 2] live-sync hooks set retry:false so a failed poll surfaces its independent inline error promptly. 7 new Playwright tests prove all 3 ROADMAP criteria (zero-config panels, multi-tab live-update within one 4s interval, strictly read-only) + sealed absence + per-panel error isolation + link-through; full 36-test E2E suite green, tsc+next build clean. MILESTONE COMPLETE."
+last_updated: "2026-10-08T00:47:01.367Z"
+last_activity: "2026-10-08 — Phase 5 complete"
 progress:
   total_phases: 5
   completed_phases: 5
