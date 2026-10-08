@@ -119,7 +119,7 @@ Plans:
 ### Phase 6: Carbon Design System UI Upgrade
 
 **Goal:** Every screen across all 5 shipped phases (Command Center, Case Workspace, Exhibit Detail, Jury Package, Pivota Assistant) renders on IBM Carbon Design System components and tokens instead of Tailwind/shadcn, with zero change to underlying functionality, data behavior, API routes, or the existing 36-test Playwright suite's asserted behaviors.
-**Status**: Planned (2026-10-08)
+**Status**: In progress
 **Requirements**: Y4 (cross-cutting, tracked in RTM.md — no F-numbered requirement; this phase migrates rendering/styling only)
 **Depends on:** Phase 5
 **Plans:** 9 plans (4 waves)
@@ -147,4 +147,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
-| 6. Carbon Design System UI Upgrade | 0/9 | Planned | — |
+| 6. Carbon Design System UI Upgrade | 0/9 | In progress | — |
