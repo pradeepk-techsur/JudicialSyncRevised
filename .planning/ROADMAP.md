@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Core Screens** - Case Workspace (browse/search) and Exhibit Detail View (full history), reading the Phase 1 service layer (completed 2026-10-07)
 - [x] **Phase 3: Jury Package + Discrepancy Detection** - Automated cross-domain discrepancy flags gating jury package finalization, surfaced on the Jury Package Workspace (completed 2026-10-07)
 - [x] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline (completed 2026-10-07)
-- [ ] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens
+- [x] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens (completed 2026-10-08)
 
 ## Phase Details
 
@@ -101,7 +101,7 @@ Plans:
 
 ### Phase 5: Trial Command Center + Live Sync
 **Goal**: A judge or deputy can glance at one ambient screen at any point during live proceedings and immediately see the trial's current state — with zero configuration — and that screen, along with every other open screen, reflects new activity within the demo's live-sync window without a manual refresh.
-**Status**: Passed
+**Status**: Complete (2026-10-08)
 **Depends on**: Phase 4
 **Requirements**: F8
 **Success Criteria** (what must be TRUE):
@@ -126,4 +126,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Core Screens | 0/TBD | Complete | 2026-10-07 |
 | 3. Jury Package + Discrepancy Detection | 0/TBD | Complete | 2026-10-07 |
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
-| 5. Trial Command Center + Live Sync | 3/3 | Passed | - |
+| 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
