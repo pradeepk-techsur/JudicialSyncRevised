@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-07-PLAN.md
-last_updated: "2026-10-08T02:11:06.879Z"
-last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
+stopped_at: Completed 06-04-PLAN.md
+last_updated: "2026-10-08T02:19:04.736Z"
+last_activity: "2026-10-08 — Completed 06-04-PLAN.md: Case Workspace (F9) + Exhibit Search (F4) → Carbon Table/Search/Dropdown/TextInput/DismissibleTag/Button + InlineLoading/InlineNotification; removes last shadcn ui/{table,input,select,button} consumers (unblocks 06-09); 9/9 case-workspace e2e green, tsc + build clean; 1 [Rule 1] Dropdown label-collision fix; 3 atomic commits (a9270d2, 8207c6e, bbe3bc8)."
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 36
   completed_plans: 33
-  percent: 92
+  percent: 83
 ---
 
 # Project State
@@ -25,8 +25,10 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (Wave 2: 06-02, 06-03, 06-07, 06-08 complete; 06-04/05/06/09 remain)
-Status: 06-07 (Trial Command Center screen F8) complete — RecentActivityPanel/ObjectionsPanel/DiscrepanciesPanel/FreshnessIndicator + page.tsx migrated Tailwind→Carbon (Tile + SkeletonText + ActionableNotification error-kind + Tag type=red count badge). Introduced the codebase's FIRST Carbon-token CSS Modules (@use '@carbon/styles/scss/{theme,spacing,type,breakpoint}') for the new-row fade-in highlight (support-warning), freshness pulse @keyframes, warning-tinted discrepancy header, and the 2-column page grid. Screen stays STRICTLY read-only (zero form/input/textarea); sealed-filtering composition untouched (presentation-only). [Rule 1] error notification collapsed to a single title node + "Reload" action so the per-panel error-isolation test's getByText(/unable to load|retry/i) resolves to ONE element (Carbon ActionableNotification title+subtitle+button otherwise strict-mode-collide). [Rule 3 blocking] on reaching the acceptance gate, HEAD did not compile — concurrent Wave-2 commits (06-08 missing AssistantPanel.module.scss + $button-primary token; 06-03 Sidebar missing 'use client') broke the shell that wraps this screen; made minimal out-of-scope unblocks (logged to deferred-items.md) so the gate could run. Full e2e/command-center.spec.ts 7/7 green; tsc + next build EXIT=0 on merged HEAD. 4 atomic commits (0d1ddba, 5a44545, 0bd2d92, aea0663).
+Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (06-02, 06-03, 06-07, 06-08 complete; 06-04 complete; 06-05/06/09 remain)
+Status: 06-04 (Case Workspace screen F9 + Exhibit Search F4) complete — ExhibitTable → Carbon static Table/TableHead/TableHeader/TableRow/TableBody/TableCell (naming inversion vs shadcn documented in-file: TableHead=<thead>, TableHeader=<th>); SearchFilterBar → Carbon Search (keyword, onClear) + Dropdown (status, NOT Select — renders <li role=option> the test reaches via click; onChange adapted { selectedItem } → same ExhibitFilters shape) + TextInput (witness + two type=date, NOT DatePicker, to avoid interaction drift) + DismissibleTag (per-key chip onClose) + ghost Button (Clear filters); case/page.tsx loading/error → Carbon InlineLoading / InlineNotification kind=error (exact copy + conditional structure preserved). Consumes Wave-2 StatusBadge/DiscrepancyBadge unchanged. This REMOVES the last consumers of shadcn ui/{table,input,select,button} → unblocks 06-09 cleanup. [Rule 1] Dropdown titleText set to 'Status' (distinct from aria-label 'Filter by status') so getByLabel resolves to the combobox only, not Carbon's aria-labelledby'd <ul role=listbox> (strict-mode collision caught by the acceptance suite, fixed, re-run green). Full e2e/case-workspace.spec.ts + case-workspace-discrepancies.spec.ts 9/9 green; tsc + next build EXIT=0. NO out-of-scope unblocks needed — HEAD compiled/built clean this run. 3 atomic commits (a9270d2, 8207c6e, bbe3bc8).
+
+Prior status: 06-07 (Trial Command Center screen F8) complete — RecentActivityPanel/ObjectionsPanel/DiscrepanciesPanel/FreshnessIndicator + page.tsx migrated Tailwind→Carbon (Tile + SkeletonText + ActionableNotification error-kind + Tag type=red count badge). Introduced the codebase's FIRST Carbon-token CSS Modules (@use '@carbon/styles/scss/{theme,spacing,type,breakpoint}') for the new-row fade-in highlight (support-warning), freshness pulse @keyframes, warning-tinted discrepancy header, and the 2-column page grid. Screen stays STRICTLY read-only (zero form/input/textarea); sealed-filtering composition untouched (presentation-only). [Rule 1] error notification collapsed to a single title node + "Reload" action so the per-panel error-isolation test's getByText(/unable to load|retry/i) resolves to ONE element (Carbon ActionableNotification title+subtitle+button otherwise strict-mode-collide). [Rule 3 blocking] on reaching the acceptance gate, HEAD did not compile — concurrent Wave-2 commits (06-08 missing AssistantPanel.module.scss + $button-primary token; 06-03 Sidebar missing 'use client') broke the shell that wraps this screen; made minimal out-of-scope unblocks (logged to deferred-items.md) so the gate could run. Full e2e/command-center.spec.ts 7/7 green; tsc + next build EXIT=0 on merged HEAD. 4 atomic commits (0d1ddba, 5a44545, 0bd2d92, aea0663).
 
 Prior status: 06-03 (app shell migration) complete — AppShell/Header/Sidebar/JuryPackageNavItem now render via Carbon UI Shell (Header/HeaderName/HeaderGlobalBar; role switcher a Carbon Select = real native <select> with aria-label passthrough forcing accessible name 'Switch active role' while the visible label stays 'Role:'; SideNav/SideNavItems/SideNavLink with as={Link} preserving Next.js client-side routing; Ask ✦ a visible-text ghost Button not icon-only HeaderGlobalAction; count pill a Carbon red Tag; no-print preserved; AssistantPanel still mounted ONCE at shell level). Full app-shell.spec.ts green 6/6; npm run build EXIT=0. One [Rule 3 blocking] cross-plan fix: 06-08's committed MessageBubble.module.scss referenced the undefined Carbon button token $button-primary (not forwarded by scss/theme), breaking the shared phase-6 dev-server compile and this plan's acceptance gate → swapped to $interactive. Separately, a pre-existing uncommitted tsc error in RecentActivityPanel.tsx (parallel plan's InlineNotification `actions` prop) is OUT OF SCOPE and logged to deferred-items.md (does not fail next build).
 
@@ -90,6 +92,7 @@ Progress: [████████░░] 83%
 | Phase 06-carbon-design-system-ui-upgrade P03 | 10 min | 3 tasks | 5 files |
 | Phase 06 P08 | 11 min | 3 tasks | 12 files |
 | Phase 06-carbon-design-system-ui-upgrade P07 | 18 min | 3 tasks | 10 files |
+| Phase 06-carbon-design-system-ui-upgrade P04 | 3 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -188,6 +191,8 @@ Recent decisions affecting current work:
 - [Phase 06-08]: Assistant (F7) migrated to Carbon: CitationPill = Carbon Tag INSIDE next/link (Tag alone renders a div, so wrapping keeps a real <a> in the tab order per Y2-accessibility) with all data-*/href/aria-label preserved; ExampleChips = clickable Carbon Tags (real <button>s); unavailable state = Carbon InlineNotification with an explicit role='alert' override (Carbon default is role='status') kept STRUCTURALLY distinct from the decline MessageBubble (T-06-09); slide-over stays a translate-aside CSS Module, NOT Carbon Modal (no focus trap, background stays interactive); full 7-test assistant.spec.ts suite green
 - [Phase 06-08]: [Rule 1 bug] Task 2's MessageBubble.module.scss used $button-primary — a Carbon COMPONENT token (@carbon/styles/scss/components/button/tokens), NOT exported by scss/theme; the global @use '@carbon/react' masked it in some compile paths but it is a real undefined-token error. A concurrent sibling plan hit the same broken HEAD and committed the fix (a57b9c2: add the button/tokens @use, switch to $interactive). Reinforces the STATE.md shared-working-tree hazard — recommend per-plan git worktrees or serialized intra-phase execution
 - [Phase 06-07]: Command Center (F8) migrated to Carbon Tile/SkeletonText/ActionableNotification/Tag; error notification collapsed to a single title node (Reload action) to satisfy the error-isolation test's single-element getByText; Tag type=red count badge; first Carbon-token CSS Modules in the codebase; sealed-filtering composition untouched (presentation-only); full 7-test command-center suite green
+- [Phase 06-04]: Case Workspace (F9) + Exhibit Search (F4) migrated to Carbon Table/Search/Dropdown/TextInput/DismissibleTag/Button; static Table (not DataTable), Dropdown (not Select) for role=option status items, TextInput type=date (not DatePicker); removes last consumers of shadcn ui/{table,input,select,button} (unblocks 06-09)
+- [Phase 06-04]: [Rule 1] Carbon Dropdown titleText must differ from its aria-label or getByLabel strict-mode-collides with the aria-labelledby'd listbox — set titleText='Status', aria-label='Filter by status'
 
 ### Pending Todos
 
@@ -203,6 +208,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-08T02:11:06.877Z
-Stopped at: Completed 06-07-PLAN.md
+Last session: 2026-10-08T02:19:04.734Z
+Stopped at: Completed 06-04-PLAN.md
 Resume file: None
