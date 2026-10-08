@@ -3,9 +3,10 @@ phase: 06
 gate_status: passed
 build_command: "npm run build"
 test_command: "npm test"
-last_updated: 2026-10-08T02:29:44Z
+last_updated: 2026-10-08T02:47:04Z
 tests_disabled_during_fixes: none
 shadowed_sources: 0
+review_blockers_open: 0
 waves:
   - wave: 1
     build: pass
@@ -20,6 +21,10 @@ waves:
     tests: pass
     fix_attempts: 0
   - wave: 4
+    build: pass
+    tests: pass
+    fix_attempts: 0
+  - wave: 5
     build: pass
     tests: pass
     fix_attempts: 0
@@ -510,5 +515,56 @@ Route (app)
 [2m      Tests [22m [1m[32m195 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (198)[39m
 [2m   Start at [22m 02:28:53
 [2m   Duration [22m 44.25s[2m (transform 223ms, setup 0ms, collect 1.47s, tests 40.60s, environment 2ms, prepare 777ms)[22m
+```
+
+## Wave 5
+
+- Build: `npm run build` → pass
+- Tests: `npm test` → pass
+- Fix attempts: 0/3 — final phase regression gate (post code-review fixes W1-W4): build + vitest 195 green; full Playwright 36/36 green after npm run seed reset stale e2e state (reviewer-identified, not a code regression)
+
+### Gate output
+
+```
+Running 36 tests using 1 worker
+
+  ✓   1 e2e/app-shell.spec.ts:4:7 › App shell › home redirects to /command-center (477ms)
+  ✓   2 e2e/app-shell.spec.ts:11:7 › App shell › header shows the seeded case number and defaults the role switcher to a JUDGE persona (393ms)
+  ✓   3 e2e/app-shell.spec.ts:20:7 › App shell › role switcher lists all 6 seeded personas and switching updates the active role (722ms)
+  ✓   4 e2e/app-shell.spec.ts:37:7 › App shell › Ask ✦ button is present and enabled (Phase 4 activates the assistant panel) (563ms)
+  ✓   5 e2e/app-shell.spec.ts:49:7 › App shell › sidebar shows Command Center (first), Case Workspace, Jury Package and Assistant as live links (549ms)
+  ✓   6 e2e/app-shell.spec.ts:65:7 › App shell › landmark roles are present (375ms)
+  ✓   7 e2e/assistant.spec.ts:150:7 › Pivota Assistant › Ask ✦ toggles the panel over any screen without replacing it (663ms)
+  ✓   8 e2e/assistant.spec.ts:167:7 › Pivota Assistant › empty-state chips auto-submit, then disappear (877ms)
+  ✓   9 e2e/assistant.spec.ts:197:7 › Pivota Assistant › grounded answer shows clickable pills that deep-link to the cited event, panel stays open (1.5s)
+  ✓  10 e2e/assistant.spec.ts:261:7 › Pivota Assistant › a Decline is neutral — no pill, no error styling (974ms)
+  ✓  11 e2e/assistant.spec.ts:280:7 › Pivota Assistant › Unavailable ≠ Decline — distinct notice + Try again re-submits the preserved question (criterion 5) (947ms)
+  ✓  12 e2e/assistant.spec.ts:303:7 › Pivota Assistant › sealed-decline via role injection leaks no sealed data (criterion 4) (944ms)
+  ✓  13 e2e/assistant.spec.ts:335:7 › Pivota Assistant › /assistant renders the shared thread and the sidebar link works (735ms)
+  ✓  14 e2e/case-workspace-discrepancies.spec.ts:14:7 › Case Workspace — discrepancy badges › P-2 (custody gap) shows an amber "No custodian on record" badge with visible text (581ms)
+  ✓  15 e2e/case-workspace-discrepancies.spec.ts:28:7 › Case Workspace — discrepancy badges › P-3 (unresolved objection) shows an "Unresolved objection" badge (790ms)
+  ✓  16 e2e/case-workspace-discrepancies.spec.ts:39:7 › Case Workspace — discrepancy badges › P-4 (clean admitted exhibit) shows NO discrepancy badge (691ms)
+  ✓  17 e2e/case-workspace-discrepancies.spec.ts:46:7 › Case Workspace — discrepancy badges › clicking a flagged row navigates to its Exhibit Detail (acknowledge is not inline) (994ms)
+  ✓  18 e2e/case-workspace.spec.ts:4:7 › Case Workspace › default view shows every unsealed exhibit with status, party, witness, custodian (893ms)
+  ✓  19 e2e/case-workspace.spec.ts:14:7 › Case Workspace › JUDGE role sees the sealed exhibit; switching to ATTORNEY hides it with no redacted placeholder (711ms)
+  ✓  20 e2e/case-workspace.spec.ts:29:7 › Case Workspace › combinable AND search narrows results; clearing filters restores the full list (964ms)
+  ✓  21 e2e/case-workspace.spec.ts:47:7 › Case Workspace › empty search bar shows an inline hint, never a hard error (808ms)
+  ✓  22 e2e/case-workspace.spec.ts:53:7 › Case Workspace › clicking a row navigates to its Exhibit Detail View (886ms)
+  ✓  23 e2e/command-center.spec.ts:61:7 › Trial Command Center › opens with zero config showing the three panels and the freshness indicator (1.1s)
+  ✓  24 e2e/command-center.spec.ts:81:7 › Trial Command Center › / redirects to /command-center and the sidebar shows Command Center first (937ms)
+  ✓  25 e2e/command-center.spec.ts:99:7 › Trial Command Center › exposes no record/edit/acknowledge path — link-through only (774ms)
+  ✓  26 e2e/command-center.spec.ts:122:7 › Trial Command Center › a new event recorded in another tab appears within one polling interval, no reload (1.4s)
+  ✓  27 e2e/command-center.spec.ts:168:7 › Trial Command Center › sealed exhibit S-1 is absent from every panel as ATTORNEY, with no redacted indicator (1.0s)
+  ✓  28 e2e/command-center.spec.ts:190:7 › Trial Command Center › a discrepancies 500 shows only that panel inline error; the other two still render (592ms)
+  ✓  29 e2e/command-center.spec.ts:217:7 › Trial Command Center › a Recent Activity row links through to Exhibit Detail with the timeline (1.5s)
+  ✓  30 e2e/exhibit-detail.spec.ts:39:7 › Exhibit Detail View › header shows status/custodian/party/witness above the fold; full timeline renders in order (1.0s)
+  ✓  31 e2e/exhibit-detail.spec.ts:54:7 › Exhibit Detail View › a genuinely nonexistent id and a sealed exhibit under an unauthorized role render the identical not-found page (1.7s)
+  ✓  32 e2e/exhibit-detail.spec.ts:91:7 › Exhibit Detail View › back link returns to /case (903ms)
+  ✓  33 e2e/exhibit-detail.spec.ts:98:7 › Exhibit Detail View › cross-screen parity: status shown here matches the shared service the Case Workspace reads (1.0s)
+  ✓  34 e2e/jury-package.spec.ts:34:7 › Jury Package Workspace › empty state: "no package started yet" renders and viewing creates no draft (1.1s)
+  ✓  35 e2e/jury-package.spec.ts:59:7 › Jury Package Workspace › view-only role (ATTORNEY) sees no finalize/acknowledge controls (554ms)
+  ✓  36 e2e/jury-package.spec.ts:112:7 › Jury Package Workspace › full flow: initiate → hard-disabled gate → acknowledge → gate re-enables → finalize → export (1.3s)
+
+  36 passed (33.0s)
 ```
 
