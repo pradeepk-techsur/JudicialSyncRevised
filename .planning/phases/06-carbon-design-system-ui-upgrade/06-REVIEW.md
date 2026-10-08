@@ -112,6 +112,18 @@ None.
   — most importantly restoring `AcknowledgeInline`'s amber bordered container and
   the two flex rows, and `SearchFilterBar`'s flex filter/chip rows. Then re-verify
   the 06-09 "zero Tailwind references" claim actually holds across `src/`.
+- **Resolution:** fixed (commit for W1). Added co-located CSS Modules
+  (`AcknowledgeInline.module.scss`, `SearchFilterBar.module.scss`,
+  `ExhibitTable.module.scss`, `src/app/case/page.module.scss`) using Carbon
+  theme/spacing/type/color tokens, and replaced all 18 Tailwind utility classes
+  across the four named files with those module classes — restoring the amber
+  bordered container + two flex rows (AcknowledgeInline) and the flex filter/chip
+  rows + field widths (SearchFilterBar). tsc + build green; vitest 195 and
+  Playwright 36 remain green. Note: the "zero Tailwind references across src/"
+  re-verification surfaced TWO MORE dead Tailwind classes NOT in this finding's
+  file list — `src/app/jury-package/page.tsx:23,27`
+  (`text-sm text-gray-500` / `text-sm text-red-600`). These were left untouched
+  (out of W1's enumerated scope) and are recorded below for re-review.
 
 ### W2: Multi-flag DiscrepancyBadge drops its `title` hover tooltip (reserved Carbon Tag prop)
 - **File:** src/components/case/DiscrepancyBadge.tsx:81
@@ -130,6 +142,14 @@ None.
   `<span title={sentence}>` around the Tag, or the Tag's child span) rather than
   passing `title` to the Tag, so the mouse-hover affordance returns without
   colliding with Carbon's reserved prop.
+- **Resolution:** fixed (commit for W2). Verified the claim at source
+  (`Tag.js`: `title` is destructured out of props and only re-applied as the
+  dismiss-button aria-label when `filter` is set, so it never reaches the
+  non-filter `<div>`). Wrapped the multi-flag Tag in an inline-block
+  `<span title={sentence}>` (new `.multiWrapper` style) and removed `title` from
+  the Tag. All `data-*`/`aria-label` attributes the e2e spec asserts stay on the
+  Tag; `data-testid="discrepancy-badge"` + `data-discrepancy-status` resolve
+  unchanged through the transparent wrapper. tsc + build + both suites green.
 
 ### W3: Jury-count badge renders a `<div>` inside a `<span>` (invalid nesting)
 - **File:** src/components/shell/JuryPackageNavItem.tsx:27-34
@@ -144,6 +164,26 @@ None.
 - **Fix direction:** Render the count pill as an inline element (e.g. Tag `as="span"`
   or a styled `<span>`), or place it outside `SideNavLinkText` via a renderIcon/
   adjacent node, so a block `<div>` is not nested in the link-text `<span>`.
+- **Resolution:** fixed (commit for W3). Verified Carbon Tag honors
+  `ComponentTag = BaseComponent ?? (...)` (`Tag.js`), so `as="span"` renders a
+  `<span>` instead of the default `<div>`. Set `as="span"` on the count Tag so
+  the pill is a valid inline element inside SideNavLinkText's `<span>`;
+  `data-testid="jury-count-badge"` and `aria-label` unchanged (no e2e asserts
+  this badge). tsc + build + both suites green.
+
+## Newly-discovered defects (for re-review — NOT fixed in this pass)
+
+### N1: Two more dead Tailwind classes in `src/app/jury-package/page.tsx` (same class as W1, outside W1's file list)
+- **File:** src/app/jury-package/page.tsx:23,27
+- **Category:** bug (styling regression)
+- **Evidence:** The loading state `<p className="text-sm text-gray-500">Loading
+  jury package…</p>` and the error state `<p className="text-sm text-red-600">…`
+  are live Tailwind utility classes that compile to nothing after the wave 06-09
+  pipeline removal — identical in kind to W1, but this file was not among W1's
+  four enumerated files. Left untouched this pass to keep the W1 diff scoped to
+  the named files. The broader 06-09 "zero Tailwind references across src/" claim
+  therefore still does not fully hold until these two are migrated to a
+  Carbon-token CSS Module. Recommend folding into a W1 follow-up.
 
 ## Cross-file seams checked
 - StatusBadge `aria-label="Current status: {Label}"` ↔ exhibit-detail.spec.ts `getByLabel` (Tag forwards aria-label) — OK
