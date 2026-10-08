@@ -3,9 +3,8 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-09-PLAN.md (Phase 6 + milestone complete)
-last_updated: "2026-10-08T02:27:41.725Z"
-last_activity: "2026-10-08 — Completed 06-09-PLAN.md (FINAL cleanup, Wave 4): deleted the entire Tailwind/shadcn pipeline (5 dead ui/* primitives, globals.css, components.json, postcss.config.mjs, src/lib/utils.ts cn re-export), removed 8 unused deps (305 transitive packages pruned). Carbon is the SOLE UI foundation. Full gate green: tsc clean, next build EXIT=0, vitest 195/3-skip/0-fail, playwright 36/36. 0 deviations, 2 atomic commits (ff105e1, 8f50854). PHASE 6 + MILESTONE COMPLETE."
+last_updated: "2026-10-08T03:15:46.150Z"
+last_activity: "2026-10-08 — Phase 6 complete"
 progress:
   total_phases: 6
   completed_phases: 6
