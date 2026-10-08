@@ -2,6 +2,7 @@
 
 import type { Citation } from '@/hooks/useAssistantChat';
 import { CitationPill } from './CitationPill';
+import styles from './MessageBubble.module.scss';
 
 // =============================================================================
 // MessageBubble — one rendered conversation turn (user OR assistant).
@@ -17,8 +18,15 @@ import { CitationPill } from './CitationPill';
 //                  information" must read as a valid answer, never as broken.
 //
 // The 'unavailable' outcome is NEVER a message bubble — it is the error channel,
-// rendered as a distinct system notice by AssistantThread. An error is never a
-// decline (T-04-13).
+// rendered as a distinct system notice (Carbon InlineNotification) by
+// AssistantThread. An error is never a decline (T-04-13).
+//
+// CARBON MIGRATION (Phase 6): Carbon has no chat-bubble primitive, so the bubble
+// shape stays a custom CSS Module (per plan context) — but it now uses Carbon's
+// color/spacing/radius THEME TOKENS instead of Tailwind utility classes
+// (bg-blue-600 / bg-gray-100). The decline bubble shares the EXACT same assistant
+// bubble class as grounded (`.assistantBubble`) minus the citation list — no new
+// red/warning styling for decline (Decline-as-Valid-Response).
 //
 // Answer/label strings are rendered as React text children (auto-escaped), never
 // via dangerouslySetInnerHTML (T-04-15 XSS). Status words inside `content` are
@@ -36,10 +44,8 @@ export interface MessageBubbleProps {
 export function MessageBubble({ role, content, citations, outcome }: MessageBubbleProps) {
   if (role === 'USER') {
     return (
-      <div className="flex justify-end" data-testid="message-user">
-        <div className="max-w-[80%] rounded-lg bg-blue-600 px-3 py-2 text-sm text-white">
-          {content}
-        </div>
+      <div className={styles.userRow} data-testid="message-user">
+        <div className={styles.userBubble}>{content}</div>
       </div>
     );
   }
@@ -48,19 +54,19 @@ export function MessageBubble({ role, content, citations, outcome }: MessageBubb
   // the grounded styling MINUS pills (neutral, never an error treatment).
   return (
     <div
-      className="flex justify-start"
+      className={styles.assistantRow}
       data-testid="message-assistant"
       data-outcome={outcome}
     >
-      <div className="max-w-[80%] rounded-lg bg-gray-100 px-3 py-2">
+      <div className={styles.assistantBubble}>
         {/* Answer text — rendered verbatim, auto-escaped, highest contrast. */}
-        <p className="whitespace-pre-wrap text-sm text-gray-900">{content}</p>
+        <p className={styles.answerText}>{content}</p>
 
         {/* Grounded answers carry their citation pills inline, in order. A
             decline renders NO pills (zero citations) — the distinguishing mark
             between the two outcomes. */}
         {outcome === 'grounded' && citations.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1" data-testid="citation-list">
+          <div className={styles.citationList} data-testid="citation-list">
             {citations.map((c) => (
               <CitationPill key={`${c.recordType}:${c.recordId}`} citation={c} />
             ))}
