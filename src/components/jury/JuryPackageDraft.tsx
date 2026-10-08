@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import {
+  Button,
+  InlineNotification,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@carbon/react';
 import type { Role } from '@prisma/client';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DiscrepancyBadge } from '@/components/case/DiscrepancyBadge';
@@ -14,6 +24,7 @@ import {
   type JuryPackageExhibitView,
 } from '@/hooks/useJuryPackage';
 import { resolveFlagId, type CaseDiscrepancyFlag } from '@/hooks/useDiscrepancyCount';
+import styles from './JuryPackageDraft.module.scss';
 
 // Roles permitted to ACT (finalize/acknowledge) on the jury package. View-only
 // roles (JUDGE for finalize is excluded — only DEPUTY/CLERK/ADMIN finalize; but
@@ -31,7 +42,8 @@ function relativeTime(fromMs: number): string {
 // The "updated Xs ago" freshness label ticks every second. It is isolated in its
 // OWN component so its 1s re-render never re-renders the table rows (which would
 // detach the inline acknowledge controls mid-interaction — a real usability bug
-// in addition to a test-flakiness one).
+// in addition to a test-flakiness one). Phase 6 restyles its text with Carbon
+// tokens but keeps this isolation property exactly as today.
 function FreshnessIndicator({ dataUpdatedAt }: { dataUpdatedAt: number }) {
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -39,7 +51,7 @@ function FreshnessIndicator({ dataUpdatedAt }: { dataUpdatedAt: number }) {
     return () => clearInterval(t);
   }, []);
   return (
-    <span className="text-xs text-gray-400" data-testid="jury-freshness">
+    <span className={styles.freshness} data-testid="jury-freshness">
       updated {relativeTime(dataUpdatedAt)}
     </span>
   );
@@ -116,10 +128,10 @@ export function JuryPackageDraft({
 
   return (
     <div data-testid="jury-package-draft">
-      <div className="mb-4 flex items-center justify-between">
+      <div className={styles.header}>
         <div>
-          <h1 className="text-xl font-semibold">Jury Package — Draft</h1>
-          <p className="mt-1 text-sm text-gray-600" data-testid="jury-summary">
+          <h1 className={styles.title}>Jury Package — Draft</h1>
+          <p className={styles.summary} data-testid="jury-summary">
             {summary}
           </p>
         </div>
@@ -127,63 +139,60 @@ export function JuryPackageDraft({
       </div>
 
       {staleBlockers && (
-        <div
-          className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"
-          role="alert"
-          data-testid="jury-stale-banner"
-        >
-          <p className="font-medium">Cannot finalize — discrepancies reopened.</p>
-          <p className="mt-1">
-            The following exhibit(s) have unresolved discrepancies and must be resolved or
-            acknowledged first:{' '}
-            <span className="font-medium">
-              {staleBlockers.map((b) => b.exhibitLabel).join(', ')}
-            </span>
-            .
-          </p>
+        <div className={styles.staleBanner}>
+          <InlineNotification
+            kind="error"
+            lowContrast
+            role="alert"
+            hideCloseButton
+            data-testid="jury-stale-banner"
+            title="Cannot finalize — discrepancies reopened."
+            subtitle={`The following exhibit(s) have unresolved discrepancies and must be resolved or acknowledged first: ${staleBlockers
+              .map((b) => b.exhibitLabel)
+              .join(', ')}.`}
+          />
         </div>
       )}
 
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b text-left text-xs uppercase tracking-wide text-gray-500">
-            <th className="px-2 py-2">Label</th>
-            <th className="px-2 py-2">Status</th>
-            <th className="px-2 py-2">Discrepancy</th>
-            {canAcknowledge && <th className="px-2 py-2">Actions</th>}
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableHeader>Label</TableHeader>
+            <TableHeader>Status</TableHeader>
+            <TableHeader>Discrepancy</TableHeader>
+            {canAcknowledge && <TableHeader>Actions</TableHeader>}
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {exhibits.map((row) => {
             const rowOpenFlags = row.flags.filter((f) => f.status === 'OPEN');
             const isBlocking = rowOpenFlags.length > 0;
             return (
-              <tr
+              <TableRow
                 key={row.exhibitId}
                 data-testid="jury-exhibit-row"
                 data-exhibit-label={row.exhibitLabel}
                 data-blocking={isBlocking ? 'true' : 'false'}
-                className="border-b align-top"
               >
-                <td className="px-2 py-2 font-medium">{row.exhibitLabel}</td>
-                <td className="px-2 py-2">
+                <TableCell className={styles.label}>{row.exhibitLabel}</TableCell>
+                <TableCell>
                   <StatusBadge status={row.currentStatus} />
-                </td>
-                <td className="px-2 py-2">
+                </TableCell>
+                <TableCell>
                   {row.flags.length > 0 ? (
                     <DiscrepancyBadge flags={row.flags} />
                   ) : (
-                    <span className="text-xs text-gray-400">Clean</span>
+                    <span className={styles.clean}>Clean</span>
                   )}
-                </td>
+                </TableCell>
                 {canAcknowledge && (
-                  <td className="px-2 py-2">
+                  <TableCell>
                     {rowOpenFlags.length > 0 && (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex gap-2">
+                      <div className={styles.actionCell}>
+                        <div className={styles.actionRow}>
                           <Link
                             href={`/exhibit/${row.exhibitId}`}
-                            className="text-xs text-blue-600 hover:underline"
+                            className={styles.fixLink}
                             data-testid="jury-fix-link"
                           >
                             Fix →
@@ -193,7 +202,7 @@ export function JuryPackageDraft({
                               key={f.ruleCode}
                               type="button"
                               data-testid="jury-acknowledge-trigger"
-                              className="text-xs text-amber-700 hover:underline"
+                              className={styles.ackTrigger}
                               onClick={() =>
                                 setAckTarget({ exhibitId: row.exhibitId, ruleCode: f.ruleCode })
                               }
@@ -221,44 +230,41 @@ export function JuryPackageDraft({
                         )}
                       </div>
                     )}
-                  </td>
+                  </TableCell>
                 )}
-              </tr>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
 
-      <div className="mt-6">
+      <div className={styles.finalizeBlock}>
         {canFinalize ? (
           <>
-            <button
+            <Button
+              kind="primary"
               type="button"
               data-testid="jury-finalize"
-              className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500"
               disabled={hasOpen || finalizePending}
               onClick={() => onFinalize(juryPackage.id)}
             >
               {finalizePending ? (
-                <span className="inline-flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"
-                    aria-hidden="true"
-                  />
+                <span className={styles.finalizingLabel}>
+                  <span className={styles.spinner} aria-hidden="true" />
                   Finalizing…
                 </span>
               ) : (
                 'Finalize jury package'
               )}
-            </button>
+            </Button>
             {hasOpen && (
-              <p className="mt-2 text-xs text-gray-500" data-testid="jury-finalize-caption">
+              <p className={styles.finalizeCaption} data-testid="jury-finalize-caption">
                 Resolve or acknowledge all open discrepancies to finalize.
               </p>
             )}
           </>
         ) : (
-          <p className="text-sm italic text-gray-500" data-testid="jury-finalize-restricted">
+          <p className={styles.finalizeRestricted} data-testid="jury-finalize-restricted">
             Only a deputy, clerk, or administrator may finalize the jury package.
           </p>
         )}
