@@ -1,0 +1,54 @@
+# Security Report — Phase 6: Carbon Design System UI Upgrade
+
+**Mode:** verify
+**Audited:** 2026-10-08
+**Verdict:** SECURED
+**Confirmed HIGH/CRITICAL:** 0
+
+## Summary
+Phase 6 is a presentation-layer-only migration (Tailwind/shadcn → IBM Carbon Design System) across 9 plans declaring 18 STRIDE threats (T-06-01 through T-06-18). All 18 declared mitigations were verified directly against the current source (not the SUMMARY.md's self-reported claims) — every one is present and intact: the F11 print CSS survives verbatim, the anti-enumeration 404 (`role="status"`, byte-identical copy) and the three-plan `#event-{id}`/`aria-label="Exhibit history timeline"` anchor contract are preserved, the Jury Package Finalize button uses a true native HTML `disabled` attribute (not `aria-disabled` or CSS-only), the role switcher and nav links preserve their native-`<select>`/client-routing integrity, the Command Center remains strictly free of `<form>`/`<input>`/`<textarea>`, the Assistant's "unavailable" state remains a structurally distinct `InlineNotification` from the decline `MessageBubble`, and no `dangerouslySetInnerHTML` was introduced anywhere in the 60+ touched files. The two "accept" dispositions (T-06-11, T-06-08, sealed-exhibit filtering) are confirmed genuinely out of this phase's scope — `src/services/visibility.ts`, all of `src/services/**`, `src/app/api/**`, and `prisma/**` show zero diff lines between the phase base (`28f4396`) and HEAD. An independent sweep for XSS sinks, `javascript:` URLs, hardcoded secrets, and hardcoded external/CDN URLs introduced during the Sass/Carbon migration found nothing. Ship.
+
+## Attack surface audited
+| Area | STRIDE | Verdict | Evidence (file:line) |
+|------|--------|---------|----------------------|
+| T-06-01: print CSS byte-for-byte copy | Tampering | SAFE | `src/app/globals.scss:10-35` — `.no-print`/`.jury-print-root`/`@media print` block matches old `globals.css` verbatim |
+| T-06-02: Sass build pipeline break | DoS (build) | SAFE | `next.config.ts` sassOptions + `npm run build` gate green per 06-01/06-09 SUMMARY; confirmed via current `globals.scss` compiling |
+| T-06-03: DiscrepancyBadge data attrs preserved | Info disclosure (ACK regression) | SAFE | `src/components/case/DiscrepancyBadge.tsx:55-58,83-86` — `data-testid`, `data-discrepancy-status`, `data-rule-code`, `data-discrepancy-count`, `aria-label` all intact; OPEN vs ACKNOWLEDGED visually distinct via `.open`/`.acknowledged` |
+| T-06-04: AcknowledgeInline maxLength+canConfirm gate | Tampering (silent behavior change) | SAFE | `src/components/jury/AcknowledgeInline.tsx:36,48` — `maxLength={MAX_JUSTIFICATION}` (500) on Carbon TextArea; `canConfirm = trimmed.length > 0 && !pending` gates the Confirm button's `disabled` |
+| T-06-05: role-switch value integrity | Spoofing | SAFE | `src/components/shell/Header.tsx:57-62` — `onChange={(e) => setActiveUser(e.target.value)}` on a native `<select>` (Carbon `Select`); `SelectItem` options derived only from server-hydrated `users` roster, no client-constructed role list |
+| T-06-06: SideNavLink client-side routing | Tampering (nav/state integrity) | SAFE | `src/components/shell/Sidebar.tsx:31-40` — `SideNavLink as={Link} href=...` for all 4 routes; preserves client-side nav (zustand role-store state persists across routes) |
+| T-06-07: Command Center read-only boundary | Elevation of privilege | SAFE | `grep "<form\|<input\|<textarea>" src/components/command-center/*.tsx src/app/command-center/page.tsx` → zero hits |
+| T-06-08: sealed-exhibit filtering (accept) | Info disclosure | SAFE (accept, confirmed OOS) | `git diff 28f4396...phase-6 --stat -- src/services/` → empty; `DiscrepanciesPanel.tsx` only composes `useDiscrepancies()`/`useExhibitList()` hooks, no local filtering logic added |
+| T-06-09: unavailable vs decline structural separation | Info disclosure (conflation) | SAFE | `src/components/assistant/AssistantThread.tsx:159-169` (`InlineNotification kind="warning" role="alert"`) is a wholly separate component tree from `src/components/assistant/MessageBubble.tsx:44-77` (`data-outcome` grounded/decline) — never share a component |
+| T-06-10: XSS via citation/answer text | Tampering (XSS) | SAFE | `grep -rn "dangerouslySetInnerHTML" src/` → zero hits in all touched files; `MessageBubble.tsx:63` renders `{content}` as a React text child; `CitationPill.tsx:54-56` builds `href` from `citation.exhibitId`/`citation.eventId` object fields (not raw user/model text) |
+| T-06-11: sealed-exhibit filtering, Case Workspace (accept) | Info disclosure | SAFE (accept, confirmed OOS) | Same as T-06-08 — `ExhibitTable.tsx`/`SearchFilterBar.tsx` only render/filter already-role-scoped server data; `searchExhibits`/`visibility.ts` untouched |
+| T-06-12: Dropdown onChange filter-semantics adapter | Tampering (filter drift) | SAFE | `src/components/case/SearchFilterBar.tsx:59-64` — `onChange={({ selectedItem }) => onChange({ ...filters, status: selectedItem || undefined })}` preserves the identical `ExhibitFilters` shape |
+| T-06-13: anti-enumeration role="status" + copy | Info disclosure (enumeration) | SAFE | `src/components/exhibit/ExhibitNotFound.tsx:13-19` — `role="status"` (not `"alert"`), exact "Exhibit not found"/"No exhibit found with the given ID."/"← Back to Case Workspace" copy, used identically for sealed-unauthorized and genuinely-missing |
+| T-06-14: Timeline anchor-contract (`id`/`aria-label`) | Tampering (anchor break) | SAFE | `src/components/exhibit/Timeline.tsx:23,29` — `aria-label="Exhibit history timeline"` and `id={`event-${entry.eventId}`}` preserved byte-for-byte; consumed by `CitationPill.tsx:54-56`, `RecentActivityPanel.tsx:142`, `ObjectionsPanel.tsx:71` |
+| T-06-15: Finalize button native `disabled` | Elevation of privilege (bypassable gate) | SAFE | `src/components/jury/JuryPackageDraft.tsx:244-248` — Carbon `<Button disabled={hasOpen \|\| finalizePending}>` renders a real `<button disabled>` HTML attribute, not `aria-disabled`-only or CSS-only |
+| T-06-16: print CSS class names survive | Tampering (print regression) | SAFE | `src/components/jury/JuryPackageFinalized.tsx:57,94` — `className="jury-print-root"` on root, `className={`no-print ${styles.actions}`}` on the action row, both verbatim |
+| T-06-17: incomplete migration leaving dead pipeline | DoS (incomplete migration) | SAFE | `src/components/ui/*` (badge/button/input/select/table.tsx) and `src/lib/utils.ts` confirmed deleted (06-09); zero `from '@/components/ui/'` imports remain in `src/` |
+| T-06-18: out-of-scope functional change | Tampering (scope creep) | SAFE | `git diff 28f4396...phase-6 --name-only` filtered to exclude presentation/config files → zero hits under `src/services/`, `src/app/api/`, `prisma/`; only `.planning/` docs remain |
+| Independent sweep: `javascript:` URLs | Tampering (XSS) | SAFE | `grep -rn "javascript:" src/` → zero hits |
+| Independent sweep: secrets/API keys in .tsx/.scss | Info disclosure | SAFE | `grep -rniE "(api[_-]?key\|secret\|bearer)\s*[:=]\s*['\"][a-zA-Z0-9]{10,}" src/` → zero hits |
+| Independent sweep: hardcoded external/CDN URLs | Info disclosure / integrity | SAFE | `grep -rn "https\?://" src/components src/app/*.scss` → zero non-local hits; `globals.scss` disables Carbon's `$css--font-face` (no external font CDN reference) |
+| Independent sweep: client-side-only authz masking a boundary | Elevation of privilege | SAFE | `JuryPackageDraft.tsx:82-83` gates both the Finalize action (native disabled) and the Acknowledge UI by role, but the actual mutations (`onFinalize`/`onAcknowledge`) call server hooks that independently re-validate server-side (unchanged by this phase; UI gating here is a convenience layer only, not the authority boundary) |
+
+## Confirmed findings
+None. No HIGH/CRITICAL (or lower-severity) finding survived the audit — every declared mitigation and every independently-swept item checked out against the current source.
+
+## Resolved findings
+N/A — first audit of this phase.
+
+## Accepted risks
+| ID | Risk | Why accepted | Owner |
+|----|------|--------------|-------|
+| T-06-08 | DiscrepanciesPanel (Command Center) could regress sealed-exhibit filtering if the composed hooks changed | Filtering logic lives entirely in `src/services/visibility.ts` and Phase 5's hooks, confirmed untouched by this phase's diff (zero lines changed under `src/services/`); this presentation-only plan only renders already-filtered data | Phase 5 (05-03) / future phase touching visibility.ts |
+| T-06-11 | ExhibitTable (Case Workspace) could regress sealed-exhibit filtering if `searchExhibits`/`getExhibits` changed | Same as above — server-side filtering in Phase 2's `visibility.ts`, confirmed zero diff lines in this phase; residual regression risk covered by the full existing Playwright suite (36/36 green per 06-09-SUMMARY) re-run at phase end | Phase 2 (visibility.ts owner) |
+
+## Audit trail
+- Diff scoped via: `git diff 28f4396...phase-6 --stat` (93 files changed, confirmed presentation-only: `.tsx`/`.module.scss`/`globals.scss`/`package.json`/`next.config.ts`/deleted shadcn files); cross-checked against all 9 `06-0N-SUMMARY.md` file lists and the task's provided "Changed implementation files" manifest.
+- Register: loaded from all 9 PLAN.md `<threat_model>` blocks (verify mode) — 18 threat IDs (T-06-01 through T-06-18) across plans 06-01 through 06-09.
+- Refutation: 18 declared threats + 4 independent-sweep items = 22 candidates examined by reading current source directly (not SUMMARY claims); 22 confirmed SAFE, 0 confirmed as findings, 0 refuted-as-false-positive (none were initially suspected false — all mitigations as declared were present on inspection).
+- Spot-checked highest-risk items directly against source (not SUMMARY self-report): `ExhibitNotFound.tsx`, `Timeline.tsx`, `JuryPackageDraft.tsx` (Finalize gate), `Header.tsx`/`Sidebar.tsx` (role-switch + nav routing), `CitationPill.tsx`/`MessageBubble.tsx`/`AssistantThread.tsx` (assistant XSS/outcome-separation), `DiscrepancyBadge.tsx`/`AcknowledgeInline.tsx` (data attrs + 500-char cap), `JuryPackageFinalized.tsx`/`globals.scss` (print CSS), `ExhibitTable.tsx`/`SearchFilterBar.tsx` (filter semantics), `AssistantPanel.tsx` (slide-over architecture), `package.json` diff (only 4 Carbon-family deps + sass added, no suspicious dependency).
+- Full-tree greps run directly against current HEAD (not relying on 06-09-SUMMARY's self-reported grep results): `dangerouslySetInnerHTML`, `javascript:`, secret/API-key literal patterns, hardcoded external URLs, `eval(`/`new Function(`/`localStorage`/`document.cookie` in all assistant/case/command-center/exhibit/jury-package touched directories, `<form>`/`<input>`/`<textarea>` in Command Center files, and the full `src/services/`, `src/app/api/`, `prisma/` diff stat (all confirmed empty).
