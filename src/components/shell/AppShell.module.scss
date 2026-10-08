@@ -1,0 +1,29 @@
+// The app's product-required shell layout (Y1-responsive.md): a fixed full-height
+// column — Carbon Header on top, then Carbon SideNav + the main content region
+// side-by-side below, with ONLY the main region scrolling. Carbon's own Content
+// grid primitives don't map onto this exact "fixed header, fixed sidebar,
+// independently-scrolling main" shape, so this thin CSS Module owns the frame
+// while the chrome inside it is pure Carbon (expected per the plan, not a sign of
+// under-Carbonifying the shell).
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  // Carbon's UI Shell Header is position: fixed at the top of the viewport; the
+  // standard Carbon shell offsets content below it by the 3rem (48px) header
+  // height. Push the body row down so the fixed header never overlaps it.
+  padding-top: 3rem;
+}
+
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
