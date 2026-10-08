@@ -5,12 +5,12 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { DiscrepancyBadge } from '@/components/case/DiscrepancyBadge';
 import {
   Table,
+  TableHead,
+  TableRow,
+  TableHeader,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+} from '@carbon/react';
 import type { ExhibitListRow } from '@/lib/types';
 
 export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
@@ -22,23 +22,27 @@ export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
 
   return (
     <Table>
-      <TableHeader>
+      {/* Carbon naming note: `TableHead` is the <thead> wrapper (NOT shadcn's
+          per-column <th>), and `TableHeader` is the per-column <th>. This is the
+          one place Carbon's and shadcn's naming conventions invert — verified
+          against @carbon/react's exports at execution time. */}
+      <TableHead>
         <TableRow>
-          <TableHead>Label</TableHead>
-          <TableHead>Description</TableHead>
-          <TableHead>Party</TableHead>
-          <TableHead>Witness</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Custodian</TableHead>
-          <TableHead aria-label="Discrepancy">⚑</TableHead>
+          <TableHeader>Label</TableHeader>
+          <TableHeader>Description</TableHeader>
+          <TableHeader>Party</TableHeader>
+          <TableHeader>Witness</TableHeader>
+          <TableHeader>Status</TableHeader>
+          <TableHeader>Custodian</TableHeader>
+          <TableHeader aria-label="Discrepancy">⚑</TableHeader>
         </TableRow>
-      </TableHeader>
+      </TableHead>
       <TableBody>
         {rows.map((row) => (
           <TableRow
             key={row.exhibitId}
             onClick={() => router.push(`/exhibit/${row.exhibitId}`)}
-            className="cursor-pointer hover:bg-gray-50"
+            className="cursor-pointer"
             data-testid="exhibit-row"
             data-exhibit-label={row.exhibitLabel}
           >
