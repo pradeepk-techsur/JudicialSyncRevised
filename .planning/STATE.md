@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-10-08T02:01:51.334Z"
-last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline migrated to Carbon Tag/TextArea/Button with every data-testid/aria-label/conditional branch preserved byte-for-byte; 3 atomic commits, 0 deviations; tsc EXIT=0 + both CSS Modules compile standalone (phase-wide next build red only from parallel plan 06-08's MessageBubble.module.scss, out of scope)."
+stopped_at: Completed 06-08-PLAN.md
+last_updated: "2026-10-08T02:08:51.659Z"
+last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 36
-  completed_plans: 29
+  completed_plans: 31
   percent: 83
 ---
 
@@ -25,8 +25,10 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (06-02 complete; parallel Wave-2 plans 06-03/06-07/06-08 executing concurrently)
-Status: 06-02 (shared status/discrepancy/acknowledge component migration) complete. Migrated the three cross-screen SHARED presentational components to Carbon primitives 1:1: StatusBadge → Carbon Tag (6 statuses, colored dot preserved via @carbon/colors CSS Module, plain-text null branch, exact aria-label contract); DiscrepancyBadge → warning-styled Carbon Tag (type=gray color-overridden to Carbon $yellow/warning tokens, all data-testids/aria-labels/null/collapse/OPEN-vs-ACK preserved, sr-only→clip-rect class un-hidden at 768px); AcknowledgeInline → Carbon TextArea + Button (all four data-testids, live counter, 500-char cap, trim canConfirm gate preserved). Zero deviations. tsc EXIT=0 across the three files + both CSS Modules compile standalone. Phase-wide `next build` is RED solely due to parallel plan 06-08's committed MessageBubble.module.scss ($button-primary undefined) — out of 06-02 scope, logged to deferred-items.md + Blockers. Next: 06-04/05/06 Wave 3 screens consume these three components unchanged.
+Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (06-02 + 06-03 complete; parallel Wave-2 plans 06-07/06-08 also landing concurrently)
+Status: 06-03 (app shell migration) complete — AppShell/Header/Sidebar/JuryPackageNavItem now render via Carbon UI Shell (Header/HeaderName/HeaderGlobalBar; role switcher a Carbon Select = real native <select> with aria-label passthrough forcing accessible name 'Switch active role' while the visible label stays 'Role:'; SideNav/SideNavItems/SideNavLink with as={Link} preserving Next.js client-side routing; Ask ✦ a visible-text ghost Button not icon-only HeaderGlobalAction; count pill a Carbon red Tag; no-print preserved; AssistantPanel still mounted ONCE at shell level). Full app-shell.spec.ts green 6/6; npm run build EXIT=0. One [Rule 3 blocking] cross-plan fix: 06-08's committed MessageBubble.module.scss referenced the undefined Carbon button token $button-primary (not forwarded by scss/theme), breaking the shared phase-6 dev-server compile and this plan's acceptance gate → swapped to $interactive. Separately, a pre-existing uncommitted tsc error in RecentActivityPanel.tsx (parallel plan's InlineNotification `actions` prop) is OUT OF SCOPE and logged to deferred-items.md (does not fail next build).
+
+Prior status (06-02 — shared status/discrepancy/acknowledge component migration): complete. Migrated the three cross-screen SHARED presentational components to Carbon primitives 1:1: StatusBadge → Carbon Tag (6 statuses, colored dot preserved via @carbon/colors CSS Module, plain-text null branch, exact aria-label contract); DiscrepancyBadge → warning-styled Carbon Tag (type=gray color-overridden to Carbon $yellow/warning tokens, all data-testids/aria-labels/null/collapse/OPEN-vs-ACK preserved, sr-only→clip-rect class un-hidden at 768px); AcknowledgeInline → Carbon TextArea + Button (all four data-testids, live counter, 500-char cap, trim canConfirm gate preserved). Zero deviations. tsc EXIT=0 across the three files + both CSS Modules compile standalone. Phase-wide `next build` is RED solely due to parallel plan 06-08's committed MessageBubble.module.scss ($button-primary undefined) — out of 06-02 scope, logged to deferred-items.md + Blockers. Next: 06-04/05/06 Wave 3 screens consume these three components unchanged.
 Last activity: 2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations.
 
 Progress: [████████░░] 83%
@@ -83,6 +85,8 @@ Progress: [████████░░] 83%
 | Phase 05-trial-command-center-live-sync P03 | 9 min | 3 tasks tasks | 13 files files |
 | Phase 06-carbon-design-system-ui-upgrade P01 | 2 min | 2 tasks | 4 files |
 | Phase 06-carbon-design-system-ui-upgrade P02 | 4 min | 3 tasks | 5 files |
+| Phase 06-carbon-design-system-ui-upgrade P03 | 10 min | 3 tasks | 5 files |
+| Phase 06 P08 | 11 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -176,6 +180,8 @@ Recent decisions affecting current work:
 - [Phase 06-02]: StatusBadge → Carbon Tag (6 statuses) with colored dot preserved inside via @carbon/colors CSS Module; null stays plain muted text (not a status color); exact aria-label='Current status: {Label}' contract kept
 - [Phase 06-02]: DiscrepancyBadge → type='gray' Carbon Tag with color fully overridden to Carbon $yellow/warning tokens via scoped CSS Module (Carbon has no 'amber' Tag type); all data-testids/aria-labels/null/collapse/OPEN-vs-ACK preserved; sr-only md:not-sr-only recreated as clip-rect class un-hidden at 768px
 - [Phase 06-02]: AcknowledgeInline → Carbon TextArea + Button (Carbon forwards data-testid+maxLength onto inner textarea/button); live counter, 500-char cap, trim canConfirm gate kept; error line stays plain <p role=alert> per compact-inline/never-modal constraint
+- [Phase 06-03]: App shell migrated to Carbon UI Shell: Header/HeaderGlobalBar + Carbon Select (real native <select>, aria-label passthrough forces accessible name 'Switch active role' while visible label stays 'Role:') for the role switcher; SideNav/SideNavLink with as={Link} to preserve Next.js client-side routing; Ask button kept as a ghost Button (visible-text) not icon-only HeaderGlobalAction; AssistantPanel still mounted once at shell level. All 6 app-shell.spec tests green.
+- [Phase 06-03]: [Rule 3 blocking] Fixed 06-08's committed MessageBubble.module.scss which referenced undefined Carbon button token $button-primary (not forwarded by scss/theme) and broke the shared phase-6 dev-server compile; swapped to $interactive. Second instance this milestone of the concurrent-shared-branch hazard.
 
 ### Pending Todos
 
@@ -185,10 +191,12 @@ None yet.
 
 - npm audit reports 6 dev-tooling-only advisories (vitest/tinypool, @prisma/config/deepmerge-ts). `npm audit fix --force` only offers breaking downgrades to older versions — not applied. Revisit when upstream ships forward fixes. Not a runtime risk.
 - Concurrent execution (config parallelization:true) ran plans 02-01 and 02-02 against one shared working tree, causing a transient build break and an accidental revert of 02-02's uncommitted work (since recovered — 02-02 committed in full). Recommend per-plan git worktrees or serialized intra-phase execution.
-- Parallel plan 06-08 committed src/components/assistant/MessageBubble.module.scss breaks next build (Undefined variable $button-primary); phase-wide build is red until 06-08 imports the Carbon theme token. 06-02 artifacts verified green independently (tsc EXIT=0 + standalone sass).
+- RESOLVED (06-03): 06-08's committed MessageBubble.module.scss `$button-primary` undefined-variable error (which broke the shared dev-server compile + next build) fixed in commit a57b9c2 by swapping to the theme-exported `$interactive`. `npm run build` now EXIT=0.
+- OUT OF SCOPE / open (owned by a parallel Command Center migration plan): `src/components/command-center/RecentActivityPanel.tsx` has a `tsc --noEmit` error — `InlineNotification` given an `actions` prop that doesn't exist on `InlineNotificationProps` in Carbon v1.118 (use `ActionableNotification` or drop the prop). Logged to deferred-items.md. Does NOT fail `npm run build`. Left for its owning plan.
+- RECURRING HAZARD (now 2 instances this milestone — 02-01/02-02 earlier, 06-08 colliding with 06-03 here): wave plans execute concurrently against ONE shared working tree AND one shared phase branch, so one plan's broken commit breaks sibling plans' compile/acceptance gates, and STATE.md writes interleave (06-02 and 06-03 even recorded overlapping commit hashes). Strongly recommend per-plan git worktrees or serialized intra-phase execution.
 
 ## Session Continuity
 
-Last session: 2026-10-08T02:01:45.738Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-10-08T02:08:51.657Z
+Stopped at: Completed 06-08-PLAN.md
 Resume file: None
