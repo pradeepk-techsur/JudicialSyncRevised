@@ -3,15 +3,15 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 06-05-PLAN.md
-last_updated: "2026-10-08T02:20:54.575Z"
-last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
+stopped_at: Completed 06-09-PLAN.md (Phase 6 + milestone complete)
+last_updated: "2026-10-08T02:27:41.725Z"
+last_activity: "2026-10-08 — Completed 06-09-PLAN.md (FINAL cleanup, Wave 4): deleted the entire Tailwind/shadcn pipeline (5 dead ui/* primitives, globals.css, components.json, postcss.config.mjs, src/lib/utils.ts cn re-export), removed 8 unused deps (305 transitive packages pruned). Carbon is the SOLE UI foundation. Full gate green: tsc clean, next build EXIT=0, vitest 195/3-skip/0-fail, playwright 36/36. 0 deviations, 2 atomic commits (ff105e1, 8f50854). PHASE 6 + MILESTONE COMPLETE."
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 36
-  completed_plans: 35
-  percent: 83
+  completed_plans: 36
+  percent: 100
 ---
 
 # Project State
@@ -21,12 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 6 (Carbon Design System UI Upgrade) in progress — Wave 2 component migrations landing (06-02 shared status/discrepancy/acknowledge components complete).
+**Current focus:** Phase 6 (Carbon Design System UI Upgrade) COMPLETE — all 9 plans landed; IBM Carbon is the sole UI foundation. Milestone v1.0 complete (all 6 phases, 36 plans).
 
 ## Current Position
 
-Phase: 6 of 6 (Carbon Design System UI Upgrade) — IN PROGRESS (06-02, 06-03, 06-04, 06-06, 06-07, 06-08 complete; 06-05/09 remain)
-Status: 06-06 (Jury Package Workspace screen F11) complete — JuryPackageEmpty/JuryPackageDraft/JuryPackageFinalized migrated Tailwind→Carbon; jury-package/page.tsx three-way conditional left unchanged (routing/data logic). Empty → Carbon-token dashed container + Button + InlineNotification kind=error (NO_ELIGIBLE_EXHIBITS stays plain informational text, not a red error). Draft → Carbon static Table primitives + Button with LITERAL disabled={hasOpen||finalizePending} (US-11.2 hard-disabled gate = native <button disabled>, not aria-disabled/CSS-only) + InlineNotification kind=error for the 409 stale-blockers banner; "Finalizing…" spinner a small CSS-animated span inside the Button children; the three-attribute row contract (data-testid=jury-exhibit-row + data-exhibit-label + data-blocking on the SAME TableRow) and the isolated 1s-tick FreshnessIndicator preserved. Finalized → InlineNotification kind=success banner + Carbon Table + Button (primary Export/Print, secondary Start New Draft); jury-print-root/no-print GLOBAL print classes (06-01) + window.print() handler preserved verbatim (T-06-16); former Tailwind `hidden print:block` header reimplemented as a CSS Module .printOnly @media print rule (decouples from Tailwind ahead of 06-09 removal). Consumes Wave-2 StatusBadge/DiscrepancyBadge/AcknowledgeInline unchanged (most shared-component-dependent screen). Full e2e/jury-package.spec.ts 3/3 green (empty state, view-only role gating, full initiate→gate→acknowledge→re-enable→finalize→export flow); tsc + next build EXIT=0 on merged HEAD; 0 deviations, NO out-of-scope unblocks needed this run. 3 atomic commits (5e1ba6d, 9b5210a, c1353d6). This completes the last Wave-3 screen → 06-09 cleanup may now remove the Tailwind/shadcn pipeline.
+Phase: 6 of 6 (Carbon Design System UI Upgrade) — COMPLETE (all 9 plans: 06-01..06-09 done). MILESTONE v1.0 COMPLETE.
+Status: 06-09 (FINAL cleanup, Wave 4) complete — deleted the entire Tailwind/shadcn pipeline and removed its dependencies after grep-verifying (against the current repo, not just the planning-time audit) that every old-stack import was confined to the files being deleted. Task 1: removed 5 dead shadcn ui/* primitives (badge/button/input/select/table), src/lib/utils.ts (cn re-export, 0 callers), src/app/globals.css (dead since 06-01 repointed layout.tsx to globals.scss), components.json (shadcn CLI config). Task 2: removed 8 unused deps from package.json (tailwindcss, @tailwindcss/postcss, shadcn, tw-animate-css, class-variance-authority, cn, @base-ui/react, lucide-react) + deleted postcss.config.mjs; npm install pruned 305 transitive packages, @carbon/react still resolved. Kept postcss (not in removal list; Next.js default PostCSS takes over). Left shadcn-naming COMMENTS in ExhibitTable/SearchFilterBar (documentation of the Carbon TableHead/TableHeader inversion, not functional deps). Task 3 (phase acceptance gate): npx tsc --noEmit clean; next build EXIT=0 (Carbon Sass compiles with zero Tailwind/PostCSS-Tailwind involvement); vitest 195 passed / 3 skipped / 0 failed (zero functional/service-layer regression — diff touched presentation/config only, services/API/Prisma byte-identical); FULL playwright suite 36/36 green across all 7 spec files (no selector-only edits needed). 0 deviations, no out-of-scope unblocks. 2 atomic commits (ff105e1, 8f50854).
+
+Prior status: 06-06 (Jury Package Workspace screen F11) complete — JuryPackageEmpty/JuryPackageDraft/JuryPackageFinalized migrated Tailwind→Carbon; jury-package/page.tsx three-way conditional left unchanged (routing/data logic). Empty → Carbon-token dashed container + Button + InlineNotification kind=error (NO_ELIGIBLE_EXHIBITS stays plain informational text, not a red error). Draft → Carbon static Table primitives + Button with LITERAL disabled={hasOpen||finalizePending} (US-11.2 hard-disabled gate = native <button disabled>, not aria-disabled/CSS-only) + InlineNotification kind=error for the 409 stale-blockers banner; "Finalizing…" spinner a small CSS-animated span inside the Button children; the three-attribute row contract (data-testid=jury-exhibit-row + data-exhibit-label + data-blocking on the SAME TableRow) and the isolated 1s-tick FreshnessIndicator preserved. Finalized → InlineNotification kind=success banner + Carbon Table + Button (primary Export/Print, secondary Start New Draft); jury-print-root/no-print GLOBAL print classes (06-01) + window.print() handler preserved verbatim (T-06-16); former Tailwind `hidden print:block` header reimplemented as a CSS Module .printOnly @media print rule (decouples from Tailwind ahead of 06-09 removal). Consumes Wave-2 StatusBadge/DiscrepancyBadge/AcknowledgeInline unchanged (most shared-component-dependent screen). Full e2e/jury-package.spec.ts 3/3 green (empty state, view-only role gating, full initiate→gate→acknowledge→re-enable→finalize→export flow); tsc + next build EXIT=0 on merged HEAD; 0 deviations, NO out-of-scope unblocks needed this run. 3 atomic commits (5e1ba6d, 9b5210a, c1353d6). This completes the last Wave-3 screen → 06-09 cleanup may now remove the Tailwind/shadcn pipeline.
 
 Prior status: 06-04 (Case Workspace screen F9 + Exhibit Search F4) complete — ExhibitTable → Carbon static Table/TableHead/TableHeader/TableRow/TableBody/TableCell (naming inversion vs shadcn documented in-file: TableHead=<thead>, TableHeader=<th>); SearchFilterBar → Carbon Search (keyword, onClear) + Dropdown (status, NOT Select — renders <li role=option> the test reaches via click; onChange adapted { selectedItem } → same ExhibitFilters shape) + TextInput (witness + two type=date, NOT DatePicker, to avoid interaction drift) + DismissibleTag (per-key chip onClose) + ghost Button (Clear filters); case/page.tsx loading/error → Carbon InlineLoading / InlineNotification kind=error (exact copy + conditional structure preserved). Consumes Wave-2 StatusBadge/DiscrepancyBadge unchanged. This REMOVES the last consumers of shadcn ui/{table,input,select,button} → unblocks 06-09 cleanup. [Rule 1] Dropdown titleText set to 'Status' (distinct from aria-label 'Filter by status') so getByLabel resolves to the combobox only, not Carbon's aria-labelledby'd <ul role=listbox> (strict-mode collision caught by the acceptance suite, fixed, re-run green). Full e2e/case-workspace.spec.ts + case-workspace-discrepancies.spec.ts 9/9 green; tsc + next build EXIT=0. NO out-of-scope unblocks needed — HEAD compiled/built clean this run. 3 atomic commits (a9270d2, 8207c6e, bbe3bc8).
 
@@ -97,6 +99,7 @@ Progress: [████████░░] 83%
 | Phase 06-carbon-design-system-ui-upgrade P04 | 3 min | 3 tasks | 3 files |
 | Phase 06-carbon-design-system-ui-upgrade P06 | 4 min | 3 tasks | 6 files |
 | Phase 06-carbon-design-system-ui-upgrade P05 | 9 min | 3 tasks | 11 files |
+| Phase 06-carbon-design-system-ui-upgrade P09 | 3 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -200,6 +203,7 @@ Recent decisions affecting current work:
 - [Phase 06-06]: Jury Package Workspace (F11) migrated Tailwind->Carbon: Empty->Carbon container/Button + InlineNotification error; Draft->Carbon static Table + native-disabled Finalize Button + InlineNotification error (409 stale-blockers); Finalized->InlineNotification success + Table + Buttons. Consumes StatusBadge/DiscrepancyBadge/AcknowledgeInline unchanged. Hard-disabled gate (disabled={hasOpen||finalizePending}, literal <button disabled>, US-11.2) and jury-print-root/no-print print CSS preserved; Tailwind print: variant reimplemented as CSS Module .printOnly @media print. Full jury-package.spec 3/3 green; tsc+build EXIT=0; 0 deviations; no out-of-scope unblocks needed.
 - [Phase 06-05]: Exhibit Detail migrated to Carbon: ExhibitHeader→Tile, Timeline kept semantic <ol aria-label='Exhibit history timeline'> with id={event-${eventId}} anchors preserved byte-for-byte (3-plan deep-link contract) + warning-token highlight, DiscrepancyBanner→Carbon yellow-token surface, page loading/error→InlineLoading/InlineNotification; consumes Wave 2 StatusBadge/AcknowledgeInline unchanged; full exhibit-detail.spec.ts 4/4 green
 - [Phase 06-05]: [Rule 1 bug] Fixed app-wide shell layout: Carbon isFixedNav SideNav (position:fixed, 0 flow width) overlaid <main> at x=0, intercepting the top-left back-link click; added padding-left:16rem to AppShell .body so main clears the rail. app-shell 6/6 + command-center 7/7 re-verified green
+- [Phase 06-09]: Deleted the entire Tailwind/shadcn pipeline (5 dead ui/* primitives, globals.css, components.json, postcss.config.mjs, src/lib/utils.ts cn re-export) and removed 8 unused deps (tailwindcss/@tailwindcss/postcss/shadcn/tw-animate-css/class-variance-authority/cn/@base-ui/react/lucide-react; 305 transitive packages pruned) — grep-verified zero consumers before each removal. Carbon is now the SOLE UI foundation. Kept postcss (not in removal list, Next.js may use independently). Left shadcn-naming COMMENTS in ExhibitTable/SearchFilterBar (docs, not deps). Full gate green: tsc clean, next build EXIT=0, vitest 195/3-skip/0-fail, playwright 36/36. 0 deviations, 2 atomic commits (ff105e1, 8f50854). PHASE 6 + MILESTONE COMPLETE.
 
 ### Pending Todos
 
@@ -215,6 +219,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-08T02:20:54.574Z
-Stopped at: Completed 06-05-PLAN.md
+Last session: 2026-10-08T02:27:41.723Z
+Stopped at: Completed 06-09-PLAN.md (Phase 6 + milestone complete)
 Resume file: None
