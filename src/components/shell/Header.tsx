@@ -1,6 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
+import {
+  Header as CarbonHeader,
+  HeaderName,
+  HeaderGlobalBar,
+  Select,
+  SelectItem,
+  Button,
+} from '@carbon/react';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAssistantStore } from '@/stores/assistantStore';
 
@@ -21,40 +29,54 @@ export function Header() {
   }, [caseNumber, hydrate]);
 
   return (
-    <header className="no-print flex items-center justify-between border-b px-4 py-3">
-      <div className="flex items-center gap-4">
-        <span className="font-semibold">JudicialSync</span>
-        <span className="text-sm text-gray-500">
-          {caseNumber ? `Case: ${caseNumber}` : 'Loading case…'}
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          Role:
-          <select
-            className="rounded border px-2 py-1"
-            value={activeUserId ?? ''}
-            onChange={(e) => setActiveUser(e.target.value)}
-            aria-label="Switch active role"
-          >
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.role})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
+    // Carbon's UI Shell <Header> renders the <header> landmark. `no-print` is
+    // preserved so the Jury Package print/export (06-01's print CSS) still hides
+    // the chrome. The case number stays a plain text node (matchable via
+    // getByText(/Case: 2026-CR-0142/)) adjacent to the product HeaderName.
+    <CarbonHeader aria-label="JudicialSync" className="no-print">
+      <HeaderName href="/" prefix="">
+        JudicialSync
+      </HeaderName>
+      <span className="cds--header__case-number">
+        {caseNumber ? `Case: ${caseNumber}` : 'Loading case…'}
+      </span>
+      <HeaderGlobalBar>
+        {/* Role switcher — Carbon's `Select` wraps a REAL native <select> with a
+            REAL <label htmlFor>, so Playwright's option-count / option-text /
+            option:checked assertions against a native <select> keep working. The
+            visible label stays "Role:"; the accessible name Playwright matches on
+            is forced to exactly "Switch active role" via the `aria-label`
+            passthrough prop (Carbon spreads `...other` onto the <select>, and
+            aria-label overrides the <label> text as the accessible name). */}
+        <Select
+          id="role-switcher"
+          labelText="Role:"
+          inline
+          hideLabel={false}
+          aria-label="Switch active role"
+          value={activeUserId ?? ''}
+          onChange={(e) => setActiveUser(e.target.value)}
+        >
+          {users.map((u) => (
+            <SelectItem key={u.id} value={u.id} text={`${u.name} (${u.role})`} />
+          ))}
+        </Select>
+        {/* "Ask ✦" uses a plain Carbon ghost Button rather than
+            HeaderGlobalAction: the latter is icon-only (children expected to be
+            an Icon), but app-shell.spec.ts asserts the button's VISIBLE text
+            matches /Ask/, so a text Button preserves the label faithfully. All
+            three identifying attributes are kept verbatim. */}
+        <Button
+          kind="ghost"
           type="button"
           onClick={togglePanel}
           data-testid="ask-assistant"
           aria-label="Open Pivota Assistant"
           title="Ask the Pivota Assistant"
-          className="rounded border px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
         >
           Ask ✦
-        </button>
-      </div>
-    </header>
+        </Button>
+      </HeaderGlobalBar>
+    </CarbonHeader>
   );
 }
