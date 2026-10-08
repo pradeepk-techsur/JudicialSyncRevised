@@ -70,21 +70,26 @@ export function DiscrepancyBadge({ flags }: { flags: DiscrepancyFlagSummary[] })
   // discrepancy is hidden from either sighted or assistive-tech users.
   const sentence = labelsSentence(flags);
 
+  // `title` is a reserved Carbon Tag prop (its dismiss-button aria-label, only
+  // applied when `filter` is set) and is swallowed before reaching the rendered
+  // element — so the hover tooltip must live on a plain wrapping <span> instead
+  // of being passed to the Tag.
   return (
-    <Tag
-      type="gray"
-      size="sm"
-      className={`${hasOpen ? styles.open : styles.acknowledged} ${styles.multi}`}
-      data-testid="discrepancy-badge"
-      data-discrepancy-status={hasOpen ? 'OPEN' : 'ACKNOWLEDGED'}
-      data-discrepancy-count={flags.length}
-      title={sentence}
-      aria-label={`${flags.length} discrepancies: ${sentence}`}
-    >
-      <span>
-        <span aria-hidden="true">⚠</span> {flags.length} issues
-      </span>
-      <span className={styles.detailSentence}>{sentence}</span>
-    </Tag>
+    <span title={sentence} className={styles.multiWrapper}>
+      <Tag
+        type="gray"
+        size="sm"
+        className={`${hasOpen ? styles.open : styles.acknowledged} ${styles.multi}`}
+        data-testid="discrepancy-badge"
+        data-discrepancy-status={hasOpen ? 'OPEN' : 'ACKNOWLEDGED'}
+        data-discrepancy-count={flags.length}
+        aria-label={`${flags.length} discrepancies: ${sentence}`}
+      >
+        <span>
+          <span aria-hidden="true">⚠</span> {flags.length} issues
+        </span>
+        <span className={styles.detailSentence}>{sentence}</span>
+      </Tag>
+    </span>
   );
 }

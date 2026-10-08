@@ -24,6 +24,13 @@
   opacity: 0.75;
 }
 
+// Plain wrapper that carries the hover `title` tooltip for the multi-flag badge
+// (Carbon Tag swallows the reserved `title` prop). Inline-block so it hugs the
+// Tag and does not change the cell's layout.
+.multiWrapper {
+  display: inline-block;
+}
+
 // The multi-flag badge stacks a summary line over a detail sentence. Carbon's
 // .cds--tag__label enforces single-line nowrap + ellipsis, which would clip the
 // two-line layout — relax it only within the multi-flag variant.
