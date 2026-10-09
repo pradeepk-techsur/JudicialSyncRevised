@@ -1,0 +1,25 @@
+// Inline Transfer/Assign-Custody form styles. Carbon design tokens, matching
+// RecordRulingForm.module.scss so the two F24 write-action forms are visually
+// identical across every call site (attention feed, Custody-at-a-Glance panel,
+// Exhibit Detail header/chain-of-custody card).
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.container {
+  margin-top: $spacing-03;
+  padding: $spacing-03;
+  border-radius: 4px;
+  border: 1px solid $border-subtle;
+  background-color: $layer-01;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+// Inline server-rejection caption — the specific reason renders here, within the
+// still-open form, never a silent failure or generic toast.
+.error {
+  @include type-style('label-01');
+  color: $text-error;
+}
