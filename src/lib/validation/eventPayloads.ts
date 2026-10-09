@@ -45,13 +45,16 @@ export const discrepancyAcknowledgedPayload = z.object({
 });
 
 // F13 (Phase 7): a sealed/ex-parte exhibit being explicitly excluded from a jury
-// package. The excluding user records an auditable reason. Emitted by the exclude
-// workflow landing in plan 07-07; the schema is declared here so recordEvent()
-// recognizes the new EventType value added in this plan's migration.
+// package. The excluding user records an auditable, enumerated reason plus an
+// optional free-text note. Emitted by the exclude workflow (plan 07-07) via
+// recordEvent(), which validates against this schema BEFORE any row is written —
+// without this entry every excludeJuryPackageExhibit() call would throw
+// ValidationError unconditionally.
 export const juryPackageExhibitExcludedPayload = z.object({
   juryPackageId: z.string().uuid(),
   exhibitId: z.string().uuid(),
-  reason: z.string().min(1).max(500),
+  reason: z.enum(['SEALED_EXPARTE', 'MANUAL_REMOVAL']),
+  note: z.string().max(500).optional(),
 });
 
 // DISCREPANCY_ACKNOWLEDGED's schema is included for completeness per
