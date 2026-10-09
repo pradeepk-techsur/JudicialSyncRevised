@@ -4,6 +4,7 @@
 // Tailwind pipeline removal (wave 06-09).
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/colors';
 
 // Muted empty-state caption (was: text-sm text-gray-500).
 .empty {
@@ -40,4 +41,59 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+// Rows "needing attention" get a pale tint (Screenshot 5). Applied alongside
+// `.row` so the clickable/hover/focus affordances above still hold. The tint is
+// deliberately subtle so the StatusBadge/SeverityPill colors stay the dominant
+// signal; the row-hover background (from `.row:hover`) still overrides it on
+// hover so the whole-row hit area reads as interactive.
+.tintedRow {
+  background-color: colors.$yellow-10;
+}
+
+// Unassigned custodian — red text, never a blank cell (Screenshot 5). Bold so
+// the missing-custodian state reads as a condition, not merely an empty field.
+.unassigned {
+  color: colors.$red-60;
+  font-weight: 600;
+}
+
+// Flags column: a vertical stack so multiple simultaneous condition pills each
+// get their own line (Y0-patterns.md §Readable Flag Pill — never collapsed).
+.flagStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+// Jury Package column: plain-language colored text (NOT a pill), per Screenshot
+// 5 — green Included / gray Not eligible / red Blocked.
+.juryIncluded {
+  color: colors.$green-60;
+  font-weight: 600;
+}
+
+.juryNotEligible {
+  color: $text-secondary;
+}
+
+.juryBlocked {
+  color: colors.$red-60;
+  font-weight: 600;
+}
+
+// Trailing chevron affordance (VISUAL only — row-clickability already shipped in
+// 07-04). Decorative, aria-hidden; muted so it reads as an affordance, not an
+// action.
+.chevronCell {
+  text-align: right;
+  width: 2rem;
+}
+
+.chevron {
+  color: $text-secondary;
+  font-size: 1.125rem;
+  line-height: 1;
 }
