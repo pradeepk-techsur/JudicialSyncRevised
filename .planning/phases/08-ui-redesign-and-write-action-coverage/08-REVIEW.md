@@ -123,6 +123,7 @@ None found.
 - **File:** `src/app/command-center/page.tsx:36,45,121`; `src/hooks/useRecentActivity.ts:11-12`; `src/services/activity.ts:145`
 - **Evidence:** 08-16 (`0dfa3be`) deleted the segmented proportional bar from `StatusDistributionBar.tsx` entirely, leaving only the legend. However, several nearby comments were not updated and still describe "the proportional status-distribution bar" / "the distribution bar" as a rendered element, e.g. `page.tsx:36`: `// the 4 stat cards, the proportional status-distribution bar, the (read-only)` and `page.tsx:121`: `distribution bar and the lower two-column rows (Screenshot 1)`. This is documentation drift only — the actual `<StatusDistributionBar>` component and its call site (`page.tsx:118`) are correct and render legend-only; no runtime behavior is affected.
 - **Fix direction:** Update the stale comments to say "status-distribution legend" (matching the updated comment already present in `StatusDistributionBar.tsx`/`.module.scss`) to avoid confusing a future reader into thinking the bar still exists.
+- **Resolution:** fixed (9af6640)
 
 ## Cross-file seams checked
 
