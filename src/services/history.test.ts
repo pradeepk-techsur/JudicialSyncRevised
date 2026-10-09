@@ -1,7 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { runSeed } from '@/data/seed';
 import { getExhibitHistory } from '@/services/history';
+import { recordStatusChange } from '@/services/status';
+import { recordObjection } from '@/services/objections';
+import { recordCustodyTransfer } from '@/services/custody';
+import { initiateJuryPackage } from '@/services/juryPackage';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Integration tests for getExhibitHistory (F10) run against the REAL seeded demo
 // case produced by runSeed() (Plan 6). Exercising replay against the actual
@@ -206,5 +211,263 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
       expect(history?.exhibit.id).toBe(sealedId);
       expect(history?.timeline.length).toBeGreaterThan(0);
     });
+  });
+});
+
+// Phase 8 (F10 §Process steps 4-6): the three new Exhibit Detail right-rail data
+// sources getExhibitHistory now additionally returns — objections[], custodyCard,
+// and juryPackageChecklist. These use SELF-CONTAINED fixtures built through the
+// live service write paths (unique caseNumber per test, no reliance on the shared
+// seed) so the precise cardinality/eligibility assertions below are deterministic
+// under fileParallelism:false — mirroring discrepancies.test.ts/juryPackage.test.ts.
+describe('getExhibitHistory — Phase 8 right-rail sections (F10)', () => {
+  let caseId: string;
+  let judgeId: string;
+  let deputyId: string;
+  let clerkId: string;
+  let attorneyId: string;
+  let suffix: string;
+
+  beforeEach(async () => {
+    suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const kase = await prisma.case.create({
+      data: {
+        caseNumber: `TEST-HISTORY-P8-${suffix}`,
+        title: 'History Phase-8 Test Case',
+        court: 'Test Court',
+      },
+    });
+    caseId = kase.id;
+    const judge = await prisma.user.create({
+      data: { caseId, name: 'Judge J', role: 'JUDGE' },
+    });
+    judgeId = judge.id;
+    const deputy = await prisma.user.create({
+      data: { caseId, name: 'Deputy D', role: 'DEPUTY' },
+    });
+    deputyId = deputy.id;
+    const clerk = await prisma.user.create({
+      data: { caseId, name: 'Clerk C', role: 'CLERK' },
+    });
+    clerkId = clerk.id;
+    const attorney = await prisma.user.create({
+      data: { caseId, name: 'Attorney A', role: 'ATTORNEY' },
+    });
+    attorneyId = attorney.id;
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  async function makeExhibit(
+    label: string,
+    opts: { isSealed?: boolean } = {},
+  ): Promise<string> {
+    const ex = await prisma.exhibit.create({
+      data: {
+        caseId,
+        exhibitLabel: `${label}-${suffix}`,
+        description: `Exhibit ${label}`,
+        offeringParty: 'PROSECUTION',
+        isSealed: opts.isSealed ?? false,
+      },
+    });
+    return ex.id;
+  }
+
+  // Force the ADMITTED transition directly (F12's live gate forbids reaching
+  // ADMITTED with an open objection / no custody for real callers — by design).
+  // This is the SAME test-only bypass pattern discrepancies.test.ts uses, so a
+  // genuinely-ADMITTED-with-open-issue subject can exist for these read-side tests.
+  async function forceAdmit(exhibitId: string, fromStatus: string): Promise<void> {
+    const agg = await prisma.exhibitEvent.aggregate({
+      where: { exhibitId },
+      _max: { sequenceNo: true },
+    });
+    const event = await prisma.exhibitEvent.create({
+      data: {
+        exhibitId,
+        caseId,
+        eventType: 'STATUS_CHANGE',
+        payload: { fromStatus, toStatus: 'ADMITTED' },
+        actorUserId: judgeId,
+        sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+      },
+    });
+    await prisma.exhibitCurrentState.upsert({
+      where: { exhibitId },
+      create: {
+        exhibitId,
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: event.id,
+        lastStatusAt: event.recordedAt,
+      },
+      update: {
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: event.id,
+        lastStatusAt: event.recordedAt,
+      },
+    });
+    await evaluateDiscrepancies(exhibitId);
+  }
+
+  // --- objections[] ---
+
+  it('objections[] carries every UNRESOLVED thread — length 2 for two concurrent objections', async () => {
+    const exhibitId = await makeExhibit('OBJ2');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
+    await recordObjection({
+      exhibitId,
+      objectingParty: 'DEFENSE',
+      grounds: 'Hearsay',
+      actorUserId: attorneyId,
+    });
+    await recordObjection({
+      exhibitId,
+      objectingParty: 'DEFENSE',
+      grounds: 'Lack of foundation',
+      actorUserId: attorneyId,
+    });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    expect(history!.objections).toHaveLength(2);
+    // Each entry is a full ObjectionCurrentState row (UNRESOLVED), not a summary.
+    for (const o of history!.objections) {
+      expect(o.exhibitId).toBe(exhibitId);
+      expect(o.status).toBe('UNRESOLVED');
+      expect(typeof o.objectionId).toBe('string');
+      expect(typeof o.grounds).toBe('string');
+    }
+  });
+
+  it('objections[] is [] (not omitted) when there are zero unresolved objections', async () => {
+    const exhibitId = await makeExhibit('OBJ0');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    expect(history!.objections).toEqual([]);
+  });
+
+  // --- custodyCard ---
+
+  it('custodyCard is empty (current null, pendingTransfer null, history []) for an exhibit with no custody row', async () => {
+    const exhibitId = await makeExhibit('CUST0');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    expect(history!.custodyCard.current).toBeNull();
+    expect(history!.custodyCard.pendingTransfer).toBeNull();
+    expect(history!.custodyCard.history).toEqual([]);
+  });
+
+  it('custodyCard.history has the full chain in chronological order (length 2), pendingTransfer null', async () => {
+    const exhibitId = await makeExhibit('CUST2');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: null,
+      toCustodianUserId: deputyId,
+      reason: 'intake',
+      actorUserId: deputyId,
+    });
+    await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: deputyId,
+      toCustodianUserId: clerkId,
+      reason: 'to clerk',
+      actorUserId: clerkId,
+    });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    expect(history!.custodyCard.pendingTransfer).toBeNull();
+    expect(history!.custodyCard.current).not.toBeNull();
+    const chain = history!.custodyCard.history;
+    expect(chain).toHaveLength(2);
+    // Chronological: null→deputy, then deputy→clerk.
+    expect(chain[0].fromCustodian).toBeNull();
+    expect(chain[0].toCustodian).toBe(deputyId);
+    expect(chain[1].fromCustodian).toBe(deputyId);
+    expect(chain[1].toCustodian).toBe(clerkId);
+    // timestamps are ISO strings (serialized for the HTTP response).
+    expect(typeof chain[0].timestamp).toBe('string');
+    expect(new Date(chain[0].timestamp).getTime()).toBeLessThanOrEqual(
+      new Date(chain[1].timestamp).getTime(),
+    );
+  });
+
+  // --- juryPackageChecklist ---
+
+  it('juryPackageChecklist: a clean, admitted, custody-complete, objection-free, non-sealed, package-INCLUDED exhibit is all-true + INCLUDED', async () => {
+    const exhibitId = await makeExhibit('CLEAN');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
+    await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: null,
+      toCustodianUserId: deputyId,
+      reason: 'intake',
+      actorUserId: deputyId,
+    });
+    await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId: judgeId });
+    // Build a jury package so the exhibit becomes an INCLUDED+CLEAN member row —
+    // this is what loadJuryEligibilityByExhibit reads to return 'INCLUDED'.
+    await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    const c = history!.juryPackageChecklist;
+    expect(c.admitted).toBe(true);
+    expect(c.objectionsResolved).toBe(true);
+    expect(c.custodianOnRecord).toBe(true);
+    expect(c.classificationTrial).toBe(true);
+    expect(c.eligibility).toBe('INCLUDED');
+  });
+
+  it('juryPackageChecklist: an OFFERED (not-yet-admitted) exhibit is admitted=false, eligibility NOT_ELIGIBLE', async () => {
+    const exhibitId = await makeExhibit('OFFERED');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    const c = history!.juryPackageChecklist;
+    expect(c.admitted).toBe(false);
+    expect(c.eligibility).toBe('NOT_ELIGIBLE');
+  });
+
+  it('juryPackageChecklist: a sealed exhibit (read by JUDGE) has classificationTrial=false', async () => {
+    const exhibitId = await makeExhibit('SEALED', { isSealed: true });
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    expect(history!.juryPackageChecklist.classificationTrial).toBe(false);
+  });
+
+  it('juryPackageChecklist: an ADMITTED exhibit with an unresolved objection is admitted=true but objectionsResolved=false', async () => {
+    const exhibitId = await makeExhibit('ADMOBJ');
+    await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
+    await recordObjection({
+      exhibitId,
+      objectingParty: 'DEFENSE',
+      grounds: 'Relevance',
+      actorUserId: attorneyId,
+    });
+    await recordStatusChange({ exhibitId, toStatus: 'OBJECTED', actorUserId: clerkId });
+    await forceAdmit(exhibitId, 'OBJECTED');
+
+    const history = await getExhibitHistory(exhibitId, 'JUDGE');
+    expect(history).not.toBeNull();
+    const c = history!.juryPackageChecklist;
+    expect(c.admitted).toBe(true);
+    expect(c.objectionsResolved).toBe(false);
+    expect(history!.objections).toHaveLength(1);
   });
 });
