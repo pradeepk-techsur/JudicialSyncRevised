@@ -5,6 +5,7 @@ import { GET, POST } from '@/app/api/cases/[id]/jury-package/route';
 import { recordStatusChange } from '@/services/status';
 import { recordCustodyTransfer } from '@/services/custody';
 import { evaluateDiscrepancies } from '@/services/discrepancies';
+import { excludeJuryPackageExhibit } from '@/services/juryPackage';
 
 // Route-handler tests for GET/POST /api/cases/:id/jury-package. Self-contained
 // fixtures via live write paths; real Postgres from docker-compose.yml.
@@ -179,5 +180,38 @@ describe('GET/POST /api/cases/:id/jury-package', () => {
     expect(body.juryPackage.status).toBe('DRAFT');
     const row = body.exhibits.find((e: { exhibitId: string }) => e.exhibitId === fx.flaggedId);
     expect(Array.isArray(row.flags)).toBe(true);
+  });
+
+  it('GET never returns an EXCLUDED row (F13)', async () => {
+    // Initiate a DRAFT (the clean exhibit becomes an INCLUDED member), then
+    // exclude it via the service. The GET route must omit it from exhibits[].
+    const initRes = await postRoute(fx.caseId, { actorUserId: fx.deputyId });
+    const initBody = await initRes.json();
+    const juryPackageId = initBody.juryPackage.id;
+
+    // Sanity: the clean exhibit is present before exclusion.
+    const before = await (await getRoute(fx.caseId)).json();
+    expect(
+      before.exhibits.some((e: { exhibitId: string }) => e.exhibitId === fx.cleanId),
+    ).toBe(true);
+
+    await excludeJuryPackageExhibit({
+      juryPackageId,
+      exhibitId: fx.cleanId,
+      actorUserId: fx.deputyId,
+      reason: 'MANUAL_REMOVAL',
+    });
+
+    const after = await (await getRoute(fx.caseId)).json();
+    expect(
+      after.exhibits.some((e: { exhibitId: string }) => e.exhibitId === fx.cleanId),
+    ).toBe(false);
+
+    // And the row is retained in the DB as EXCLUDED, never deleted.
+    const retained = await prisma.juryPackageExhibit.findFirst({
+      where: { juryPackageId, exhibitId: fx.cleanId },
+    });
+    expect(retained).not.toBeNull();
+    expect(retained!.status).toBe('EXCLUDED');
   });
 });
