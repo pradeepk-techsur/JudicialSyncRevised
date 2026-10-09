@@ -40,6 +40,40 @@
   color: $text-helper;
 }
 
+// F13: the CRITICAL (sealed/ex-parte) row treatment — deliberately HIGHER
+// severity than the amber FLAGGED badge. Uses Carbon error tokens (red) so it is
+// unmistakably distinct from the warning-amber discrepancy styling.
+.criticalCell {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  padding: $spacing-03;
+  border-left: 3px solid $support-error;
+  background: $layer-01;
+}
+
+.criticalBadge {
+  @include type-style('label-01');
+  font-weight: 600;
+  color: $text-error;
+}
+
+// The Remove-from-Package action on a CRITICAL row — an error-toned button-like
+// link, visually weightier than the muted Acknowledge trigger.
+.removeTrigger {
+  @include type-style('label-01');
+  font-weight: 600;
+  color: $text-on-color;
+  background: $support-error;
+  border: none;
+  padding: $spacing-02 $spacing-04;
+  cursor: pointer;
+
+  &:hover {
+    filter: brightness(0.9);
+  }
+}
+
 // F14: the full acknowledgment record line (name, role, timestamp, justification),
 // rendered inline beneath the Discrepancy badge for ACKNOWLEDGED flags — always
 // visible, muted secondary text.

@@ -99,9 +99,35 @@ export function useJuryPackage() {
     onSettled: invalidateAll,
   });
 
+  // F13: explicitly remove a CRITICAL (sealed/ex-parte) row from the package.
+  // Mirrors the finalize mutation's shape exactly: POST to the exclude route with
+  // the active user's id (whose ACTUAL role the server authorizes), surface the
+  // server error on failure, invalidate on success so the row disappears.
+  const exclude = useMutation({
+    mutationFn: async (args: {
+      juryPackageId: string;
+      exhibitId: string;
+      reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL';
+    }) => {
+      const res = await apiFetch(
+        `/api/jury-package/${args.juryPackageId}/exhibits/${args.exhibitId}/exclude`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actorUserId: activeUserId, reason: args.reason }),
+        },
+      );
+      if (!res.ok) {
+        throw await parseError(res);
+      }
+      return res.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
   // Reuse the standalone acknowledge mutation (same invalidation set) so the
   // jury screen and the Exhibit Detail banner share one acknowledge path.
   const acknowledge = useAcknowledgeDiscrepancy();
 
-  return { ...query, initiate, finalize, acknowledge };
+  return { ...query, initiate, finalize, exclude, acknowledge };
 }

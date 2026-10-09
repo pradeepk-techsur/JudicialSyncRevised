@@ -225,6 +225,124 @@ test.describe('Jury Package Workspace', () => {
     await expect(record).toContainText(JUSTIFICATION);
   });
 
+  test('a legacy sealed exhibit row renders CRITICAL and can be removed from the package (F13)', async ({
+    page,
+  }) => {
+    // F13: a sealed/ex-parte row predating plan 07-03 renders as a CRITICAL
+    // blocker with a role-gated Remove-from-Package action. Driven by page.route
+    // mocks (the file's established technique): the GET returns a DRAFT with one
+    // sealed INCLUDED row until the exclude POST fires, after which the row is
+    // gone — the exact server behavior (toView filters EXCLUDED rows).
+    let excluded = false;
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          juryPackage: {
+            id: 'pkg-sealed',
+            caseId: 'case-1',
+            status: 'DRAFT',
+            createdAt: new Date().toISOString(),
+            finalizedAt: null,
+            finalizedBy: null,
+          },
+          exhibits: excluded
+            ? []
+            : [
+                {
+                  exhibitId: 'ex-sealed',
+                  exhibitLabel: 'S-2',
+                  currentStatus: 'ADMITTED',
+                  discrepancyStatus: 'CLEAN',
+                  flags: [],
+                  isSealed: true,
+                  status: 'INCLUDED',
+                  addedAt: new Date().toISOString(),
+                },
+              ],
+        }),
+      });
+    });
+
+    await page.route('**/api/jury-package/*/exhibits/*/exclude', async (route) => {
+      excluded = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          event: { eventType: 'JURY_PACKAGE_EXHIBIT_EXCLUDED' },
+          juryPackageExhibit: { status: 'EXCLUDED' },
+        }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchToDeputy(page);
+
+    const criticalRow = page.getByTestId('jury-critical-row');
+    await expect(criticalRow).toBeVisible();
+    await expect(criticalRow).toContainText('CRITICAL');
+    await expect(criticalRow).toContainText('must be removed');
+    await expect(page.getByTestId('jury-finalize')).toBeDisabled();
+
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/exclude') && r.request().method() === 'POST',
+      ),
+      page.getByTestId('jury-remove-from-package').click(),
+    ]);
+
+    await expect(criticalRow).toHaveCount(0, { timeout: 10000 });
+  });
+
+  test('a non-finalizing role (ATTORNEY) sees the CRITICAL row with no Remove action (F13)', async ({
+    page,
+  }) => {
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          juryPackage: {
+            id: 'pkg-sealed-ro',
+            caseId: 'case-1',
+            status: 'DRAFT',
+            createdAt: new Date().toISOString(),
+            finalizedAt: null,
+            finalizedBy: null,
+          },
+          exhibits: [
+            {
+              exhibitId: 'ex-sealed-ro',
+              exhibitLabel: 'S-2',
+              currentStatus: 'ADMITTED',
+              discrepancyStatus: 'CLEAN',
+              flags: [],
+              isSealed: true,
+              status: 'INCLUDED',
+              addedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchToDeputy(page); // land first, then switch to ATTORNEY (view-only)
+    const roleSelect = page.getByLabel('Switch active role');
+    const attorneyOption = roleSelect.locator('option', { hasText: 'ATTORNEY' });
+    await roleSelect.selectOption((await attorneyOption.getAttribute('value')) as string);
+
+    const criticalRow = page.getByTestId('jury-critical-row');
+    await expect(criticalRow).toBeVisible();
+    await expect(criticalRow).toContainText('CRITICAL');
+    await expect(page.getByTestId('jury-remove-from-package')).toHaveCount(0);
+  });
+
   test('full flow: initiate → hard-disabled gate → acknowledge → gate re-enables → finalize → export', async ({
     page,
     request,
