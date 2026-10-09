@@ -1,4 +1,4 @@
-import type { EventType, Role } from '@prisma/client';
+import type { EventType, ExhibitStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ValidationError } from '@/lib/errors';
 import { canViewSealed } from '@/services/visibility';
@@ -139,4 +139,55 @@ export async function getRecentActivity(
     summary: summarizeEvent(e.eventType, e.payload, nameOf),
     recordedAt: e.recordedAt.toISOString(),
   }));
+}
+
+// F8 — Trial Command Center: per-status exhibit counts for the status-
+// distribution bar / stat cards (FRD F08 §Process step 2).
+//
+// SERVICE-LEVEL ONLY this plan (08-06): getStatusCounts is proven by a direct
+// test against the function. It is NOT yet wired into the GET /api/cases/:id/
+// activity route — that route today returns a BARE RecentActivityEntry[] array,
+// and amending it to the FRD's `{ recentActivity, statusCounts }` shape is a
+// breaking change its current consumers (useRecentActivity.ts /
+// RecentActivityPanel.tsx, typed against the bare array) would also have to move
+// for in the same change. To avoid an intermediate broken-consumer state, that
+// wiring is deferred to 08-10 (Command Center Part A, wave 3), which updates the
+// route AND every consumer atomically. This plan hands off a tested, ready-to-
+// wire function and does not touch the route.
+
+const ALL_STATUSES: ExhibitStatus[] = [
+  'MARKED',
+  'OFFERED',
+  'OBJECTED',
+  'ADMITTED',
+  'EXCLUDED',
+  'WITHDRAWN',
+];
+
+/**
+ * Per-status exhibit count breakdown (F08 §Process step 2) — grouped from the
+ * same ExhibitCurrentState data getExhibits reads elsewhere, with the SAME
+ * sealed-exclusion predicate every other read applies. An exhibit with NO
+ * ExhibitCurrentState row (never reached MARKED) is NOT counted in any bucket —
+ * statusCounts sums to the count of exhibits that have at least one STATUS_CHANGE
+ * event, not the case's total exhibit count. Every one of the 6 ExhibitStatus
+ * keys is present, zero-filled when no exhibit holds that status.
+ */
+export async function getStatusCounts(
+  caseId: string,
+  role: Role,
+): Promise<Record<ExhibitStatus, number>> {
+  const counts = Object.fromEntries(ALL_STATUSES.map((s) => [s, 0])) as Record<
+    ExhibitStatus,
+    number
+  >;
+  const rows = await prisma.exhibitCurrentState.groupBy({
+    by: ['currentStatus'],
+    where: { exhibit: { caseId, ...(canViewSealed(role) ? {} : { isSealed: false }) } },
+    _count: { currentStatus: true },
+  });
+  for (const row of rows) {
+    counts[row.currentStatus] = row._count.currentStatus;
+  }
+  return counts;
 }
