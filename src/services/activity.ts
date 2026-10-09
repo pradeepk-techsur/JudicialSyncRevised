@@ -142,7 +142,7 @@ export async function getRecentActivity(
 }
 
 // F8 — Trial Command Center: per-status exhibit counts for the status-
-// distribution bar / stat cards (FRD F08 §Process step 2).
+// distribution legend / stat cards (FRD F08 §Process step 2).
 //
 // SERVICE-LEVEL ONLY this plan (08-06): getStatusCounts is proven by a direct
 // test against the function. It is NOT yet wired into the GET /api/cases/:id/

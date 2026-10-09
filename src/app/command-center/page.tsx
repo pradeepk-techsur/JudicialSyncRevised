@@ -33,7 +33,7 @@ const EMPTY_STATUS_COUNTS: Record<ExhibitStatus, number> = {
 // F8 — Trial Command Center (UX Screen-00): the ambient, zero-config glance
 // screen and the default landing. 08-10 redesigns it to the reference-screenshot
 // layout: a page-local header (title + subtitle + live-status dot + freshness),
-// the 4 stat cards, the proportional status-distribution bar, the (read-only)
+// the 4 stat cards, the status-distribution legend, the (read-only)
 // Objections/Discrepancies panels, and the Custody-at-a-Glance panel (whose one
 // inline Transfer/Assign action is this screen's first-ever write affordance,
 // role-gated to DEPUTY/CLERK/ADMIN). 08-15 (wave 4) completes the layout by
@@ -42,8 +42,8 @@ const EMPTY_STATUS_COUNTS: Record<ExhibitStatus, number> = {
 // summary widget (link-through only) alongside Custody at a Glance.
 export default function CommandCenterPage() {
   // Recent Activity is the freshness anchor (the ambient pulse) AND now carries
-  // statusCounts for the stat cards + distribution bar — ONE query backs the
-  // feed, the indicator, the cards, and the bar. The other panels poll
+  // statusCounts for the stat cards + distribution legend — ONE query backs the
+  // feed, the indicator, the cards, and the legend. The other panels poll
   // independently on their own 4s cadence.
   const activity = useRecentActivity();
   const objections = useUnresolvedObjections();
@@ -118,7 +118,7 @@ export default function CommandCenterPage() {
       <StatusDistributionBar statusCounts={statusCounts ?? EMPTY_STATUS_COUNTS} />
 
       {/* The "Needs your attention" feed — full-width, between the status
-          distribution bar and the lower two-column rows (Screenshot 1). This is
+          distribution legend and the lower two-column rows (Screenshot 1). This is
           the Command Center's ONLY write surface: its two inline actions (Record
           ruling / Assign custodian) are the single deliberate reversal of the
           otherwise strictly read-only screen. */}

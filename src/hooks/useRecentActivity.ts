@@ -8,8 +8,8 @@ import type { RecentActivityEntry } from '@/services/activity';
 
 // The full Command Center activity response (08-10): the route now returns BOTH
 // the recent-activity feed AND the per-status exhibit counts (F08 §Process step
-// 2 — stat cards + status-distribution bar). A single query backs the feed, the
-// freshness indicator, the stat cards, and the distribution bar, so the whole
+// 2 — stat cards + status-distribution legend). A single query backs the feed, the
+// freshness indicator, the stat cards, and the distribution legend, so the whole
 // screen shares ONE 4s poll rather than fanning out duplicate activity fetches.
 export interface ActivityResponse {
   recentActivity: RecentActivityEntry[];
