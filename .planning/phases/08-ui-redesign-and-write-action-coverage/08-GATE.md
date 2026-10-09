@@ -622,3 +622,52 @@ Re-run after the code-review gate's fix commit (`9af6640`), which landed after t
 ```
 
 **Conclusion:** the entire Phase 8 diff — all 16 plans, the code-review fix, and the gap-closure plan 08-16 — builds clean and passes the full regression suite on the final tree. No regression introduced by the review-fixer's comment-only change.
+
+## Backend pre-push gate
+
+- Status: passed_with_warnings
+- Wave-gate coverage: INCOMPLETE — wave(s) 4 ran with no GATE.md entry
+- Result marker + failing output tail:
+```
+__GATE__ build_exit=0 test_exit=0 build_cmd=[npm run build] test_cmd=[npm test] head=dc84ddeb1a95d45c3a4044ad8933871d3749503d test_files=47 skip_marks=5 shadow_files=0
+ [32m✓[39m src/services/assistant.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 13399[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13409[2mms[22m[39m
+ [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 13403[2mms[22m[39m
+ [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 350[2mms[22m[39m
+ [32m✓[39m src/app/api/discrepancies/[id]/acknowledge/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 221[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 176[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/request-finalization/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 150[2mms[22m[39m
+ [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 160[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/services/admissionGate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 136[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/exhibits/[exhibitId]/exclude/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/services/activity.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 101[2mms[22m[39m
+ [32m✓[39m src/services/attentionFeed.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 86[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 91[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/services/custodyByCustodian.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/custody-by-custodian/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/activity/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/attention-feed/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/components/shared/TwoColorProgressBar.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m40 passed[39m[22m[90m (40)[39m
+[2m      Tests [22m [1m[32m265 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (268)[39m
+[2m   Start at [22m 20:53:26
+[2m   Duration [22m 290.13s[2m (transform 387ms, setup 0ms, collect 1.96s, tests 285.44s, environment 3ms, prepare 979ms)[22m
+
+```
