@@ -2,15 +2,15 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-10-09T12:10:13.808Z"
-last_activity: "2026-10-09 — Completed 08-04-PLAN.md: dark-navy Sidebar + simplified Header (case-number + discrepancy badge removed, 'Ask Pivota' relabel), app-shell.spec.ts 7/7 green, 2 atomic commits (efc7dd3, 6efcced), 0 deviations."
+status: completed
+stopped_at: Completed 08-06-PLAN.md
+last_updated: "2026-10-09T12:10:56.308Z"
+last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 9
   completed_phases: 7
   total_plans: 58
-  completed_plans: 47
+  completed_plans: 48
   percent: 78
 ---
 
@@ -21,12 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 8 (UI Redesign and Write-Action Coverage) — 08-03 (Wave 1 shared visual primitives) complete. Phase 7 complete (07-01..07-07). Milestone v1.0 (phases 1-6, 36 plans) remains complete.
+**Current focus:** Phase 8 (UI Redesign and Write-Action Coverage) — 08-04 (Wave 1 app-shell dark-dashboard migration) complete. Phase 7 complete (07-01..07-07). Milestone v1.0 (phases 1-6, 36 plans) remains complete.
 
 ## Current Position
 
 Phase: 8 (UI Redesign and Write-Action Coverage) — Wave 1 in progress.
-Status: 08-01 (F11 finalization-request schema + service, Wave 1, autonomous) complete — added the ONLY Phase 8 schema migration: two nullable `JuryPackage` columns `finalizationRequestedAt`/`finalizationRequestedBy` (clean 2-column ALTER TABLE, migration 20261009120430, no other model touched; prisma validate + migrate status clean). Task 1 (702302e): schema + migration applied against the running docker-compose Postgres, client regenerated. Task 2 (22ec578): `requestFinalization(juryPackageId, actorUserId)` service with an INVERTED role gate — a role that CAN finalize directly (DEPUTY/CLERK/ADMIN, reusing the existing `JURY_WRITE_ROLES` set, not a new alias) is REJECTED with 403 ROLE_NOT_PERMITTED, while a JUDGE/CHAMBERS_STAFF/ATTORNEY stamps the request; ordering existence(404)→already-finalized(409)→role(403) mirrors `excludeJuryPackageExhibit`. An actor with no User row falls through to the stamp (F11's error table only names the over-authorized-role rejection — no stricter unknown-actor rule invented). `finalizeJuryPackage` now clears both request fields in the SAME `tx.juryPackage.update` as the FINALIZED transition (the request it answered is fulfilled). New thin `POST /api/jury-package/:id/request-finalization` route mirrors `finalize/route.ts` exactly; the fields ride along on the existing GET /jury-package (no route change) so 08-14 can render "Request finalization from Clerk" + the "Finalization requested by {name} at {time}" banner. Tests: new route.test.ts (4 scenarios: 200 JUDGE / 403 DEPUTY / 409 finalized / newest-requester-wins) + 2 new juryPackage.test.ts cases (finalize clears request fields; request role/state matrix) — all 18 targeted green, plus existing finalize + jury-package GET route tests green (no regression). tsc --noEmit EXIT 0, next build EXIT 0 (route registered). 0 deviations. SHARED-WORKING-TREE hazard again (parallel 08-02/08-03/08-04 edits + an 08-03-SUMMARY present) — staged only my 4 files individually, siblings untouched. Env note: fresh tree had no node_modules and `npx prisma` pulled Prisma 7 (rejects `url` in datasource) — used the project-pinned node_modules/.bin/prisma (6.19.3) after npm install --include=dev; cleared a stale `next build` lock.
+Status: 08-04 (Wave 1 app-shell dark-dashboard migration, autonomous) complete — landed the final shared shell FIRST so every wave-3 screen redesign (08-10..08-15) builds against it, never a half-migrated one. Task 1 (efc7dd3): new Sidebar.module.scss dark-navy-themes the Carbon SideNav via scoped :global(.cds--side-nav*) overrides (#0f1b3d background, off-white idle links, white active/hover wash) — selectors (cds--side-nav, __link, __link--current [Carbon's real active class, NOT aria-current], __link-text) verified against the installed @carbon/styles ui-shell source; applied styles.darkNav to the no-print wrapper. Task 2 (6efcced): Header.tsx stripped of the raw case-number text node (cds--header__case-number) and the entire discrepancy-count badge block + its now-unused useDiscrepancyCount/useRouter imports (both superseded per 08-CONTEXT §Header layout — case id → per-screen subtitles, discrepancy signal → Command Center stat cards/attention feed), and the assistant button relabeled 'Ask ✦' → 'Ask Pivota' (data-testid/aria-label/title verbatim); app-shell.spec.ts updated with documented INTENTIONAL edits (case-number test → role-switcher-only; both discrepancy-indicator tests → one asserting PERMANENT absence even under a mocked nonzero count; Ask test relabeled). Verification: npx tsc --noEmit EXIT 0, npm run build EXIT 0, e2e/app-shell.spec.ts 7/7 green 0 skipped. 0 deviations. Recurring shared-working-tree hazard seen again (Task 1's first build failed on sibling-owned exhibits.ts toListRow drift — out of scope, logged to deferred-items.md, converged to EXIT 0 by Task 2 after 08-02 committed its fix). Stale project-app-1 preview container stopped (DB left healthy) so Playwright's webServer ran next dev from live source.
+
+Prior status: 08-01 (F11 finalization-request schema + service, Wave 1, autonomous) complete — added the ONLY Phase 8 schema migration: two nullable `JuryPackage` columns `finalizationRequestedAt`/`finalizationRequestedBy` (clean 2-column ALTER TABLE, migration 20261009120430, no other model touched; prisma validate + migrate status clean). Task 1 (702302e): schema + migration applied against the running docker-compose Postgres, client regenerated. Task 2 (22ec578): `requestFinalization(juryPackageId, actorUserId)` service with an INVERTED role gate — a role that CAN finalize directly (DEPUTY/CLERK/ADMIN, reusing the existing `JURY_WRITE_ROLES` set, not a new alias) is REJECTED with 403 ROLE_NOT_PERMITTED, while a JUDGE/CHAMBERS_STAFF/ATTORNEY stamps the request; ordering existence(404)→already-finalized(409)→role(403) mirrors `excludeJuryPackageExhibit`. An actor with no User row falls through to the stamp (F11's error table only names the over-authorized-role rejection — no stricter unknown-actor rule invented). `finalizeJuryPackage` now clears both request fields in the SAME `tx.juryPackage.update` as the FINALIZED transition (the request it answered is fulfilled). New thin `POST /api/jury-package/:id/request-finalization` route mirrors `finalize/route.ts` exactly; the fields ride along on the existing GET /jury-package (no route change) so 08-14 can render "Request finalization from Clerk" + the "Finalization requested by {name} at {time}" banner. Tests: new route.test.ts (4 scenarios: 200 JUDGE / 403 DEPUTY / 409 finalized / newest-requester-wins) + 2 new juryPackage.test.ts cases (finalize clears request fields; request role/state matrix) — all 18 targeted green, plus existing finalize + jury-package GET route tests green (no regression). tsc --noEmit EXIT 0, next build EXIT 0 (route registered). 0 deviations. SHARED-WORKING-TREE hazard again (parallel 08-02/08-03/08-04 edits + an 08-03-SUMMARY present) — staged only my 4 files individually, siblings untouched. Env note: fresh tree had no node_modules and `npx prisma` pulled Prisma 7 (rejects `url` in datasource) — used the project-pinned node_modules/.bin/prisma (6.19.3) after npm install --include=dev; cleared a stale `next build` lock.
 
 Prior status: 08-03 (Wave 1 shared dark-dashboard visual primitives, autonomous) complete — built the five shared presentational components the user's "perfect alignment and standardization" requirement demands, BEFORE any screen redesign consumes them, mirroring the Phase 2/6 shared-components-first pattern. Task 1 (a1cf5d4): ExhibitTag — the single shared exhibit-label chip (P-3, S-1), small bold monospace-ish, NO status-color (status stays StatusBadge's job); SeverityPill — the ONE component for both attention-feed tier badges AND condition/flag pills, a fixed 4-tone color map via one TONE_CONFIG → 4 visually-distinct named CSS classes (toneCritical dark-red/white, toneHigh amber, tonePending amber-light+border deliberately distinct from high at a glance, toneMedium yellow), label text ALWAYS visible + aria-label (never color-alone, Y2-accessibility). Task 2 (242bc5c): TwoColorProgressBar — the one clean-vs-blocked bar for both the Command Center jury summary widget and the Jury Package Workspace header off the identical {clean,total} shape, with role=progressbar + aria-label; Card — shared rounded white card chrome with one reusable red-left-border critical variant (data-critical flips), forwards className + HTMLAttributes; ActionButtonRow — layout-only primary/secondary Carbon-Button pairing. [Rule 3] The plan's done-criteria named a TwoColorProgressBar.test.tsx rendering test, but the project's vitest is environment:node with no jsdom/testing-library and only includes *.test.ts — so the ratio math was extracted into the exported pure progressBarModel() helper (guards total=0, clamps negatives/over-count → never a NaN width) and tested via TwoColorProgressBar.test.ts (6 cases: 0-total/no-NaN, 100%-clean, 0%-clean, partial ratio, singular/plural, clamping) — all pass. Verification: full npx tsc --noEmit EXIT 0 + npx next build EXIT 0 + vitest 6/6 (eslint absent in project — Next 16 dropped next lint, no eslint config/dep — tsc+build are the authoritative gates per Phase 6/7 precedent). 1 deviation (Rule 3 test harness), 2 atomic commits. SHARED-WORKING-TREE HAZARD seen again: a parallel Phase 8 plan added required ExhibitListRow fields to lib/types.ts mid-run, transiently breaking services/exhibits.ts (not an 08-03 file); tree converged to tsc+build EXIT 0 before the plan-level gate — logged to deferred-items.md.
 
@@ -127,6 +129,7 @@ Progress: [██████████] 100%
 | Phase 08 P03 | 3 min | 2 tasks | 12 files |
 | Phase 08-ui-redesign-and-write-action-coverage P04 | 18 min | 2 tasks | 4 files |
 | Phase 08 P01 | 9 min | 2 tasks | 6 files |
+| Phase 08 P06 | 6 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -262,6 +265,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-09T12:10:13.806Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-10-09T12:10:56.305Z
+Stopped at: Completed 08-06-PLAN.md
 Resume file: None
