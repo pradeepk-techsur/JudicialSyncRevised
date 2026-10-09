@@ -1,0 +1,11 @@
+// Primary/secondary button-pair layout. Pure flex positioning so every card type
+// renders its action pair with identical left-to-right order, sizing, and spacing.
+// Carries no color/kind opinions — those live on the Carbon Buttons the caller
+// passes as `primary`/`secondary`.
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
