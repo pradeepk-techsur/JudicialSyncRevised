@@ -149,6 +149,34 @@ export async function evaluateDiscrepancies(
   }
 }
 
+/** Additive read-time join (F14): attach `justification` to each ACKNOWLEDGED
+ * flag, extracted from its acknowledgedEventId's DISCREPANCY_ACKNOWLEDGED
+ * payload — NOT a new column, purely a read-time enrichment. Flags that are
+ * OPEN (acknowledgedEventId null) are returned unchanged. This surfaces the
+ * IDENTICAL justification text already readable via the ledger timeline, through
+ * the discrepancy-flag read paths — no new disclosure channel (threat T-07-11).
+ */
+async function withJustification(
+  flags: DiscrepancyFlag[],
+): Promise<Array<DiscrepancyFlag & { justification?: string }>> {
+  const eventIds = flags
+    .filter((f) => f.status === 'ACKNOWLEDGED' && f.acknowledgedEventId)
+    .map((f) => f.acknowledgedEventId as string);
+  if (eventIds.length === 0) return flags;
+  const events = await prisma.exhibitEvent.findMany({
+    where: { id: { in: eventIds } },
+    select: { id: true, payload: true },
+  });
+  const justificationByEventId = new Map(
+    events.map((e) => [e.id, (e.payload as { justification?: string })?.justification]),
+  );
+  return flags.map((f) =>
+    f.acknowledgedEventId && justificationByEventId.has(f.acknowledgedEventId)
+      ? { ...f, justification: justificationByEventId.get(f.acknowledgedEventId) }
+      : f,
+  );
+}
+
 /**
  * All active (OPEN or ACKNOWLEDGED) discrepancy flags case-wide, oldest first.
  * RESOLVED flags are history and are excluded — they surface only in the
@@ -159,12 +187,15 @@ export async function evaluateDiscrepancies(
  * relational `exhibit: { isSealed: false }` predicate — mirroring getExhibits —
  * so a sealed exhibit's existence and defect never leak through the case-wide
  * feed (sidebar count pill / jury screen).
+ *
+ * ACKNOWLEDGED flags additionally carry `justification` (F14) via the read-time
+ * withJustification join — see that helper.
  */
 export async function getDiscrepancies(
   caseId: string,
   requestingUserRole: Role,
-): Promise<DiscrepancyFlag[]> {
-  return prisma.discrepancyFlag.findMany({
+): Promise<Array<DiscrepancyFlag & { justification?: string }>> {
+  const flags = await prisma.discrepancyFlag.findMany({
     where: {
       caseId,
       status: { in: ['OPEN', 'ACKNOWLEDGED'] },
@@ -172,16 +203,19 @@ export async function getDiscrepancies(
     },
     orderBy: { detectedAt: 'asc' },
   });
+  return withJustification(flags);
 }
 
-/** Same as getDiscrepancies but scoped to one exhibit. */
+/** Same as getDiscrepancies but scoped to one exhibit. ACKNOWLEDGED flags carry
+ * `justification` via the read-time withJustification join (F14). */
 export async function getExhibitDiscrepancies(
   exhibitId: string,
-): Promise<DiscrepancyFlag[]> {
-  return prisma.discrepancyFlag.findMany({
+): Promise<Array<DiscrepancyFlag & { justification?: string }>> {
+  const flags = await prisma.discrepancyFlag.findMany({
     where: { exhibitId, status: { in: ['OPEN', 'ACKNOWLEDGED'] } },
     orderBy: { detectedAt: 'asc' },
   });
+  return withJustification(flags);
 }
 
 /**

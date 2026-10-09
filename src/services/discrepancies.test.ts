@@ -333,6 +333,31 @@ describe('discrepancy engine', () => {
     expect(active.some((f) => f.ruleCode === 'ADMITTED_NO_CUSTODIAN')).toBe(false);
   });
 
+  it('getDiscrepancies and getExhibitDiscrepancies include justification for an ACKNOWLEDGED flag, omit it for OPEN (F14)', async () => {
+    const { caseId, exhibitId, deputyId } = fx;
+    await admit(exhibitId, caseId, deputyId);
+    const flag = await prisma.discrepancyFlag.findFirstOrThrow({
+      where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
+    });
+
+    const beforeAck = await getExhibitDiscrepancies(exhibitId);
+    expect(beforeAck.find((f) => f.id === flag.id)?.justification).toBeUndefined();
+
+    await acknowledgeDiscrepancy({
+      discrepancyFlagId: flag.id,
+      actorUserId: deputyId,
+      justification: 'Reviewed — custodian will be assigned at recess',
+    });
+
+    const afterAckCaseWide = await getDiscrepancies(caseId, 'JUDGE');
+    const ackedCaseWide = afterAckCaseWide.find((f) => f.id === flag.id);
+    expect(ackedCaseWide?.justification).toBe('Reviewed — custodian will be assigned at recess');
+
+    const afterAckExhibit = await getExhibitDiscrepancies(exhibitId);
+    const ackedExhibit = afterAckExhibit.find((f) => f.id === flag.id);
+    expect(ackedExhibit?.justification).toBe('Reviewed — custodian will be assigned at recess');
+  });
+
   it('getDiscrepancies hides sealed-exhibit flags from roles that cannot view sealed', async () => {
     const { caseId, deputyId } = fx;
     // A sealed, ADMITTED exhibit with no custody row → an OPEN
