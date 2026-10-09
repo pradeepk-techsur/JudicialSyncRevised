@@ -361,7 +361,14 @@ test.describe('Trial Command Center', () => {
     for (const label of ['Marked', 'Offered', 'Objected', 'Admitted', 'Excluded', 'Withdrawn']) {
       await expect(legend).toContainText(label);
     }
-    await expect(page.getByTestId('status-distribution-bar')).toBeVisible();
+    // Phase 8 gap closure (08-16, 08-UAT.md test 2): the loud multi-colored
+    // segmented bar was removed entirely — assert its permanent absence, not
+    // merely omit checking it, mirroring this project's 08-04 precedent for
+    // documented intentional removals.
+    await expect(page.getByTestId('status-distribution-bar')).toHaveCount(0);
+    for (const status of ['MARKED', 'OFFERED', 'OBJECTED', 'ADMITTED', 'EXCLUDED', 'WITHDRAWN']) {
+      await expect(page.getByTestId(`status-segment-${status}`)).toHaveCount(0);
+    }
   });
 
   test('the page-local screen header shows the title and a live-status dot', async ({ page }) => {
