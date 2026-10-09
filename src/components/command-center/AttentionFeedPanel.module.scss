@@ -1,0 +1,51 @@
+@use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.heading {
+  @include type-style('heading-compact-02');
+  color: $text-primary;
+}
+
+.caption {
+  @include type-style('label-01');
+  color: $text-secondary;
+  margin-bottom: $spacing-05;
+}
+
+// Each entry is the shared Card chrome (not a plain div) — CRITICAL-tier entries
+// inherit the Card's red-left-border critical treatment via `critical`.
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  margin-bottom: $spacing-04;
+}
+
+.entryHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.summary {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.detectedAt {
+  @include type-style('label-01');
+  color: $text-secondary;
+}
+
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.error {
+  @include type-style('body-compact-01');
+  color: colors.$red-60;
+}
