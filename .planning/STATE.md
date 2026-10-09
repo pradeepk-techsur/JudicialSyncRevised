@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-10-09T01:10:00.154Z"
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-10-09T01:12:12.021Z"
 last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 39
   percent: 83
 ---
 
@@ -104,6 +104,8 @@ Progress: [████████░░] 83%
 | Phase 06-carbon-design-system-ui-upgrade P05 | 9 min | 3 tasks | 11 files |
 | Phase 06-carbon-design-system-ui-upgrade P09 | 3 min | 3 tasks | 11 files |
 | Phase 07 P01 | 5 min | 2 tasks | 4 files |
+| Phase 07-fix-admission-integrity-and-ui-usability-issues P03 | 11 min | 2 tasks | 5 files |
+| Phase 07-fix-admission-integrity-and-ui-usability-issues P05 | 7 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -209,6 +211,7 @@ Recent decisions affecting current work:
 - [Phase 06-05]: Exhibit Detail migrated to Carbon: ExhibitHeader→Tile, Timeline kept semantic <ol aria-label='Exhibit history timeline'> with id={event-${eventId}} anchors preserved byte-for-byte (3-plan deep-link contract) + warning-token highlight, DiscrepancyBanner→Carbon yellow-token surface, page loading/error→InlineLoading/InlineNotification; consumes Wave 2 StatusBadge/AcknowledgeInline unchanged; full exhibit-detail.spec.ts 4/4 green
 - [Phase 06-05]: [Rule 1 bug] Fixed app-wide shell layout: Carbon isFixedNav SideNav (position:fixed, 0 flow width) overlaid <main> at x=0, intercepting the top-left back-link click; added padding-left:16rem to AppShell .body so main clears the rail. app-shell 6/6 + command-center 7/7 re-verified green
 - [Phase 06-09]: Deleted the entire Tailwind/shadcn pipeline (5 dead ui/* primitives, globals.css, components.json, postcss.config.mjs, src/lib/utils.ts cn re-export) and removed 8 unused deps (tailwindcss/@tailwindcss/postcss/shadcn/tw-animate-css/class-variance-authority/cn/@base-ui/react/lucide-react; 305 transitive packages pruned) — grep-verified zero consumers before each removal. Carbon is now the SOLE UI foundation. Kept postcss (not in removal list, Next.js may use independently). Left shadcn-naming COMMENTS in ExhibitTable/SearchFilterBar (docs, not deps). Full gate green: tsc clean, next build EXIT=0, vitest 195/3-skip/0-fail, playwright 36/36. 0 deviations, 2 atomic commits (ff105e1, 8f50854). PHASE 6 + MILESTONE COMPLETE.
+- [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-03]: Sealed/ex-parte exhibits structurally excluded from jury-package membership via isSealed:false in computeJuryCandidates (F13); reconcileDraftMembership computes staleness from actual currentStatus so legacy sealed member rows are retained, not deleted
 
 ### Pending Todos
 
@@ -224,6 +227,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-09T01:10:00.151Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-10-09T01:12:09.219Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
