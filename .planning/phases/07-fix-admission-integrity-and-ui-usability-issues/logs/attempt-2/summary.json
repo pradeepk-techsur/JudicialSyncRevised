@@ -1,0 +1,21 @@
+{
+  "duration_secs": 1644.0,
+  "token_usage": {
+    "input": 240,
+    "output": 56999,
+    "total": 18184011,
+    "cache_read": 17752000,
+    "cache_write": 374772,
+    "cost": 5.057799999999999
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/07-fix-admission-integrity-and-ui-usability-issues/07-UAT.md",
+    ".planning/phases/07-fix-admission-integrity-and-ui-usability-issues/07-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 2,
+  "created_at": "2026-10-09T02:31:15.279852+00:00",
+  "completed_at": "2026-10-09T02:58:40.267401163+00:00"
+}
