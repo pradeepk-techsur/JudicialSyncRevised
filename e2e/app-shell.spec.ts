@@ -71,6 +71,40 @@ test.describe('App shell', () => {
     await expect(page.getByRole('main')).toBeVisible();
   });
 
+  test('sidebar never visually overlaps the shared header (Phase 8 gap 2 — 08-UAT.md test 2)', async ({ page }) => {
+    await page.goto('/case');
+    const header = page.locator('header[aria-label="JudicialSync"]');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    await expect(header).toBeVisible();
+    await expect(nav).toBeVisible();
+
+    const headerBox = await header.boundingBox();
+    const navBox = await nav.boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(navBox).not.toBeNull();
+    // The sidebar must start at or below the header's bottom edge — i.e. zero
+    // vertical overlap between the two fixed-position panels.
+    expect(navBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
+
+    // Stronger check: hit-test the role-switcher's actual center point and
+    // confirm the sidebar (not some other element) isn't intercepting it —
+    // this is the precise failure mode the user reported ("overlaps the
+    // persona dropdown").
+    const roleSelect = page.getByLabel('Switch active role');
+    const selectBox = await roleSelect.boundingBox();
+    expect(selectBox).not.toBeNull();
+    const centerX = selectBox!.x + selectBox!.width / 2;
+    const centerY = selectBox!.y + selectBox!.height / 2;
+    const topElementTag = await page.evaluate(
+      ({ x, y }) => {
+        const el = document.elementFromPoint(x, y);
+        return el ? el.closest('select')?.id ?? el.tagName : null;
+      },
+      { x: centerX, y: centerY },
+    );
+    expect(topElementTag).toBe('role-switcher');
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command

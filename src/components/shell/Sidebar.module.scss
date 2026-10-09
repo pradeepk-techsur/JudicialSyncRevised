@@ -15,6 +15,19 @@
 .darkNav {
   :global(.cds--side-nav) {
     background-color: #0f1b3d; // dark navy — distinct from the light content area
+    // Carbon's own `.cds--header ~ .cds--side-nav` rule (in @carbon/styles
+    // _side-nav.scss) would apply this exact offset automatically IF our
+    // rendered SideNav were a literal DOM sibling of the Header element. It
+    // is not (AppShell nests Sidebar two levels inside a sibling `.body`
+    // div), so the rule never matches, and the SideNav defaults to
+    // `inset-block: 0` — starting at the true viewport top, UNDER the
+    // same-z-index fixed Header, where DOM-order tie-breaking lets the
+    // SideNav paint over the Header's 48px band. Replicate the offset
+    // manually here. 3rem matches AppShell.module.scss's own `.shell {
+    // padding-top: 3rem }` header-height constant — keep both in sync if
+    // the header height ever changes.
+    inset-block-start: 3rem;
+    block-size: calc(100% - 3rem);
   }
 
   // Idle link color: a soft off-white so labels read on the navy field.
