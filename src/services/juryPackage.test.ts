@@ -9,7 +9,7 @@ import {
 import { recordStatusChange } from '@/services/status';
 import { recordObjection } from '@/services/objections';
 import { recordCustodyTransfer } from '@/services/custody';
-import { acknowledgeDiscrepancy } from '@/services/discrepancies';
+import { acknowledgeDiscrepancy, evaluateDiscrepancies } from '@/services/discrepancies';
 import { ConflictError, RoleNotPermittedError, UnprocessableError } from '@/lib/errors';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
@@ -66,24 +66,43 @@ async function makeExhibit(
 }
 
 // Admit an exhibit WITH custody recorded so no ADMITTED_NO_CUSTODIAN flag fires
-// (a genuinely CLEAN admitted exhibit).
+// (a genuinely CLEAN admitted exhibit). Custody is recorded BEFORE the ADMITTED
+// transition so the F12 admission gate (plan 07-02: admission requires custody)
+// is satisfied rather than blocked.
 async function admitClean(exhibitId: string, actorUserId: string) {
   await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId });
   await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId });
-  await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId });
   await recordCustodyTransfer({
     exhibitId,
     fromCustodianUserId: null,
     toCustodianUserId: actorUserId,
     actorUserId,
   });
+  await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId });
 }
 
 // Admit an exhibit WITHOUT custody → an OPEN ADMITTED_NO_CUSTODIAN flag fires.
-async function admitFlagged(exhibitId: string, actorUserId: string) {
+// This fixture's whole point is "ADMITTED with no custody", which the F12
+// admission gate (plan 07-02) would block via the normal recordStatusChange
+// path. So the final ADMITTED step is written directly (bypassing the gate),
+// mirroring plan 07-02's forceAdmitBypassingGate pattern, to preserve the
+// no-custody-ADMITTED state these discrepancy tests rely on.
+async function admitFlagged(exhibitId: string, caseId: string, actorUserId: string) {
   await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId });
   await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId });
-  await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId });
+  const agg = await prisma.exhibitEvent.aggregate({ where: { exhibitId }, _max: { sequenceNo: true } });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId, caseId, eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OFFERED', toStatus: 'ADMITTED' },
+      actorUserId, sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: { exhibitId, currentStatus: 'ADMITTED', lastStatusEventId: event.id, lastStatusAt: event.recordedAt },
+    update: { currentStatus: 'ADMITTED', lastStatusEventId: event.id, lastStatusAt: event.recordedAt },
+  });
 }
 
 describe('jury package service', () => {
@@ -97,23 +116,25 @@ describe('jury package service', () => {
     await prisma.$disconnect();
   });
 
-  it('computeJuryCandidates returns ALL ADMITTED exhibits (full visibility) incl. a sealed one', async () => {
+  it('computeJuryCandidates returns ADMITTED non-sealed exhibits and EXCLUDES sealed ones (F13)', async () => {
+    // POLICY CHANGE (F13, supersedes the pre-Phase-7 "membership is case truth
+    // regardless of seal" assertion this replaces): sealed exhibits are now
+    // structurally excluded from candidate computation itself, not just the view.
     const { caseId, deputyId } = fx;
     const clean = await makeExhibit(caseId, `C-${fx.suffix}`);
     const sealed = await makeExhibit(caseId, `S-${fx.suffix}`, { isSealed: true });
     await admitClean(clean, deputyId);
     await admitClean(sealed, deputyId);
 
-    // Query as DEPUTY (no sealed visibility) — membership must still include the sealed exhibit.
-    const candidates = await computeJuryCandidates(caseId, 'DEPUTY');
+    const candidates = await computeJuryCandidates(caseId, 'ADMIN');
     const ids = candidates.map((c) => c.exhibitId);
     expect(ids).toContain(clean);
-    expect(ids).toContain(sealed);
-    const sealedCand = candidates.find((c) => c.exhibitId === sealed);
-    expect(sealedCand?.isSealed).toBe(true);
+    expect(ids).not.toContain(sealed);
   });
 
-  it('initiate by DEPUTY: membership includes a sealed exhibit but the DEPUTY view omits it', async () => {
+  it('initiate by DEPUTY: a sealed exhibit is NOT a member row and is absent from the view (F13)', async () => {
+    // POLICY CHANGE (F13): a sealed exhibit is excluded from membership entirely,
+    // so no JuryPackageExhibit row is created for it via the normal initiate path.
     const { caseId, deputyId } = fx;
     const clean = await makeExhibit(caseId, `C-${fx.suffix}`);
     const sealed = await makeExhibit(caseId, `S-${fx.suffix}`, { isSealed: true });
@@ -122,13 +143,13 @@ describe('jury package service', () => {
 
     const { juryPackage, exhibits } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
 
-    // The sealed exhibit IS a member row in the DB...
+    // The sealed exhibit is NOT a member row in the DB...
     const memberRow = await prisma.juryPackageExhibit.findFirst({
       where: { juryPackageId: juryPackage.id, exhibitId: sealed },
     });
-    expect(memberRow).not.toBeNull();
+    expect(memberRow).toBeNull();
 
-    // ...but it is ABSENT from the role-filtered DEPUTY view.
+    // ...and is absent from the view; the clean exhibit is present.
     const viewIds = exhibits.map((e) => e.exhibitId);
     expect(viewIds).toContain(clean);
     expect(viewIds).not.toContain(sealed);
@@ -164,8 +185,12 @@ describe('jury package service', () => {
     const flagged = await makeExhibit(caseId, `B-flagged-${fx.suffix}`);
     const acked = await makeExhibit(caseId, `C-acked-${fx.suffix}`);
     await admitClean(clean, deputyId);
-    await admitFlagged(flagged, deputyId);
-    await admitFlagged(acked, deputyId);
+    await admitFlagged(flagged, caseId, deputyId);
+    await admitFlagged(acked, caseId, deputyId);
+    // admitFlagged bypasses the gate and skips evaluateDiscrepancies, so fire it
+    // explicitly here where the test needs real OPEN DiscrepancyFlag rows.
+    await evaluateDiscrepancies(flagged);
+    await evaluateDiscrepancies(acked);
 
     // Acknowledge the acked exhibit's OPEN flag.
     const ackFlag = await prisma.discrepancyFlag.findFirstOrThrow({
@@ -228,35 +253,39 @@ describe('jury package service', () => {
     expect(ids).toContain(second);
   });
 
-  it('WARNING-3 gate honesty: a sealed OPEN discrepancy blocks finalize for a DEPUTY who cannot see it', async () => {
+  it('F13: a sealed exhibit is NOT a member, so its OPEN discrepancy does not block finalize', async () => {
+    // POLICY CHANGE (F13, supersedes the pre-Phase-7 "membership is case truth
+    // regardless of seal" test this replaces): a sealed/ex-parte exhibit is now
+    // structurally excluded from membership by computeJuryCandidates. It can never
+    // be a member via the normal initiate path, so it can neither appear in the
+    // view NOR block finalize — exclusion happens earlier, at candidate computation.
     const { caseId, deputyId } = fx;
     const clean = await makeExhibit(caseId, `A-${fx.suffix}`);
     const sealedFlagged = await makeExhibit(caseId, `S-${fx.suffix}`, { isSealed: true });
     await admitClean(clean, deputyId);
-    await admitFlagged(sealedFlagged, deputyId); // sealed + ADMITTED + no custody → OPEN flag
+    await admitFlagged(sealedFlagged, caseId, deputyId); // sealed + ADMITTED + no custody → OPEN flag
+    await evaluateDiscrepancies(sealedFlagged);
 
     const { juryPackage, exhibits } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
 
-    // The sealed exhibit is NOT in the DEPUTY view...
+    // The sealed exhibit is absent from the view AND is not a member row at all.
     expect(exhibits.map((e) => e.exhibitId)).not.toContain(sealedFlagged);
+    const memberRow = await prisma.juryPackageExhibit.findFirst({
+      where: { juryPackageId: juryPackage.id, exhibitId: sealedFlagged },
+    });
+    expect(memberRow).toBeNull();
 
-    // ...yet finalize is BLOCKED because membership includes it.
-    try {
-      await finalizeJuryPackage(juryPackage.id, deputyId);
-      throw new Error('expected finalize to throw');
-    } catch (err) {
-      expect(err).toBeInstanceOf(ConflictError);
-      const ce = err as ConflictError;
-      expect(ce.code).toBe('JURY_PACKAGE_DISCREPANCIES_OPEN');
-      const details = ce.details as { blockingExhibits: { exhibitId: string }[] };
-      expect(details.blockingExhibits.some((b) => b.exhibitId === sealedFlagged)).toBe(true);
-    }
+    // Finalize SUCCEEDS: the only member (clean) has no open discrepancy, and the
+    // sealed flagged exhibit — never a member — cannot block it.
+    const result = await finalizeJuryPackage(juryPackage.id, deputyId);
+    expect(result.juryPackage.status).toBe('FINALIZED');
   });
 
   it('finalize blocks with named blockers on OPEN, succeeds after acknowledgment, 409s on re-finalize', async () => {
     const { caseId, deputyId } = fx;
     const flagged = await makeExhibit(caseId, `F-${fx.suffix}`);
-    await admitFlagged(flagged, deputyId);
+    await admitFlagged(flagged, caseId, deputyId);
+    await evaluateDiscrepancies(flagged);
     const { juryPackage } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
 
     // Blocked, with named blocking exhibit.
@@ -296,5 +325,41 @@ describe('jury package service', () => {
       code: 'JURY_PACKAGE_ALREADY_FINALIZED',
       httpStatus: 409,
     });
+  });
+
+  it('computeJuryCandidates never returns a sealed exhibit, even when ADMITTED (F13)', async () => {
+    const { caseId, deputyId } = fx;
+    const sealedId = await makeExhibit(caseId, `SEALED-${Date.now()}`, { isSealed: true });
+    await admitClean(sealedId, deputyId);
+
+    const candidates = await computeJuryCandidates(caseId, 'ADMIN');
+    expect(candidates.some((c) => c.exhibitId === sealedId)).toBe(false);
+  });
+
+  it('reconcileDraftMembership never deletes a legacy JuryPackageExhibit row for a still-ADMITTED sealed exhibit', async () => {
+    const { caseId, deputyId } = fx;
+    // A non-sealed admitted exhibit so the package has at least one eligible
+    // member (initiate throws NO_ELIGIBLE_EXHIBITS on an all-sealed case).
+    const cleanId = await makeExhibit(caseId, `CLEAN-${Date.now()}`);
+    await admitClean(cleanId, deputyId);
+    const sealedId = await makeExhibit(caseId, `SEALED-LEGACY-${Date.now()}`, { isSealed: true });
+    await admitClean(sealedId, deputyId);
+
+    // Simulate a legacy row predating this fix: insert directly (the normal
+    // initiate/reconcile path can no longer create this row post-F13 — this
+    // is exactly the "regression/legacy data" scenario F13 names).
+    const pkg = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
+    await prisma.juryPackageExhibit.create({
+      data: { juryPackageId: pkg.juryPackage.id, exhibitId: sealedId, discrepancyStatus: 'CLEAN' },
+    });
+
+    // Re-fetching the DRAFT (triggers reconcileDraftMembership) must NOT
+    // delete the legacy row — the sealed exhibit is still genuinely ADMITTED.
+    await getJuryPackage(caseId, 'ADMIN');
+
+    const survived = await prisma.juryPackageExhibit.findFirst({
+      where: { juryPackageId: pkg.juryPackage.id, exhibitId: sealedId },
+    });
+    expect(survived).not.toBeNull();
   });
 });
