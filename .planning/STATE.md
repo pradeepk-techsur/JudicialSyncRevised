@@ -2,14 +2,15 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-10-09T03:24:37.570Z"
-last_activity: "2026-10-09 — Phase 7 complete"
+status: verifying
+stopped_at: Completed 08-02-PLAN.md (custody-transfer server-side role gate)
+last_updated: "2026-10-09T12:08:19.881Z"
+last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
-  total_phases: 7
+  total_phases: 9
   completed_phases: 7
-  total_plans: 43
-  completed_plans: 43
+  total_plans: 58
+  completed_plans: 44
   percent: 100
 ---
 
@@ -117,6 +118,7 @@ Progress: [██████████] 100%
 | Phase 07-fix-admission-integrity-and-ui-usability-issues P02 | 21 min | 4 tasks | 15 files |
 | Phase 07-fix-admission-integrity-and-ui-usability-issues P06 | 10 min | 2 tasks | 12 files |
 | Phase 07-fix-admission-integrity-and-ui-usability-issues P07 | 7 min | 3 tasks | 11 files |
+| Phase 08-ui-redesign-and-write-action-coverage P02 | 3 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -232,6 +234,7 @@ Recent decisions affecting current work:
 - [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-02]: forceAdmitBypassingGate test-only helper (grep-audited out of src/services and routes, T-07-05) constructs genuinely-firing custody-less/open-objection ADMITTED preconditions for white-box discrepancy/finalize tests; seed-only recordedAt? threaded through recordEvent/custody/objections (status.ts untouched, owned by 07-01)
 - [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-06]: F14 acknowledgment transparency — justification surfaced via read-time join (extract DISCREPANCY_ACKNOWLEDGED payload.justification by acknowledgedEventId), NO new column/migration/write-path change; full record (name/role) resolved client-side from caseFlags + roster; always-visible permanence disclosure + 'Justification (recorded permanently)' relabel in shared AcknowledgeInline; full record rendered inline on Exhibit Detail + Jury Package. [Rule 1] stale full-flow jury e2e (depended on seed OPEN flags removed by 07-02's F12 compliance) rewritten to page.route mocks
 - [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-07]: F13 closed end-to-end — excludeJuryPackageExhibit (role-gated, finalized-immutable, event+UPDATE never delete, T-07-12/13/14); toView filters EXCLUDED + surfaces retained sealed-ADMITTED legacy rows as members (reconcile derives members from persisted rows, not sealed-filtered candidates); finalize gate INCLUDED-only; Workspace CRITICAL row + FINALIZE_ROLES-gated Remove-from-Package (JUDGE sees blocker no action); Carbon error tokens only. tsc clean, build EXIT=0, vitest 36/36, playwright 6/6.
+- [Phase 08-02]: recordCustodyTransfer gains Phase 8's ONLY new server-side role gate — 403 ROLE_NOT_PERMITTED for any actor outside DEPUTY/CLERK/ADMIN, resolved from the actual User.role column; reuses the general-purpose RoleNotPermittedError (not objections.ts's private subclass); check placed after INVALID_CUSTODIAN and before $transaction to preserve existing validation precedence
 
 ### Pending Todos
 
@@ -247,6 +250,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-09T02:02:38.762Z
-Stopped at: Completed 07-07-PLAN.md
+Last session: 2026-10-09T12:08:19.879Z
+Stopped at: Completed 08-02-PLAN.md (custody-transfer server-side role gate)
 Resume file: None
