@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { SideNav, SideNavItems, SideNavLink } from '@carbon/react';
 import { JuryPackageNavItem } from './JuryPackageNavItem';
+import styles from './Sidebar.module.scss';
 
 // Per UX-Mockup 00-overview.md's 4-item nav model, now rendered via Carbon's
 // UI Shell left-panel components (SideNav / SideNavItems / SideNavLink) instead
@@ -20,7 +21,11 @@ import { JuryPackageNavItem } from './JuryPackageNavItem';
 // `no-print` container so 06-01's print CSS hides it during Jury Package export.
 export function Sidebar() {
   return (
-    <div className="no-print">
+    // `styles.darkNav` scopes the dark-navy theme to this sidebar's Carbon
+    // SideNav (its `:global(.cds--side-nav)` rules match the descendant Carbon
+    // node), making the rail the single most visually distinct shell region
+    // without touching Carbon's global White theme elsewhere.
+    <div className={`no-print ${styles.darkNav}`}>
       <SideNav
         aria-label="Main navigation"
         isFixedNav
