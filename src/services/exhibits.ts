@@ -139,10 +139,13 @@ function toListRow(
     description: string;
     offeringParty: OfferingParty;
     associatedWitness: string | null;
+    isSealed: boolean;
     currentState: { currentStatus: ExhibitStatus } | null;
     custodyState: { custodian: { name: string } } | null;
   },
   discrepancyFlags: DiscrepancyFlagSummary[],
+  juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED',
+  hasUnresolvedObjection: boolean,
 ): ExhibitListRow {
   return {
     exhibitId: exhibit.id,
@@ -153,6 +156,12 @@ function toListRow(
     currentStatus: exhibit.currentState?.currentStatus ?? null,
     currentCustodianName: exhibit.custodyState?.custodian.name ?? null,
     discrepancyFlags,
+    // F09 §Process step 3 — precedence computed once in loadJuryEligibilityByExhibit.
+    juryPackageEligibility,
+    hasUnresolvedObjection,
+    // isSealed rides directly off the raw exhibit row (Prisma `include` does not
+    // prune scalar fields, so it is already present on every returned object).
+    isSealed: exhibit.isSealed,
   };
 }
 
@@ -190,6 +199,85 @@ async function loadDiscrepancyFlagsByExhibit(
   return byExhibit;
 }
 
+/**
+ * Batch-compute juryPackageEligibility for a page of exhibits in ONE query,
+ * mirroring loadDiscrepancyFlagsByExhibit's batch-load shape (no N+1). Reads
+ * the case's single most-recently-computed JuryPackage's JuryPackageExhibit
+ * rows — an exhibit absent from that set (no package ever computed, not yet a
+ * member, or excluded) is NOT_ELIGIBLE by the precedence rule's final branch.
+ *
+ * Precedence (F09 §Process step 3, exactly):
+ *   Included  = an INCLUDED member row whose discrepancyStatus is CLEAN
+ *   Blocked   = an INCLUDED member row whose discrepancyStatus is FLAGGED
+ *   Not eligible = everything else (no package ever computed for the case; an
+ *                  exhibit with no member row; or a member row with status
+ *                  EXCLUDED)
+ *
+ * EXPORTED (not module-private): this is the ONLY implementation of the
+ * Included/Blocked/Not-eligible precedence rule anywhere in the codebase.
+ * 08-08's getExhibitHistory computes the SAME eligibility for a single
+ * exhibit's juryPackageChecklist and MUST call this function (passing a
+ * 1-element exhibitIds array and reading that one Map entry) rather than
+ * re-deriving the branch logic — both plans' own tests assert cross-screen
+ * parity between Case Workspace and Exhibit Detail, and a second hand-written
+ * copy of this precedence would silently drift from this one over time.
+ */
+export async function loadJuryEligibilityByExhibit(
+  caseId: string,
+  exhibitIds: string[],
+): Promise<Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'>> {
+  const result = new Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'>();
+  if (exhibitIds.length === 0) return result;
+
+  const latestPackage = await prisma.juryPackage.findFirst({
+    where: { caseId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  });
+  if (!latestPackage) {
+    // No package ever computed — every exhibit is NOT_ELIGIBLE (F09 §Process
+    // step 4, expected behavior, not a defect).
+    for (const id of exhibitIds) result.set(id, 'NOT_ELIGIBLE');
+    return result;
+  }
+
+  const rows = await prisma.juryPackageExhibit.findMany({
+    where: { juryPackageId: latestPackage.id, exhibitId: { in: exhibitIds } },
+    select: { exhibitId: true, status: true, discrepancyStatus: true },
+  });
+  const byExhibit = new Map(rows.map((r) => [r.exhibitId, r]));
+
+  for (const id of exhibitIds) {
+    const row = byExhibit.get(id);
+    if (!row || row.status === 'EXCLUDED') {
+      result.set(id, 'NOT_ELIGIBLE');
+    } else if (row.discrepancyStatus === 'FLAGGED') {
+      result.set(id, 'BLOCKED');
+    } else {
+      result.set(id, 'INCLUDED');
+    }
+  }
+  return result;
+}
+
+/**
+ * Batch-compute hasUnresolvedObjection for a page of exhibits in ONE query.
+ * NOT a DiscrepancyFlag read — an unresolved objection on a non-ADMITTED
+ * exhibit never fires a discrepancy rule, but still needs surfacing on the
+ * Case Workspace's Flags column as "Ruling pending". Keyed on the already
+ * sealed-filtered exhibitIds (threat T-08-12), identical to the discrepancy
+ * batch-load, so a sealed exhibit's objection state never reaches an
+ * unauthorized role.
+ */
+async function loadUnresolvedObjectionFlags(exhibitIds: string[]): Promise<Set<string>> {
+  if (exhibitIds.length === 0) return new Set();
+  const rows = await prisma.objectionCurrentState.findMany({
+    where: { exhibitId: { in: exhibitIds }, status: 'UNRESOLVED' },
+    select: { exhibitId: true },
+  });
+  return new Set(rows.map((r) => r.exhibitId));
+}
+
 export async function getExhibits(
   caseId: string,
   requestingUserRole: Role,
@@ -211,8 +299,22 @@ export async function getExhibits(
     // exhibitLabel") and F4 (§Process step 4 default ordering) must agree.
     orderBy: { exhibitLabel: 'asc' },
   });
-  const flagsByExhibit = await loadDiscrepancyFlagsByExhibit(exhibits.map((e) => e.id));
-  return exhibits.map((e) => toListRow(e, flagsByExhibit.get(e.id) ?? []));
+  const exhibitIds = exhibits.map((e) => e.id);
+  // Batch-load all three per-row projections in parallel over the SAME already
+  // sealed-filtered exhibitIds list (no N+1, no sealed leak — threat T-08-12).
+  const [flagsByExhibit, eligibilityByExhibit, unresolvedObjectionIds] = await Promise.all([
+    loadDiscrepancyFlagsByExhibit(exhibitIds),
+    loadJuryEligibilityByExhibit(caseId, exhibitIds),
+    loadUnresolvedObjectionFlags(exhibitIds),
+  ]);
+  return exhibits.map((e) =>
+    toListRow(
+      e,
+      flagsByExhibit.get(e.id) ?? [],
+      eligibilityByExhibit.get(e.id) ?? 'NOT_ELIGIBLE',
+      unresolvedObjectionIds.has(e.id),
+    ),
+  );
 }
 
 // F4 — Exhibit Search. Combinable AND-semantics filtering over the same
@@ -299,6 +401,18 @@ export async function searchExhibits(criteria: SearchExhibitsCriteria): Promise<
     },
     orderBy: { exhibitLabel: 'asc' },
   });
-  const flagsByExhibit = await loadDiscrepancyFlagsByExhibit(exhibits.map((e) => e.id));
-  return exhibits.map((e) => toListRow(e, flagsByExhibit.get(e.id) ?? []));
+  const exhibitIds = exhibits.map((e) => e.id);
+  const [flagsByExhibit, eligibilityByExhibit, unresolvedObjectionIds] = await Promise.all([
+    loadDiscrepancyFlagsByExhibit(exhibitIds),
+    loadJuryEligibilityByExhibit(caseId, exhibitIds),
+    loadUnresolvedObjectionFlags(exhibitIds),
+  ]);
+  return exhibits.map((e) =>
+    toListRow(
+      e,
+      flagsByExhibit.get(e.id) ?? [],
+      eligibilityByExhibit.get(e.id) ?? 'NOT_ELIGIBLE',
+      unresolvedObjectionIds.has(e.id),
+    ),
+  );
 }

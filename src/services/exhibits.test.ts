@@ -189,6 +189,160 @@ describe('exhibits service', () => {
         (err: unknown) => err instanceof NotFoundError && err.code === 'CASE_NOT_FOUND',
       );
     });
+
+    it('a visible exhibit with no jury package ever computed is NOT_ELIGIBLE and carries the additive booleans', async () => {
+      const list = await getExhibits(fixture.caseId, 'JUDGE');
+      const row = list.find((e) => e.exhibitId === visibleId);
+      expect(row).toBeDefined();
+      // No JuryPackage exists for this freshly-created case → every exhibit is
+      // NOT_ELIGIBLE (F09 §Process step 3 final branch, "no package yet").
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+      expect(row?.hasUnresolvedObjection).toBe(false);
+      expect(row?.isSealed).toBe(false);
+    });
+
+    it('a sealed exhibit visible to JUDGE carries isSealed: true', async () => {
+      const list = await getExhibits(fixture.caseId, 'JUDGE');
+      const sealedRow = list.find((e) => e.exhibitId === sealedId);
+      expect(sealedRow).toBeDefined();
+      expect(sealedRow?.isSealed).toBe(true);
+    });
+  });
+
+  // F09 §Process step 3 — juryPackageEligibility precedence, plus the two other
+  // additive Flags-column booleans. These fixtures construct the underlying
+  // JuryPackage / JuryPackageExhibit / ObjectionCurrentState projection rows
+  // directly (the eligibility helper reads exactly those projections), so each
+  // of the three output values and the "no package / excluded" fall-through are
+  // exercised deterministically without depending on the live admission gate.
+  describe('juryPackageEligibility precedence + Flags-column booleans', () => {
+    async function makeExhibit(label: string, isSealed = false): Promise<string> {
+      const ex = await createExhibit({
+        caseId: fixture.caseId,
+        exhibitLabel: `${label} ${fixture.suffix}`,
+        description: `exhibit ${label}`,
+        offeringParty: 'PROSECUTION',
+        isSealed,
+      });
+      return ex.id;
+    }
+
+    async function makePackage(): Promise<string> {
+      const pkg = await prisma.juryPackage.create({
+        data: { caseId: fixture.caseId, status: 'DRAFT' },
+      });
+      return pkg.id;
+    }
+
+    async function addMember(
+      juryPackageId: string,
+      exhibitId: string,
+      discrepancyStatus: 'CLEAN' | 'FLAGGED',
+      status: 'INCLUDED' | 'EXCLUDED' = 'INCLUDED',
+    ): Promise<void> {
+      await prisma.juryPackageExhibit.create({
+        data: { juryPackageId, exhibitId, discrepancyStatus, status },
+      });
+    }
+
+    async function rowFor(exhibitId: string) {
+      const list = await getExhibits(fixture.caseId, 'JUDGE');
+      return list.find((e) => e.exhibitId === exhibitId);
+    }
+
+    it('INCLUDED + CLEAN member → INCLUDED', async () => {
+      const exId = await makeExhibit('JP-INCLUDED');
+      const pkgId = await makePackage();
+      await addMember(pkgId, exId, 'CLEAN');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('INCLUDED');
+    });
+
+    it('INCLUDED + FLAGGED member → BLOCKED', async () => {
+      const exId = await makeExhibit('JP-BLOCKED');
+      const pkgId = await makePackage();
+      await addMember(pkgId, exId, 'FLAGGED');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('BLOCKED');
+    });
+
+    it('EXCLUDED member row → NOT_ELIGIBLE (even though a package row exists)', async () => {
+      const exId = await makeExhibit('JP-EXCLUDED');
+      const pkgId = await makePackage();
+      await addMember(pkgId, exId, 'CLEAN', 'EXCLUDED');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    });
+
+    it('exhibit absent from the computed package → NOT_ELIGIBLE', async () => {
+      const memberId = await makeExhibit('JP-MEMBER');
+      const nonMemberId = await makeExhibit('JP-NONMEMBER');
+      const pkgId = await makePackage();
+      // Only memberId is in the package; nonMemberId has no row at all.
+      await addMember(pkgId, memberId, 'CLEAN');
+      const nonMember = await rowFor(nonMemberId);
+      expect(nonMember?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    });
+
+    it('eligibility is read from the MOST RECENT package only', async () => {
+      const exId = await makeExhibit('JP-LATEST');
+      // Older package: member CLEAN (would be INCLUDED).
+      const older = await makePackage();
+      await addMember(older, exId, 'CLEAN');
+      // Newer package (later createdAt): member FLAGGED → BLOCKED must win.
+      const newer = await prisma.juryPackage.create({
+        data: {
+          caseId: fixture.caseId,
+          status: 'DRAFT',
+          createdAt: new Date(Date.now() + 60_000),
+        },
+      });
+      await addMember(newer.id, exId, 'FLAGGED');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('BLOCKED');
+    });
+
+    it('hasUnresolvedObjection is true for an UNRESOLVED objection on a still-OFFERED exhibit — and independent of discrepancyFlags', async () => {
+      const exId = await makeExhibit('OBJ-OFFERED');
+      // Raise an objection thread, left UNRESOLVED (no ruling), while the
+      // exhibit is still OFFERED — a state that fires NO F6 discrepancy rule.
+      await prisma.objectionCurrentState.create({
+        data: {
+          objectionId: `obj-${fixture.suffix}-offered`,
+          exhibitId: exId,
+          status: 'UNRESOLVED',
+          objectingParty: 'DEFENSE',
+          grounds: 'Hearsay',
+          // raisedEventId is a plain NOT-NULL string column (no FK relation in
+          // the schema) — a synthetic id suffices for this projection-only fixture.
+          raisedEventId: `evt-${fixture.suffix}-offered`,
+          raisedAt: new Date(),
+        },
+      });
+      const row = await rowFor(exId);
+      expect(row?.hasUnresolvedObjection).toBe(true);
+      // Proven genuinely independent of the discrepancy signal: the row carries
+      // the objection flag while its discrepancyFlags array stays empty.
+      expect(row?.discrepancyFlags).toEqual([]);
+    });
+
+    it('hasUnresolvedObjection is false when every objection thread is resolved', async () => {
+      const exId = await makeExhibit('OBJ-RESOLVED');
+      await prisma.objectionCurrentState.create({
+        data: {
+          objectionId: `obj-${fixture.suffix}-resolved`,
+          exhibitId: exId,
+          status: 'OVERRULED',
+          objectingParty: 'DEFENSE',
+          grounds: 'Relevance',
+          raisedEventId: `evt-${fixture.suffix}-resolved`,
+          raisedAt: new Date(),
+          ruledAt: new Date(),
+        },
+      });
+      const row = await rowFor(exId);
+      expect(row?.hasUnresolvedObjection).toBe(false);
+    });
   });
 });
 
@@ -323,16 +477,25 @@ describe('searchExhibits (F4)', () => {
     expect(labels.length).toBeGreaterThan(1);
   });
 
-  it('no seeded exhibit carries an open discrepancy flag post-F12 (structural guarantee)', async () => {
-    // F12's admission gate makes the precondition for either F6 rule
-    // (ADMITTED_NO_CUSTODIAN / UNRESOLVED_OBJECTION_JURY_ELIGIBLE) unreachable
-    // for fresh seed data: no exhibit can reach ADMITTED while it has no
-    // custodian or an open objection, so neither rule can fire on the seed.
-    // F6's rule-engine LOGIC itself is still fully covered by
-    // src/services/discrepancies.test.ts's white-box fixtures (which construct
-    // the precondition directly rather than relying on seed data).
+  it('only the Phase-8 legacy-admit fixtures (P-6/P-7) carry open discrepancy flags; all others are clean', async () => {
+    // Phase 8 (per 08-CONTEXT) adds two deliberately-legacy-admitted fixtures
+    // via a seed-only legacy-admit helper that bypasses the F12 gate: P-6
+    // (ADMITTED, no custodian → ADMITTED_NO_CUSTODIAN) and P-7 (ADMITTED with an
+    // unresolved objection → UNRESOLVED_OBJECTION_JURY_ELIGIBLE). These are the
+    // ONLY seeded exhibits that carry an open flag — every other exhibit stays
+    // clean, since the live gate still makes those preconditions unreachable
+    // through the normal service path. This both keeps the batch-load's flag
+    // surfacing honest and documents the intended Phase-8 seed shape.
     const rows = await getExhibits(demoCaseId, 'JUDGE');
-    expect(rows.every((r) => r.discrepancyFlags.length === 0)).toBe(true);
+    const flagged = rows.filter((r) => r.discrepancyFlags.length > 0).map((r) => r.exhibitLabel);
+    expect(flagged.sort()).toEqual(['P-6', 'P-7']);
+    // P-6 fires ADMITTED_NO_CUSTODIAN; P-7 fires UNRESOLVED_OBJECTION_JURY_ELIGIBLE.
+    const p6 = rows.find((r) => r.exhibitLabel === 'P-6');
+    const p7 = rows.find((r) => r.exhibitLabel === 'P-7');
+    expect(p6?.discrepancyFlags.map((f) => f.ruleCode)).toContain('ADMITTED_NO_CUSTODIAN');
+    expect(p7?.discrepancyFlags.map((f) => f.ruleCode)).toContain(
+      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
   });
 
   it('excludes a sealed exhibit from results for an unauthorized role even on a matching keyword', async () => {
