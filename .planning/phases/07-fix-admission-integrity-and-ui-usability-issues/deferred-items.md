@@ -57,3 +57,29 @@ plan (not directly caused by that plan's changes) and therefore not fixed by it.
   `e2e/assistant.spec.ts`) are tsc-clean in isolation. Verified by filtering tsc
   output: zero errors reference any 07-04-owned path. Left to the owning plans /
   merged-HEAD acceptance (the RECURRING HAZARD in STATE.md Blockers).
+
+- **`chat/route.test.ts` `beforeAll` hook exceeds vitest's 10s default because a
+  sibling plan's seed rewrite added `sleep(1200)` calls.** `runSeed()` now takes
+  ~11s (measured), so the test's `beforeAll` times out at the default 10s
+  hookTimeout — NOT a defect in 07-04's change (which only swapped DEMO_QUESTIONS
+  from the retired "Exhibit 14"/"Exhibit 7" to real labels P-4/P-3). Proven: run
+  with `--hookTimeout=30000` and the suite passes 16/16 (3 no-key paths skip since
+  an ANTHROPIC key is present) — including every DEMO_QUESTIONS probe resolving
+  grounded-or-decline against the real seed, and the "who currently has custody of
+  P-4" grounded guard carrying >=1 citation. The 10s-vs-11s timing collision is
+  owned by the sibling seed rewrite (07-02); the merged-HEAD acceptance gate should
+  either raise the hookTimeout for this suite or the seed should drop the added
+  sleeps. 07-04's test content is correct as written.
+
+- **The docker-compose `app` service runs from a BAKED image (COPY source, no bind
+  mount), so the running container never reflects live working-tree edits.** All
+  plans' host-side edits (and sibling edits) are invisible to `project-app-1` until
+  the image is rebuilt. 07-04 verified its e2e against a HOST `next dev` process
+  (serving the live source) pointed at an ISOLATED `verify0704` database — created
+  specifically because concurrent sibling plans were continuously re-running their
+  (mid-edit, sometimes crashing) seed against the shared `judicialsync` DB,
+  repeatedly corrupting the demo case (observed: demo case reduced to a lone P-1
+  after a sibling seed crashed mid reset-rebuild on an FK violation). The isolated
+  DB gave a stable P-1..P-5/D-1..D-3/S-1 seed for the duration of verification. The
+  merged-HEAD acceptance gate should rebuild the app image (or add a dev bind mount)
+  so the preview/container reflects the merged source.

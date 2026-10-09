@@ -2,16 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 07-05-PLAN.md
-last_updated: "2026-10-09T01:12:30.529Z"
+status: paused
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-10-09T01:17:48.897Z"
 last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 43
-  completed_plans: 39
-  percent: 90
+  completed_plans: 40
+  percent: 83
 ---
 
 # Project State
@@ -108,6 +108,7 @@ Progress: [████████░░] 83%
 | Phase 07 P01 | 5 min | 2 tasks | 4 files |
 | Phase 07-fix-admission-integrity-and-ui-usability-issues P03 | 11 min | 2 tasks | 5 files |
 | Phase 07-fix-admission-integrity-and-ui-usability-issues P05 | 7 min | 2 tasks | 5 files |
+| Phase 07-fix-admission-integrity-and-ui-usability-issues P04 | 35 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -215,6 +216,8 @@ Recent decisions affecting current work:
 - [Phase 06-09]: Deleted the entire Tailwind/shadcn pipeline (5 dead ui/* primitives, globals.css, components.json, postcss.config.mjs, src/lib/utils.ts cn re-export) and removed 8 unused deps (tailwindcss/@tailwindcss/postcss/shadcn/tw-animate-css/class-variance-authority/cn/@base-ui/react/lucide-react; 305 transitive packages pruned) — grep-verified zero consumers before each removal. Carbon is now the SOLE UI foundation. Kept postcss (not in removal list, Next.js may use independently). Left shadcn-naming COMMENTS in ExhibitTable/SearchFilterBar (docs, not deps). Full gate green: tsc clean, next build EXIT=0, vitest 195/3-skip/0-fail, playwright 36/36. 0 deviations, 2 atomic commits (ff105e1, 8f50854). PHASE 6 + MILESTONE COMPLETE.
 - [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-03]: Sealed/ex-parte exhibits structurally excluded from jury-package membership via isSealed:false in computeJuryCandidates (F13); reconcileDraftMembership computes staleness from actual currentStatus so legacy sealed member rows are retained, not deleted
 - [Phase 07-fix-admission-integrity-and-ui-usability-issues]: [07-05]: Header discrepancy-count indicator reuses the SAME useDiscrepancyCount query the sidebar pill uses (no second query); rendered only when openCount>0 (aria-label 'N open discrepancies', nav to /command-center#discrepancies), COMPLETELY absent from the DOM when zero (the common case against the fresh seed). Activity-feed fix is rendering-only: RecentActivityEntry already carries exhibitLabel and formatTime now uses toLocaleString (date+time); summarizeEvent (shared with Exhibit Detail's single-exhibit timeline) left untouched. 0 deviations; next build EXIT=0; app-shell 8/8 + command-center 8/8 green.
+- [Phase 07-04]: F15 row clickability fixed via tabIndex={0}+onKeyDown(Enter/Space) on the Carbon <tr> (keeps native row role, no role='button'); shared navigate() so click+keyboard can't drift; hover + :focus-visible affordance. Diagnosis: Carbon TableRow already forwarded onClick (dead-center worked) — the real gap was zero keyboard support. 2 new e2e (full-area edge clicks + Tab/Enter).
+- [Phase 07-04]: F15 assistant example prompts now derived from useExhibitList real data (first ADMITTED / first-with-custodian / first exhibit) with stable P-4/P-1 fallbacks preserving the 5-chip contract; retired hardcoded 'Exhibit 14'/'Exhibit 7'. Added the required US-15.2 AC#3 e2e cross-check (fetch real seeded list, regex P-/D-/S- tokens from chips, assert each is real). chat-route DEMO_QUESTIONS → P-4/P-3; isDeclineText fixtures left untouched.
 
 ### Pending Todos
 
@@ -230,6 +233,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-09T01:12:20.216Z
-Stopped at: Completed 07-05-PLAN.md
+Last session: 2026-10-09T01:17:39.647Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None
