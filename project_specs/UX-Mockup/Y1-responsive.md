@@ -4,19 +4,24 @@ Per PROJECT.md §Out of Scope, JudicialSync targets **web/desktop screens only**
 
 ### Desktop (>1024px) — Primary Design Target
 
-- Full sidebar (labeled icons + text) always visible, pinned left.
+- Full sidebar (labeled icons + text, dark-navy background as of Phase 8) always visible, pinned left.
 - Case Workspace and Jury Package Workspace render full multi-column tables with all fields visible without horizontal scroll.
 - The Pivota Assistant slide-over panel occupies roughly 30% of viewport width, docked right, with the underlying screen dimmed but still visible for context.
-- Exhibit Detail View renders the header block and timeline in a single generous-width column (timelines are inherently vertical; no benefit to a two-column layout here); the pending-custody banner (F19) spans the same column width as the status/custodian line it temporarily replaces, never introducing a second column.
+- Exhibit Detail View (amended Phase 8): renders as **two columns** — the left column keeps the header block and timeline at generous width (timelines are inherently vertical; no benefit to splitting this further); the right column is the fixed-width, three-card rail (Objection / Chain of Custody / Jury Package checklist), stacked vertically and visible without scrolling at this breakpoint; the pending-custody banner (F19) spans the left column's full width, replacing the status/custodian line it temporarily substitutes, never bleeding into the right rail.
+- Trial Command Center (amended Phase 8): the stat-card row renders as four equal-width cards in a single row; the status-distribution bar spans the full content width beneath it; the "Needs your attention" feed, Jury Package summary widget, and Custody-at-a-Glance panel each render at full readable width with no truncation of severity badges or custodian names.
+- Jury Package Workspace (amended Phase 8): Blockers and Clean cards render in a single-column stack (not a grid) at this breakpoint, matching the inline-expandable-textarea interaction's need for full card width when a card's Acknowledge disclosure is open.
 - The Pending-Ruling Queue (F21, judge-only) renders as a single generous-width column of rows, each row's three ruling-action buttons laid out horizontally inline — no drill-in required to act, consistent with it being a triage screen, not a browse screen.
 - The header's Case Selector (F22) opens as a simple dropdown anchored to its header slot — it does not reflow or widen the header bar at any desktop width.
 
 ### Tablet (768px–1024px) — Judge's Bench Device, High Priority
 
 - Sidebar collapses to icon-only (labels on tap/hover) to preserve content width — this is the primary device for JRN-01.2's "glance during recess" moment, so Command Center legibility at this width is tested explicitly.
-- Case Workspace and Jury Package Workspace tables drop lower-priority columns first (description, source) while keeping status badge, custodian, and discrepancy indicator — the three fields a judge glancing mid-recess needs most (US-9.1 information hierarchy).
+- Case Workspace and Jury Package Workspace tables drop lower-priority columns first (description, source) while keeping status badge, custodian, and discrepancy indicator — the three fields a judge glancing mid-recess needs most (US-9.1 information hierarchy). **Amended Phase 8:** the Jury Package eligibility column and the Flags text pills are treated as equal-priority to status/custodian and are also retained at this breakpoint — a judge glancing at the bench needs "is this blocked" as much as "what's its status."
+- Trial Command Center (amended Phase 8): the four-card stat row wraps to a 2×2 grid rather than scrolling horizontally; the status-distribution bar's legend wraps beneath the bar instead of staying single-line; the Jury Package summary widget and Custody-at-a-Glance panel stack vertically (one above the other) rather than side-by-side, preserving full-width legibility for each over a cramped two-column squeeze.
+- Exhibit Detail View (amended Phase 8): the two-column desktop layout collapses to a single column — the right-rail cards (Objection, Chain of Custody, Jury Package checklist) render stacked beneath the timeline, each at full width, rather than beside it, since a judge's tablet-width viewport cannot comfortably support two full-width columns simultaneously.
+- Jury Package Workspace (amended Phase 8): Blockers cards retain their full inline-expandable-textarea width (never truncated), since the Acknowledge action is a judge-reachable control (per F6's role set including `JUDGE`) and must remain fully usable on the bench device.
 - The Pivota Assistant slide-over expands to ~60% of viewport width at this breakpoint (text legibility matters more than preserving background-screen visibility on a smaller canvas) — reinforces that on the bench, asking a question is the primary action, not a secondary overlay.
-- Touch targets (row actions, citation pills, Finalize button) sized to a minimum 44×44px tap area, since a judge on a tablet may be using touch rather than a trackpad.
+- Touch targets (row actions, citation pills, Finalize button, and — added Phase 8 — attention-feed inline action buttons and Blockers-card action buttons) sized to a minimum 44×44px tap area, since a judge on a tablet may be using touch rather than a trackpad.
 - The Pending-Ruling Queue's three ruling-action buttons (Sustained/Overruled/Reserved) retain the same 44×44px minimum tap target at this breakpoint, since this screen exists specifically for the judge's bench-tablet use case (JRN-01.2 "Check the Pending-Ruling Queue") and is never expected to be used at desktop-only precision.
 
 ### Mobile (<768px) — Out of Scope, Graceful Degradation Only

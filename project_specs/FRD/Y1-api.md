@@ -35,12 +35,12 @@ Fetches a single exhibit's identity fields (F0).
 **`GET /api/cases/:id/exhibits`**
 Lists all visible exhibits for a case with current-state summary (F9).
 - Query: none (full list; use §Search for filtered)
-- 200: `Array<{ exhibitId, exhibitLabel, description, offeringParty, associatedWitness, currentStatus, currentCustodianName, discrepancyFlags[] }>`
+- 200: `Array<{ exhibitId, exhibitLabel, description, offeringParty, associatedWitness, currentStatus, currentCustodianName, discrepancyFlags[], juryPackageEligibility }>` *(amended Phase 8, F9: `juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'` added — derived from the case's most-recently-computed `JuryPackage`'s `JuryPackageExhibit` rows, see F09 §Process step 3)*
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`GET /api/exhibits/:id/history`**
 Full chronological event timeline for one exhibit (F10).
-- 200: `{ exhibit: {...}, currentStatus, currentCustodianName, discrepancyFlags[], timeline: Array<{ eventId, eventType, summary, actorName, recordedAt }> }`
+- 200: `{ exhibit: {...}, currentStatus, currentCustodianName, discrepancyFlags[], timeline: Array<{ eventId, eventType, summary, actorName, recordedAt }>, objections[], custodyCard, juryPackageChecklist }` *(amended Phase 8, F10: `objections[]` — `UNRESOLVED` `ObjectionCurrentState` rows for the right-rail Objection card; `custodyCard` — `{ current, pendingTransfer, history[] }` for the Chain of Custody card; `juryPackageChecklist` — `{ admitted, objectionsResolved, custodianOnRecord, classificationTrial, eligibility }` for the Jury Package checklist card. All three are read-time projections of data already returned elsewhere in this response — no new query.)*
 - Errors: `EXHIBIT_NOT_FOUND` (404 — also returned for sealed/unauthorized, per F10 §Validation)
 
 ---
@@ -124,7 +124,7 @@ Full ordered chain-of-custody.
 **`GET /api/cases/:id/exhibits/search`**
 Multi-criteria combinable exhibit search.
 - Query: `keyword?, status?, witness?, dateFrom?, dateTo?`
-- 200: same shape as `GET /api/cases/:id/exhibits`
+- 200: same shape as `GET /api/cases/:id/exhibits` *(amended Phase 8, F9: includes `juryPackageEligibility`, same as the unfiltered list)*
 - Errors: `EMPTY_SEARCH_CRITERIA` (422), `INVALID_DATE_RANGE` (422), `VALIDATION_ERROR` (422)
 
 ---
@@ -139,14 +139,20 @@ Computes/refreshes the draft jury-eligible exhibit set.
 
 **`GET /api/cases/:id/jury-package`**
 Fetches the current (draft or finalized) jury package with live discrepancy status per exhibit.
-- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*.
+- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*. `juryPackage` additionally includes `finalizationRequestedAt`/`finalizationRequestedBy` *(added Phase 8, F11)*, both `null` if no request is currently outstanding.
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`POST /api/jury-package/:id/finalize`**
 Attempts finalization — hard-gated by discrepancy re-check.
 - Body: `{ actorUserId, acknowledgedDiscrepancyIds? }`
-- 200: `{ juryPackage: JuryPackage (status: FINALIZED, version: number) }` *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — see F23 §Process step 1)*
+- 200: `{ juryPackage: JuryPackage (status: FINALIZED, version: number) }` *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — see F23 §Process step 1)*. `finalizationRequestedAt`/`finalizationRequestedBy`, if previously set, are cleared as part of this same write *(added Phase 8, F11)*.
 - Errors: `JURY_PACKAGE_DISCREPANCIES_OPEN` (409, includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` (409), `ROLE_NOT_PERMITTED` (403)
+
+**`POST /api/jury-package/:id/request-finalization`** *(added Phase 8, F11)*
+Records a lightweight notification asking a finalize-authorized role to finalize the current draft — confers no authority and bypasses no gate.
+- Body: `{ actorUserId }`
+- 200: `{ juryPackage: JuryPackage (finalizationRequestedAt, finalizationRequestedBy) }`
+- Errors: `JURY_PACKAGE_ALREADY_FINALIZED` (409), `ROLE_NOT_PERMITTED` (403 — rejects a finalize-authorized role, i.e. `DEPUTY`/`CLERK`/`ADMIN`, attempting to request rather than finalize directly)
 
 *(Added Phase 7, F13: the candidate computation behind `POST /api/cases/:id/jury-package` filtered `exhibit.isSealed = false` at the query level, in addition to the `currentStatus = ADMITTED` filter. As of Phase 7.1, F16, this filter reads `exhibit.classification = 'TRIAL'` instead — see F16 §Process step 4. This remains a behavior amendment to the existing endpoint, not a new route.)*
 
@@ -176,6 +182,12 @@ Explicitly excludes an `INCLUDED` exhibit row from a `DRAFT` jury package (remed
 
 ---
 
+### §Write-Action UI Coverage (F24)
+
+**No new endpoints.** F24 (Record Ruling UI, Transfer/Assign Custody UI) is purely a client-side first UI surface over endpoints already defined above: `POST /api/objections/:id/ruling` (§Objections, F2), `POST /api/exhibits/:id/events/custody` and `/propose`, `/confirm`, `/cancel` (§Custody, F3/F19). See `F24-write-action-ui-coverage.md` for the UI-side process and the originating-screen entry points (Command Center attention feed, Exhibit Detail right rail).
+
+---
+
 ### §Discrepancies (F6)
 
 **`GET /api/cases/:id/discrepancies`**
@@ -201,10 +213,20 @@ Explicitly acknowledges an open discrepancy.
 **`GET /api/cases/:id/activity`**
 Recent-activity feed for the ambient Command Center view.
 - Query: `since?` (ISO 8601 datetime, default: start of current trial day)
-- 200: `Array<{ eventId, eventType, exhibitId, exhibitLabel, summary, recordedAt }>`
+- 200: `{ recentActivity: Array<{ eventId, eventType, exhibitId, exhibitLabel, summary, recordedAt }>, statusCounts: Record<ExhibitStatus, number> }` *(amended Phase 8, F8: `statusCounts` added — per-status exhibit count breakdown, computed from existing `ExhibitCurrentState` data, no new query path)*
 - Errors: `VALIDATION_ERROR` (422), `COMMAND_CENTER_LOAD_FAILED` (500)
 
-*(Command Center also composes `GET /api/cases/:id/objections?status=unresolved` and `GET /api/cases/:id/discrepancies`, defined above.)*
+**`GET /api/cases/:id/custody-by-custodian`** *(added Phase 8, F8)*
+Exhibits grouped by current custodian, for the Command Center "Custody at a Glance" panel. Did not exist as a service or endpoint prior to this phase.
+- 200: `Array<{ custodianUserId, custodianName, exhibits: Array<{ exhibitId, exhibitLabel, currentStatus }>, pendingTransfersIn: Array<{ exhibitId, exhibitLabel, proposedAt }> }>`
+- Errors: `COMMAND_CENTER_LOAD_FAILED` (500 — reuses the existing generic code, no new code introduced for this endpoint)
+
+**`GET /api/cases/:id/attention-feed`** *(added Phase 8, F8)*
+Severity-ranked "Needs your attention" feed combining four discrepancy/objection rule sources into one prioritized list. Did not exist prior to this phase.
+- 200: `Array<{ id, tier: 'CRITICAL'|'HIGH'|'PENDING'|'MEDIUM', ruleCode, exhibitId, exhibitLabel, objectionId?, detectedAt, summary, availableAction: 'RECORD_RULING'|'REMOVE_FROM_PACKAGE'|'TRANSFER_CUSTODY'|null }>` — ordered by tier (`CRITICAL` > `HIGH` > `PENDING` > `MEDIUM`), newest-first within each tier; see F08 §Process step 4 for the exact rule-to-tier mapping
+- Errors: `ATTENTION_FEED_LOAD_FAILED` (500)
+
+*(Command Center also composes `GET /api/cases/:id/objections?status=unresolved` and `GET /api/cases/:id/discrepancies`, defined above. Inline actions on attention-feed entries invoke F24's unchanged endpoints — see §Objections, §Custody.)*
 
 ---
 

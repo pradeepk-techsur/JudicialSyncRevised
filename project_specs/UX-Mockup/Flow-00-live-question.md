@@ -10,7 +10,7 @@
 [Any screen — question arises mid-proceeding]
     │
     ▼
-[Tap "Ask ✦" header button → slide-over chat panel opens]
+[Tap "Ask Pivota" header button → slide-over chat panel opens]
     │
     ▼
 [Type or speak natural-language question]
@@ -43,7 +43,7 @@
 
 **Steps:**
 1. **Question arises.** No system touch yet — the user notices a discrepancy or needs a fact to act on (US-7.1).
-2. **Open the assistant.** One tap/click on the ever-visible "Ask ✦" header button opens a slide-over chat panel over whatever screen is currently active — no navigation away, no lost context.
+2. **Open the assistant.** One tap/click on the ever-visible "Ask Pivota" header button opens a slide-over chat panel over whatever screen is currently active — no navigation away, no lost context.
 3. **Ask in plain language.** A single text input, placeholder text rotating through example questions sourced from the case's actual seeded exhibit labels ("Who currently has custody of P-5?", "What was admitted yesterday?") — never a hardcoded placeholder scheme that doesn't match a real exhibit (US-15.2). No required syntax, no filter menus (reinforces PRD §Strategic Goals — natural-language-first).
 4. **Response streams token-by-token** via the chat panel (US-7.1 — Vercel AI SDK `useChat`), so the user sees progress within ~1 second rather than a blank wait.
 5. **Citation renders inline** with every factual sentence — format: `[Exhibit 14 · Status Change · 2026-10-05 14:32]` as a clickable pill immediately following the claim it supports (US-7.2).

@@ -29,6 +29,9 @@ type DiscrepancyStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
 type JuryPackageStatus = 'DRAFT' | 'FINALIZED';
 type JuryExhibitDiscrepancyStatus = 'CLEAN' | 'FLAGGED';
 type JuryPackageExhibitStatus = 'INCLUDED' | 'EXCLUDED'; // added Phase 7 (F13)
+type JuryPackageEligibility = 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'; // added Phase 8 (F09/F10) — derived, never stored
+type AttentionFeedTier = 'CRITICAL' | 'HIGH' | 'PENDING' | 'MEDIUM'; // added Phase 8 (F08)
+type AttentionFeedAction = 'RECORD_RULING' | 'REMOVE_FROM_PACKAGE' | 'TRANSFER_CUSTODY' | null; // added Phase 8 (F08)
 
 interface Case {
   // Added Phase 7.1 (F22)
@@ -126,6 +129,13 @@ interface JuryPackage {
   // (MAX(version) for this case's FINALIZED packages, + 1, or 1 if none
   // exist); never reassigned afterward; null while DRAFT.
   version: number | null;
+  // Added Phase 8 (F11): purely additive notification metadata — set by
+  // POST /api/jury-package/:id/request-finalization, cleared to undefined
+  // (null at the DB level) by a successful finalize. Confers no authority
+  // and does not gate finalization; see 02-data-model.md's Finalization
+  // Request note (§3.6) and 04-security.md §5.2.2a (unaffected by this).
+  finalizationRequestedAt?: string;
+  finalizationRequestedBy?: string;
 }
 
 // Added Phase 7.1 (F23).
@@ -208,6 +218,60 @@ interface ExhibitListRow {
   currentStatus: ExhibitStatus | null; // null = no STATUS_CHANGE event yet
   currentCustodianName: string | null;
   discrepancyFlags: DiscrepancyFlag[];
+  // Added Phase 8 (F09): derived at read time from the case's most-recently-
+  // computed JuryPackage's JuryPackageExhibit rows — precedence: INCLUDED
+  // row + CLEAN -> INCLUDED; INCLUDED row + FLAGGED -> BLOCKED; no row, or
+  // an EXCLUDED row -> NOT_ELIGIBLE. Never independently re-derived; must
+  // always match what GET /api/cases/:id/jury-package itself shows for the
+  // same exhibit (F09 §Validation).
+  juryPackageEligibility: JuryPackageEligibility;
+}
+
+// Added Phase 8 (F10) — the Jury Package checklist card's per-condition
+// breakdown for a single exhibit; eligibility uses the identical precedence
+// rule ExhibitListRow.juryPackageEligibility applies at list-row scale.
+interface JuryPackageChecklist {
+  admitted: boolean;
+  objectionsResolved: boolean;
+  custodianOnRecord: boolean;
+  classificationTrial: boolean;
+  eligibility: JuryPackageEligibility;
+}
+
+// Added Phase 8 (F10) — the Chain of Custody card's data shape; re-shapes
+// the same CustodyCurrentState/CustodyHistoryEntry data F03/F19 already
+// serve elsewhere, no new query.
+interface CustodyCard {
+  current: CustodyCurrentState | null;
+  pendingTransfer: { toUserId: string; toName: string; proposedAt: string } | null;
+  history: CustodyHistoryEntry[];
+}
+
+// Added Phase 8 (F08) — one entry in the Command Center's severity-ranked
+// "Needs your attention" feed. `availableAction` is null only for the
+// CRITICAL tier's link-through case (F13's existing exclusion remediation);
+// it is never null for HIGH/PENDING/MEDIUM.
+interface AttentionFeedEntry {
+  id: string;
+  tier: AttentionFeedTier;
+  ruleCode: string;
+  exhibitId: string;
+  exhibitLabel: string;
+  objectionId?: string;
+  detectedAt: string;
+  summary: string;
+  availableAction: AttentionFeedAction;
+}
+
+// Added Phase 8 (F08) — one grouping in the Command Center's "Custody at a
+// Glance" panel. pendingTransfersIn surfaces exhibits with a currently-
+// pending (unconfirmed, F19) transfer TO this custodian as a distinct
+// grouping, rather than folding them into the current-custodian bucket.
+interface CustodyByCustodianEntry {
+  custodianUserId: string;
+  custodianName: string;
+  exhibits: Array<{ exhibitId: string; exhibitLabel: string; currentStatus: ExhibitStatus }>;
+  pendingTransfersIn: Array<{ exhibitId: string; exhibitLabel: string; proposedAt: string }>;
 }
 ```
 
@@ -226,8 +290,8 @@ interface ExhibitListRow {
 |---|---|---|---|---|
 | `POST /api/exhibits` | Create exhibit identity record | `{ caseId, exhibitLabel, description, source?, offeringParty, associatedWitness?, classification }` *(amended Phase 7.1, F16: `classification` is now required — `TRIAL` \| `CHAMBERS_EX_PARTE` \| `SEALED`; a client-supplied `isSealed` value, if present, is ignored — the server always derives it from `classification`)* | `201 Exhibit` (now includes `classification` and a classification-derived `isSealed`) | `EXHIBIT_LABEL_CONFLICT` 409, `VALIDATION_ERROR` 422, `CLASSIFICATION_REQUIRED` 422 *(added Phase 7.1, F16)*, `INVALID_CLASSIFICATION` 422 *(added Phase 7.1, F16)*, `ROLE_NOT_PERMITTED` 403 *(added Phase 7.1, F20: only `DEPUTY`, `CLERK`, `ADMIN`)* |
 | `GET /api/exhibits/:id` | Fetch single exhibit identity | — | `200 Exhibit` | `EXHIBIT_NOT_FOUND` 404 |
-| `GET /api/cases/:id/exhibits` | List all visible exhibits for a case | — (unfiltered; use search for filters) | `200 ExhibitListRow[]` | `CASE_NOT_FOUND` 404 |
-| `GET /api/exhibits/:id/history` | Full chronological event timeline | — | `200 ExhibitHistoryResponse` (below) | `EXHIBIT_NOT_FOUND` 404 (also returned for sealed/unauthorized) |
+| `GET /api/cases/:id/exhibits` | List all visible exhibits for a case | — (unfiltered; use search for filters) | `200 ExhibitListRow[]` *(amended Phase 8, F09: `juryPackageEligibility` added — see §4.1)* | `CASE_NOT_FOUND` 404 |
+| `GET /api/exhibits/:id/history` | Full chronological event timeline | — | `200 ExhibitHistoryResponse` (below) *(amended Phase 8, F10: `objections[]`, `custodyCard`, `juryPackageChecklist` added — all three are read-time projections of data already returned elsewhere in this response, no new query)* | `EXHIBIT_NOT_FOUND` 404 (also returned for sealed/unauthorized) |
 
 ```typescript
 interface ExhibitHistoryResponse {
@@ -242,6 +306,18 @@ interface ExhibitHistoryResponse {
     actorName: string;
     recordedAt: string;
   }>;
+  // Added Phase 8 (F10) — this exhibit's UNRESOLVED ObjectionCurrentState
+  // rows only (zero, one, or several concurrently — F02 permits N threads);
+  // the full set, resolved and unresolved, remains visible via `timeline`
+  // above, unchanged. Powers the Objection right-rail card's inline
+  // "Record ruling" action (F24), each row carrying its own `objectionId`.
+  objections: ObjectionCurrentState[];
+  // Added Phase 8 (F10) — powers the Chain of Custody right-rail card.
+  custodyCard: CustodyCard;
+  // Added Phase 8 (F10) — powers the Jury Package checklist right-rail
+  // card; `eligibility` uses the identical precedence rule F09's
+  // ExhibitListRow.juryPackageEligibility applies at list-row scale.
+  juryPackageChecklist: JuryPackageChecklist;
 }
 ```
 
@@ -293,11 +369,20 @@ interface CustodyHistoryEntry {
 
 **Two-phase model summary (F19):** a proposal (`propose`) never changes `currentCustodianUserId` — only the named receiver's own `confirm` call does. A `cancel` reverts a pending state with no effect on current custody, since it was never changed in the first place. There is no time-based auto-expiry of a pending transfer (consistent with this architecture's queue-free, synchronous-only write model, `06-integrations.md`) — an indefinitely-pending transfer is resolved only by an explicit `confirm` or `cancel` call.
 
+### 4.5a Write-Action UI Coverage (F24, added Phase 8)
+
+**Introduces no new endpoints.** F24 (Record Ruling UI, Transfer/Assign Custody UI) is the first UI surface for two endpoints already fully defined above: `POST /api/objections/:id/ruling` (§4.4, F02) and `POST /api/exhibits/:id/events/custody` / `/propose` / `/confirm` / `/cancel` (§4.5, F03/F19). F24 adds no new request field, no new response field, and no new error code — every response shape and every error in §4.4/§4.5 is unchanged; the only thing that changes is that a real UI now calls them, from two originating screens:
+
+- **Command Center attention feed (F08):** tiers `HIGH`/`PENDING` entries carry a "Record ruling" inline action (passing that entry's specific `objectionId`); a `MEDIUM` entry carries a "Transfer custody"/"Assign custodian" inline action.
+- **Exhibit Detail right rail (F10):** the Objection card's inline "Record ruling" per unresolved thread; the header's "Transfer custody" action, plus "Confirm receipt"/"Cancel pending transfer" controls shown only when a pending transfer exists for that exhibit.
+
+Both actions require an explicit confirmation step before submission (no inline action auto-submits on selection alone) and render only for a role the F20 Permission Matrix (`04-security.md` §5.2.2a) permits for that specific action — an unauthorized role does not see a disabled control, it sees no control at all. A successful submission triggers a scoped refetch of only the originating screen's affected query (never a full-page reload); a failed submission surfaces the specific rejection reason inline, matching the reject-with-reason pattern established by F12/F17/F18. See `01-components.md` §2.1 (`RecordRulingAction`, `TransferCustodyAction`) and §2.5 rule 10.
+
 ### 4.6 Search (F4)
 
 | Method & Path | Description | Query Params | Response | Errors |
 |---|---|---|---|---|
-| `GET /api/cases/:id/exhibits/search` | Multi-criteria combinable (AND) search | `keyword?, status?, witness?, dateFrom?, dateTo?` | `200 ExhibitListRow[]` | `EMPTY_SEARCH_CRITERIA` 422, `INVALID_DATE_RANGE` 422, `VALIDATION_ERROR` 422 |
+| `GET /api/cases/:id/exhibits/search` | Multi-criteria combinable (AND) search | `keyword?, status?, witness?, dateFrom?, dateTo?` | `200 ExhibitListRow[]` *(amended Phase 8, F09: includes `juryPackageEligibility`, identical to the unfiltered list — same row shape, same derivation)* | `EMPTY_SEARCH_CRITERIA` 422, `INVALID_DATE_RANGE` 422, `VALIDATION_ERROR` 422 |
 
 ```typescript
 interface SearchExhibitsCriteria {
@@ -316,10 +401,11 @@ interface SearchExhibitsCriteria {
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
 | `POST /api/cases/:id/jury-package` | Compute/refresh draft jury-eligible set | `{ actorUserId }` | `201 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `NO_ELIGIBLE_EXHIBITS` 422, `ROLE_NOT_PERMITTED` 403 |
-| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)* | `CASE_NOT_FOUND` 404 |
-| `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`, `version: number`) *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — never client-supplied)* | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
+| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*. `juryPackage` additionally includes `finalizationRequestedAt`/`finalizationRequestedBy` *(added Phase 8, F11)*, both `undefined`/`null` if no request is currently outstanding | `CASE_NOT_FOUND` 404 |
+| `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`, `version: number`) *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — never client-supplied)*. `finalizationRequestedAt`/`finalizationRequestedBy`, if previously set, are cleared in the same transaction *(added Phase 8, F11)* | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
+| `POST /api/jury-package/:id/request-finalization` *(added Phase 8, F11)* | Records a lightweight notification asking a finalize-authorized role to finalize the current draft — confers no authority and bypasses no gate | `{ actorUserId }` | `200 { juryPackage: JuryPackage }` (`finalizationRequestedAt`, `finalizationRequestedBy` set) | `ROLE_NOT_PERMITTED` 403 (a finalize-authorized role — `DEPUTY`/`CLERK`/`ADMIN` — attempting to request rather than finalize directly), `JURY_PACKAGE_ALREADY_FINALIZED` 409 |
 
-`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time. Only `status: 'INCLUDED'` rows participate in finalization *(amended Phase 7, F13)* — an `EXCLUDED` row can never block or be counted toward it.
+`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time. Only `status: 'INCLUDED'` rows participate in finalization *(amended Phase 7, F13)* — an `EXCLUDED` row can never block or be counted toward it. The request-finalization action (F11) is purely additive metadata: it never blocks, gates, or substitutes for the discrepancy check above — a zero-Blockers package can still be finalized directly whether or not a request is outstanding, and a package with open Blockers remains unfinalizable regardless of how many requests have been made.
 
 **Amended Phase 7 (F13); amended again Phase 7.1 (F16):** the candidate computation behind `POST /api/cases/:id/jury-package` originally filtered `exhibit.isSealed = false` at the query level, in addition to `currentStatus = 'ADMITTED'`. **As of Phase 7.1, this filter reads `exhibit.classification = 'TRIAL'` instead** — see `01-components.md` §2.2 and `02-data-model.md` §3.6/§3.10. This remains a behavior amendment to the existing endpoint, not a new route.
 
@@ -348,11 +434,13 @@ Because a `FINALIZED` package's `JuryPackageExhibit` rows are immutable, re-expo
 | `GET /api/exhibits/:id/discrepancies` | Flags for a single exhibit | — | `200 DiscrepancyFlag[]` — same `justification` addition as above *(F14)* | `EXHIBIT_NOT_FOUND` 404 |
 | `POST /api/discrepancies/:id/acknowledge` | Explicitly acknowledge an open flag | `{ actorUserId, justification }` | `200 { event: ExhibitEvent, discrepancyFlag: DiscrepancyFlag }` (idempotent) | `JUSTIFICATION_REQUIRED` 422, `DISCREPANCY_NOT_FOUND` 404, `ROLE_NOT_PERMITTED` 403 |
 
-### 4.9 Command Center (F8)
+### 4.9 Command Center (F8; significantly expanded Phase 8 — per-status counts, custody-by-custodian, attention feed)
 
 | Method & Path | Description | Query Params | Response | Errors |
 |---|---|---|---|---|
-| `GET /api/cases/:id/activity` | Recent-activity feed | `since?` (ISO 8601, default: start of current trial day) | `200 RecentActivityEntry[]` | `VALIDATION_ERROR` 422, `COMMAND_CENTER_LOAD_FAILED` 500 |
+| `GET /api/cases/:id/activity` | Recent-activity feed | `since?` (ISO 8601, default: start of current trial day) | `200 { recentActivity: RecentActivityEntry[], statusCounts: Record<ExhibitStatus, number> }` *(amended Phase 8, F08: `statusCounts` added — per-status exhibit count breakdown, computed from existing `ExhibitCurrentState` data the function already has access to; no new query path, no new endpoint)* | `VALIDATION_ERROR` 422, `COMMAND_CENTER_LOAD_FAILED` 500 |
+| `GET /api/cases/:id/custody-by-custodian` *(added Phase 8, F08)* | Exhibits grouped by current custodian, for the "Custody at a Glance" panel. Did not exist as a service or endpoint prior to this phase | — | `200 CustodyByCustodianEntry[]` (see §4.1) | `COMMAND_CENTER_LOAD_FAILED` 500 *(reuses the existing generic code — no new code introduced for this endpoint)* |
+| `GET /api/cases/:id/attention-feed` *(added Phase 8, F08)* | Severity-ranked "Needs your attention" feed combining four discrepancy/objection rule sources into one prioritized list. Did not exist prior to this phase | — | `200 AttentionFeedEntry[]` (see §4.1) — ordered `CRITICAL` > `HIGH` > `PENDING` > `MEDIUM`, newest-first within each tier; see `01-components.md` §2.2 (`services/activity.ts#getAttentionFeed`) for the exact rule-to-tier mapping | `ATTENTION_FEED_LOAD_FAILED` 500 |
 
 ```typescript
 interface RecentActivityEntry {
@@ -365,7 +453,9 @@ interface RecentActivityEntry {
 }
 ```
 
-Command Center also composes `GET /api/cases/:id/objections?status=unresolved` (§4.4) and `GET /api/cases/:id/discrepancies` (§4.8) client-side — no server-side aggregation endpoint beyond `/activity` is required.
+Command Center also composes `GET /api/cases/:id/objections?status=unresolved` (§4.4) and `GET /api/cases/:id/discrepancies` (§4.8) client-side — no server-side aggregation endpoint beyond the three above is required. Inline actions on attention-feed entries invoke F24's unchanged endpoints (§4.5a) — this screen introduces no parallel or abbreviated validation path of its own; every inline action resolves to the exact same server-side endpoint and validation F24/F02/F03/F19/F20 specify.
+
+**Severity Tier precedence (F08):** `CRITICAL` (sealed/ex-parte blocker in jury package — a legacy/regression state per F13; links through to F13's existing exclusion remediation, no new inline action) > `HIGH` (admitted exhibit with an open `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` discrepancy — inline "Record ruling") > `PENDING` (unresolved objection on a not-yet-`ADMITTED` exhibit — inline "Record ruling") > `MEDIUM` (admitted exhibit with an open `ADMITTED_NO_CUSTODIAN` discrepancy — inline "Transfer custody"/"Assign custodian"). An objection thread is never counted in both `HIGH` and `PENDING` simultaneously — the exhibit's `currentStatus` at evaluation time is the sole disambiguator (`01-components.md` §2.5 rule 11).
 
 ### 4.10 Pivota Assistant (F7)
 
@@ -418,7 +508,7 @@ interface AssistantToolSet {
 }
 ```
 
-Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone. Because of this mapping, the Phase 7 amendments above propagate automatically: `getJuryPackageStatus` never returns an `EXCLUDED` row as included/eligible (F13), and `getDiscrepancies` surfaces `justification` on `ACKNOWLEDGED` flags identically to the UI (F14) — no tool definition changed.
+Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone. Because of this mapping, the Phase 7 amendments above propagate automatically: `getJuryPackageStatus` never returns an `EXCLUDED` row as included/eligible (F13), and `getDiscrepancies` surfaces `justification` on `ACKNOWLEDGED` flags identically to the UI (F14) — no tool definition changed. **Phase 8 propagates the same way:** `searchExhibits` now returns `juryPackageEligibility` per row (F09) and `getExhibitHistory` now returns `objections[]`/`custodyCard`/`juryPackageChecklist` (F10) without any tool definition changing, since both tools wrap the identical `services/exhibits.ts` functions the amended UI routes call. **F08's new `getCustodyByCustodian`/`getAttentionFeed` and F24's two write actions are not exposed as assistant tools** — the fixed ≤8-tool set (`01-components.md` §2.3) is unchanged by this phase; Command Center's new aggregates and write actions are UI-surface-only.
 
 ### 4.11 Common Response Envelope
 

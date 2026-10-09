@@ -3,7 +3,7 @@
 **Purpose:** The universal, natural-language entry point to every fact in the system — the single feature the entire demo's success depends on (PRD F7). Available two ways: as a slide-over panel from any screen, and as a dedicated full-page view for sustained, longer review sessions (e.g., the administrator's evaluation walkthrough, JRN-04.1).
 **User Stories:** US-7.1, US-7.2, US-7.3, US-7.4, US-15.2
 **Journeys:** JRN-01.1, JRN-02.1, JRN-02.2, JRN-03.1, JRN-04.1 — the Assistant is the one touchpoint common to every journey in the product.
-**Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask ✦" button (slide-over, present on every screen)
+**Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask Pivota" button (slide-over, present on every screen)
 
 #### Layout — Slide-Over Panel (default, lightweight entry point)
 
@@ -39,7 +39,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync   [Case: 2026-CR-0142]      [Role: Admin ▾]  [Ask ✦]│
+│ JudicialSync   [Case: 2026-CR-0142]      [Role: Admin ▾]  [Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Pivota Assistant                                │
 │ Case          │  ┌────────────────────────────────────────────┐  │
@@ -93,7 +93,7 @@
 | Send button / Enter key | Submit | Triggers `useChat` streaming request tagged with current role/session |
 | Example-question chip (empty state) | Tappable suggestion | Pre-fills and can auto-submit the chip's question — zero-typing path for a first-time demo viewer |
 | Citation pill | Link | Navigates to the cited record's home screen (Exhibit Detail View), event highlighted |
-| "Ask ✦" header button (global) | Toggle | Opens/closes the slide-over panel from any of the other four screens without losing that screen's state underneath |
+| "Ask Pivota" header button (global) | Toggle | Opens/closes the slide-over panel from any of the other four screens without losing that screen's state underneath |
 | Conversation history scrollback | Passive | Full session history persists and is reviewable (supports PER-04's audit use case, US-7.2) |
 
 **Tone and copy guidelines (reinforces conversational positioning):**

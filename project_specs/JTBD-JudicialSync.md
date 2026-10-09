@@ -5,7 +5,7 @@
 |-------|-------|
 | **Product Name** | JudicialSync |
 | **Date** | 2026-10-06 |
-| **Last Updated** | 2026-10-09 (added JTBD-02.5, JTBD-02.6 for Phase 7.1 F22/F23 — new jobs only; F16–F21 are hardening of existing jobs, no new entries) |
+| **Last Updated** | 2026-10-09 (added JTBD-01.5–01.7, JTBD-02.7–02.9 for Phase 8 F8/F9/F10/F11/F24 — new jobs covering write-action UI coverage, custody/attention-feed glance views, and finalization-request path; Phase 7.1's JTBD-02.5/02.6 entries unchanged) |
 | **Related Personas** | PERSONAS-JudicialSync.md |
 | **Related PRD** | PRD-JudicialSync.md |
 
@@ -25,6 +25,12 @@
 | JTBD-02.4 | PER-02 | When testimony is moving fast, I want to locate any exhibit in seconds via structured search, so I can respond to requests from the bench or counsel without delay. | P1 |
 | JTBD-02.5 | PER-02 | When handling more than one active trial in the same session, I want to switch between cases from a single workspace, so I can move between cases without restarting or losing my place in either one. | P1 |
 | JTBD-02.6 | PER-02 | When a jury package is finalized (and possibly re-finalized later), I want a permanent, versioned, exportable record of exactly what was included at each finalization, so I can produce defensible proof of what the jury actually received if it's ever challenged. | P1 |
+| JTBD-01.5 | PER-01 | When an objection surfaces on the attention feed or an exhibit's Objection card, I want to record my ruling right there, so I can resolve it the moment I see it instead of routing it through a deputy or clerk because no UI exists for it. | P0 |
+| JTBD-01.6 | PER-01 | When I open the Command Center during a live trial, I want a single severity-ranked feed of what needs attention, so I can triage by actual priority instead of cross-referencing separate panels myself. | P0 |
+| JTBD-01.7 | PER-01 | When I'm reviewing a jury package I can't finalize myself, I want to request finalization from a clerk or deputy directly from the workspace, so I can move the package forward without an out-of-band ask. | P1 |
+| JTBD-02.7 | PER-02 | When an exhibit needs a custodian assigned or transferred, I want to do it directly from the Exhibit Detail screen or attention feed, so I can complete the action the moment I identify the need instead of relying on a backend-only workflow. | P0 |
+| JTBD-02.8 | PER-02 | When I need a case-wide picture of who's holding which exhibits, I want a single custody-by-custodian view on the Command Center, so I can see the whole custody picture at a glance instead of opening each exhibit's detail page one at a time. | P1 |
+| JTBD-02.9 | PER-02 | When a flagged item appears on the attention feed, I want to act on it inline right from the entry, so I can resolve it the moment I see it instead of navigating away and losing my place. | P0 |
 | JTBD-03.1 | PER-03 | When I'm about to reference an exhibit in argument or cross-examination, I want its current status confirmed instantly, so I can act with confidence mid-argument. | P0 |
 | JTBD-03.2 | PER-03 | When deciding whether to press or drop a point, I want to know if an objection is still unresolved, so I can act without relying on fragmented personal notes. | P0 |
 | JTBD-03.3 | PER-03 | When challenging an exhibit's admissibility, I want the full chain-of-custody history on demand, so I can identify gaps without formally requesting it as evidence first. | P1 |
@@ -119,6 +125,72 @@ When a prior ruling is challenged or revisited, I want the full history of the r
 
 **Related Features:** F10, F2
 **Priority:** P0
+
+---
+
+### JTBD-01.5: Record a Ruling Without Leaving the Screen
+
+**Job Statement:**
+When an objection surfaces on the Command Center's attention feed or on an exhibit's Objection card, I want to record my ruling (sustained, overruled, or reserved) right there, so I can resolve it the moment I see it instead of routing the decision through a deputy or clerk because no UI exists for it.
+
+**Current Alternatives:**
+- Rules verbally and relies on the deputy/clerk to key the ruling into the system on the judge's behalf, since `recordRuling` has existed only as a backend service with no UI entry point anywhere in this product
+- Has no way to verify the ruling was actually recorded correctly without asking the deputy/clerk to confirm it after the fact
+
+**Hiring Criteria:**
+- "Record ruling" control is reachable directly from the Command Center attention feed (HIGH/PENDING tiers) and from the Exhibit Detail Objection card, scoped to a single named objection — never an ambiguous exhibit-level action
+- Disposition selector offers exactly Sustained/Overruled/Reserved, matching the existing judicial disposition model with no new values to learn
+- Action is gated to the Judge role server-side — an unauthorized role never sees a control that would silently fail
+- A Reserved disposition visibly leaves the objection open and re-ranked in the feed; a Sustained/Overruled disposition visibly closes it out, with no separate confirmation step needed from staff
+
+**Success Measure:** Judge records a ruling directly from either entry point in a single explicit-confirm action, with zero deputy/clerk intermediary, and the ruling appears resolved on every open screen within one polling interval, in 100% of ruling attempts during the demo scenario.
+
+**Related Features:** F24, F8, F10
+**Priority:** P0
+
+---
+
+### JTBD-01.6: See What Needs Attention First, Ranked by Severity
+
+**Job Statement:**
+When I open the Command Center during a live trial, I want a single ranked feed of exactly what needs judicial or courtroom attention right now, so I can triage the case by actual severity instead of mentally cross-referencing separate objection and discrepancy panels to infer priority myself.
+
+**Current Alternatives:**
+- Scans the Recent Activity panel, the unresolved-objections list, and the discrepancy indicator separately and mentally combines them to decide what matters most right now
+- Has no case-wide severity ordering today — a critical sealed-exhibit leak and a routine pending ruling look equally prominent until someone reads every panel
+
+**Hiring Criteria:**
+- A single feed surfaces every item needing attention — sealed/ex-parte jury-package blockers, admitted-with-open-objection cases, pending rulings, and admitted-no-custodian cases — ranked Critical > High > Pending > Medium, never interleaved out of tier order
+- Within a tier, newest-first ordering requires no manual sort
+- Every entry is traceable to the specific exhibit/objection driving it — no vague or unattributed "something needs attention" entry
+- Feed updates on the existing live-sync interval with no manual refresh
+
+**Success Measure:** Judge identifies the single most severe open item in the case within 10 seconds of opening the Command Center, with zero manual cross-referencing across separate panels, in 100% of attention-feed reviews during the demo scenario.
+
+**Related Features:** F8
+**Priority:** P0
+
+---
+
+### JTBD-01.7: Request Finalization From a Clerk Without an Out-of-Band Ask
+
+**Job Statement:**
+When I'm reviewing a jury package I'm not authorized to finalize myself, I want to request finalization from a clerk or deputy directly from the Jury Package Workspace, so I can move the package forward without stepping outside the system to ask verbally or by email.
+
+**Current Alternatives:**
+- Verbally asks a deputy or clerk to finalize, or sends an out-of-band message, with no record that the request was ever made or when
+- Sees only a disabled "Finalize" control with no indication of what to do next or who to ask
+
+**Hiring Criteria:**
+- "Request finalization from Clerk" control replaces the disabled Finalize control for any role outside the finalize-authorized set (Judge, Chambers Staff, Attorney), rather than presenting a dead end
+- The request is recorded with a timestamp and requesting user and is visible to finalize-authorized roles as a banner directly above their Finalize control — not on a separate notifications page
+- Requesting finalization never bypasses the discrepancy gate or grants finalize authority — a package with open Blockers remains unfinalizable regardless of how many requests have been made
+- A new request is resolved automatically the moment the package is actually finalized, with no separate manual dismissal step
+
+**Success Measure:** Judge submits a finalization request in a single action from the Jury Package Workspace, and the assigned clerk/deputy sees the request as a visible banner on their own next screen load, with zero out-of-band communication, in 100% of request attempts during the demo scenario.
+
+**Related Features:** F11
+**Priority:** P1
 
 ---
 
@@ -247,6 +319,72 @@ When a jury package is finalized — and potentially re-finalized later after a 
 
 **Related Features:** F23
 **Priority:** P1
+
+---
+
+### JTBD-02.7: Transfer or Assign Custody Without Leaving the Screen
+
+**Job Statement:**
+When an exhibit needs a custodian assigned for the first time or transferred to a new holder, I want to do it directly from the Exhibit Detail screen (or the Command Center attention feed), so I can complete the custody action the moment I identify the need instead of relying on an API client or a backend-only workflow that doesn't exist for courtroom staff.
+
+**Current Alternatives:**
+- Has no UI path at all for `recordCustodyTransfer` today — the action exists only as a backend service, so a custody change effectively cannot happen without engineering involvement or a workaround
+- Tracks intended custody changes on paper or verbally until someone with API access can apply them
+
+**Hiring Criteria:**
+- A first-time assignment (no custodian of record) and a subsequent transfer (existing custodian, propose/accept flow) are both reachable from the Exhibit Detail header, using the correct underlying action for each case automatically
+- A pending transfer is visibly distinguished from a confirmed one, with "Cancel pending transfer" and (for the named receiver only) "Confirm receipt" both available inline
+- Action is gated to Deputy/Clerk/Admin roles (propose/assign/cancel) and identity-gated to the named receiver (confirm) — no control renders for an unauthorized user that would silently fail
+- Every submission requires an explicit confirm step — no custody change is ever triggered by a single click with no confirmation
+
+**Success Measure:** Deputy/clerk completes a custody assignment or transfer in a single screen, with zero reliance on an API client or backend workaround, and the change is reflected on every open screen within one polling interval, in 100% of custody-action attempts during the demo scenario.
+
+**Related Features:** F24, F10, F8
+**Priority:** P0
+
+---
+
+### JTBD-02.8: See Who Holds What Without Per-Exhibit Lookup
+
+**Job Statement:**
+When I need a case-wide picture of who's holding which exhibits, I want a single custody-by-custodian view on the Command Center, so I can see the whole custody picture at a glance instead of opening each exhibit's detail page one at a time.
+
+**Current Alternatives:**
+- Opens each exhibit's detail page individually, or relies on memory, to answer "what does each custodian currently have"
+- Has no single screen today that groups exhibits by custodian — custody is only answerable one exhibit at a time via JTBD-02.2's per-exhibit lookup
+
+**Hiring Criteria:**
+- A single Command Center panel groups all exhibits by current custodian, requiring zero navigation into individual Exhibit Detail pages
+- Exhibits with a pending (unconfirmed) transfer are shown under a distinct "pending transfer to {name}" grouping rather than silently folded into the current custodian's bucket
+- Panel updates on the existing live-sync interval so a custody change made anywhere (including this screen's own inline actions) appears without manual refresh
+- Panel is read-only except for the inline custody actions it shares with JTBD-02.7 — no separate interaction model to learn
+
+**Success Measure:** Deputy/clerk identifies every custodian's current exhibit holdings case-wide within 15 seconds of opening the Command Center, with zero per-exhibit page visits, in 100% of custody-overview checks during the demo scenario.
+
+**Related Features:** F8
+**Priority:** P1
+
+---
+
+### JTBD-02.9: Act Immediately on a Flagged Attention-Feed Item
+
+**Job Statement:**
+When a flagged item appears on the Command Center's "Needs your attention" feed — a sealed exhibit wrongly included in the jury package, an exhibit needing a custodian — I want to act on it inline, right from the feed entry, so I can resolve it the moment I see it instead of navigating away to find the right screen and losing my place in the feed.
+
+**Current Alternatives:**
+- Reads the flagged item, then navigates to the Jury Package Workspace or Exhibit Detail separately to actually take action, losing the feed's context and needing to re-locate the same item afterward
+- Has no inline path today for the tiers a deputy/clerk is authorized to act on — resolution always meant leaving the Command Center first (the objection-ruling tiers remain the judge's separate action, see JTBD-01.5)
+
+**Hiring Criteria:**
+- A Medium-tier (admitted, no custodian) entry carries an inline "Transfer custody"/"Assign custodian" action resolvable without leaving the feed
+- A Critical-tier (sealed/ex-parte in jury package) entry links directly to the existing remove-from-package remediation already role-gated for clerk/admin, rather than requiring a fresh search for the offending exhibit
+- Once an action is taken, the originating feed entry clears or re-ranks on the next poll tick with no manual refresh needed to confirm it worked
+- Every inline action requires its existing explicit confirm step — nothing on the feed auto-submits on a single click
+
+**Success Measure:** Deputy/clerk resolves a flagged Medium or Critical attention-feed item without navigating away from the Command Center, with the entry clearing within one polling interval of the action, in 100% of inline-resolution attempts during the demo scenario.
+
+**Related Features:** F8, F24, F13
+**Priority:** P0
 
 ---
 
@@ -436,6 +574,12 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 | JTBD-02.4 | F4, F9 | Deputy/clerk locates any exhibit in under 10 seconds during live testimony |
 | JTBD-02.5 | F22 | Deputy/clerk switches between active cases with zero cross-case data leakage |
 | JTBD-02.6 | F23 | Deputy/clerk retrieves a defensible, versioned PDF record of exactly what each jury package finalization contained |
+| JTBD-01.5 | F24, F8, F10 | Judge records a ruling directly from the attention feed or Objection card with zero deputy/clerk intermediary |
+| JTBD-01.6 | F8 | Judge identifies the single most severe open item in the case within 10 seconds via the severity-ranked attention feed |
+| JTBD-01.7 | F11 | Judge requests finalization from a clerk/deputy directly from the Jury Package Workspace with zero out-of-band communication |
+| JTBD-02.7 | F24, F10, F8 | Deputy/clerk completes a custody assignment or transfer in a single screen with zero API-client workaround |
+| JTBD-02.8 | F8 | Deputy/clerk sees every custodian's current holdings case-wide within 15 seconds with zero per-exhibit page visits |
+| JTBD-02.9 | F8, F24, F13 | Deputy/clerk resolves a flagged Medium/Critical attention-feed item inline with zero navigation away from Command Center |
 | JTBD-03.1 | F1, F7 | Attorney confirms exhibit status in seconds without relying on courtroom staff |
 | JTBD-03.2 | F2 | Attorney confirms objection resolution status in under 10 seconds |
 | JTBD-03.3 | F3, F10 | Attorney verifies custody chain in under 10 seconds without a formal evidentiary request |
@@ -461,6 +605,12 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 | JTBD-02.4 | Fast exhibit location during live testimony | Given a search by ID, keyword, status, witness, or date (or combination), matching exhibits are returned in under 10 seconds |
 | JTBD-02.5 | Switch between multiple active cases with zero cross-case leakage | Given two or more active cases exist, selecting a case from the case selector updates every screen and the assistant to that case's data exclusively, with zero data from the other case visible anywhere |
 | JTBD-02.6 | Defensible, versioned proof of exact jury-package contents | Given a jury package is finalized (or re-finalized after a correction), a new immutable PDF version is generated and retrievable from version history, exactly matching the discrepancy-gated, classification-excluded exhibit set shown on the live workspace at that moment |
+| JTBD-01.5 | Ruling recorded directly from the UI, zero deputy/clerk intermediary | Given a judge opens "Record ruling" from the attention feed or Objection card and selects a disposition, the objection thread updates (closed for Sustained/Overruled, still open for Reserved) and is reflected on every open screen within one polling interval |
+| JTBD-01.6 | Most severe open item identified within 10 seconds | Given the Command Center attention feed is open, every Critical/High/Pending/Medium item across the case is visible in strict tier order, newest-first within each tier, with zero items from a lower tier appearing before a higher one |
+| JTBD-01.7 | Finalization requested with zero out-of-band communication | Given a non-finalize-authorized role clicks "Request finalization from Clerk," a timestamped request appears as a banner on the next screen load for every finalize-authorized role viewing the same package |
+| JTBD-02.7 | Custody assigned/transferred in a single screen, zero API workaround | Given a deputy/clerk opens the custody action from Exhibit Detail or the attention feed and confirms, the correct action (assign, propose, confirm, or cancel) is invoked automatically based on current custody state, with no manual endpoint selection |
+| JTBD-02.8 | Every custodian's holdings visible case-wide within 15 seconds | Given the Command Center is open, exhibits are grouped by current custodian with pending transfers shown in a distinct grouping, requiring zero navigation into individual Exhibit Detail pages |
+| JTBD-02.9 | Flagged item resolved inline, zero navigation away | Given a Medium or Critical attention-feed entry is acted on inline, the entry clears or re-ranks on the next poll tick with no manual page reload required to confirm the action succeeded |
 | JTBD-03.1 | Confirmed exhibit status before acting in argument | Given an attorney asks for an exhibit's current status, a cited answer is returned within seconds without requiring courtroom staff involvement |
 | JTBD-03.2 | Known objection resolution status | Given a query for unresolved objections (case-wide or per-exhibit), the full current objection/ruling status is returned in under 10 seconds |
 | JTBD-03.3 | Verified custody chain for admissibility challenge | Given a request for an exhibit's chain-of-custody, the full timestamped transfer history is returned in under 10 seconds with any gaps visually distinguishable |
@@ -473,4 +623,4 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-09 (added JTBD-02.5, JTBD-02.6 for Phase 7.1)*
+*Last updated: 2026-10-09 (added JTBD-01.5–01.7, JTBD-02.7–02.9 for Phase 8)*

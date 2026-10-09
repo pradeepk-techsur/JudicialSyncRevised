@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 6: Carbon Design System UI Upgrade** - Replace the Tailwind/shadcn visual foundation and every screen's components with IBM Carbon Design System, across all 5 shipped phases (completed 2026-10-08)
 - [x] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues (completed 2026-10-09)
 - [ ] **Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export** (INSERTED) - Chambers/sealed classification enforced at intake, full state-machine + server-side role enforcement, custody handoff confirmation, pending-ruling queue, multi-case support, and versioned jury packages with PDF export
+- [ ] **Phase 8: UI Redesign and Write-Action Coverage** - Replace the Carbon-light visual foundation with the reviewed dark-dashboard design across Command Center, Case Workspace, Exhibit Detail, and Jury Package, and build the two write actions (record ruling, transfer/assign custody) the product has never had a UI for
 
 ## Phase Details
 
@@ -172,10 +173,21 @@ Plans:
 Plans:
 - [ ] TBD (run /pivota_spec-plan-phase 7.1 to break down)
 
+### Phase 8: UI Redesign and Write-Action Coverage
+
+**Goal:** Command Center, Case Workspace, Exhibit Detail, and Jury Package render on the reviewed dark-dashboard visual language (replacing the current Carbon-light theme) and expose the information the reference screenshots depend on — per-status exhibit counts, a prioritized attention feed, a custody-by-custodian view, and per-exhibit jury-package eligibility — while two write actions that have never had a UI in this product (recording a ruling, transferring/assigning custody) become real, role-gated flows reachable from both Command Center and Exhibit Detail.
+**Requirements**: TBD — derived from reference screenshots (Trial Command Center, Exhibit Detail, Jury Package Workspace, Case Workspace); not yet reflected in REQUIREMENTS.md pending `update_spec_docs`
+**Depends on:** Phase 7.1 (the custody handoff, classification, and multi-case primitives 7.1 introduces are surfaced by this phase's new Command Center widgets and Exhibit Detail rail — this phase should not plan ahead of it)
+**Context:** Filed as a phase-sized change assessment from a chat UI review against 4 reference screenshots (2026-10-09). Confirmed during investigation: `recordRuling` (objections.ts) and `recordCustodyTransfer` (custody.ts) are backend-only today — no UI component invokes either anywhere in the codebase. The Command Center redesign's inline action buttons ("Record ruling," "Assign custodian," "Review and remove") also reverse Phase 5's locked success criterion that the screen is "strictly passive/read-only monitoring" — this phase supersedes that constraint by design, not by accident.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /pivota_spec-plan-phase 8 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 → 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -187,3 +199,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
+| 8. UI Redesign and Write-Action Coverage | 0/TBD | Not planned | — |

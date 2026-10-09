@@ -252,6 +252,14 @@ model JuryPackage {
   finalizedAt  DateTime?
   finalizedBy  String?
   version      Int?                                // added Phase 7.1 (F23): assigned ONLY at finalization, never reassigned; null while DRAFT
+  // --- added Phase 8 (F11): lightweight finalization-request notification ---
+  // Set by POST /api/jury-package/:id/request-finalization (a role outside
+  // F20's finalize-authorized set asking one that is to finalize). Purely
+  // additive metadata — confers no authority, bypasses no gate. At most one
+  // outstanding request is tracked per package; a new request overwrites the
+  // prior one. Cleared automatically when the package is finalized.
+  finalizationRequestedAt  DateTime?
+  finalizationRequestedBy  String?
 
   case Case @relation(fields: [caseId], references: [id])
   exhibitRows JuryPackageExhibit[]
@@ -297,6 +305,8 @@ model JuryPackageExhibit {
 **Jury Package Exclusion note (Phase 7, F13; amended Phase 7.1, F16):** `computeJuryCandidates` (F5) originally filtered `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter (F13 §Process step 1). As of Phase 7.1, this filter reads `exhibit.classification = 'TRIAL'` instead — both `CHAMBERS_EX_PARTE` and `SEALED` are hard-excluded identically — so a chambers-ex-parte or sealed exhibit never acquires an `INCLUDED` row here in the first place. See `F16-exhibit-classification-taxonomy.md` §Process step 4. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
 
 **Jury Package Versioning note (Phase 7.1, F23):** `JuryPackage.version` is assigned only at finalization, computed as `(MAX(version) WHERE caseId = :id AND status = 'FINALIZED') + 1` (or `1` if none exists), and never reassigned afterward. No separate snapshot table is introduced — the existing `JuryPackageExhibit` rows, already immutable once their parent package is `FINALIZED` (F05 §Validation), serve directly as each version's permanent record. "Most-recent version" is computed at read time (`MAX(version)` per case), never stored. See `F23-versioned-jury-packages-pdf-export.md` §Process.
+
+**Finalization Request note (Phase 8, F11):** `finalizationRequestedAt`/`finalizationRequestedBy` model a single outstanding "please finalize this" notification per package — not a queue, not a ledger event type, and not a new table. This is a deliberate scope choice: the request carries no authority of its own (F5's discrepancy gate and F20's role matrix are completely unaffected by its presence), so it does not need append-only/immutable treatment the way status/objection/custody domains do. A new request simply overwrites the previous one; a successful finalize clears both fields. See `F11-jury-package-workspace-screen.md` §Process steps 7–8.
 
 ### Assistant
 
@@ -349,6 +359,7 @@ model AssistantCitation {
 - Discrepancy rules (F6) are evaluated against current-state projections (`ExhibitCurrentState`, `ObjectionCurrentState`, `CustodyCurrentState`), never by scanning the full `ExhibitEvent` ledger on every check — the ledger is read in full only for history views (F10) and assistant `getExhibitHistory` calls.
 - `ExhibitEvent` is indexed on `(exhibitId, recordedAt)` for timeline reads and `(caseId, eventType, recordedAt)` for Command Center's recent-activity query.
 - At demo scale (dozens–hundreds of exhibits, single case), no further indexing or caching is required — see `ARCHITECTURE.md` §Scaling Considerations.
+- **Added Phase 8 (F08):** `getCustodyByCustodian(caseId)` and `getAttentionFeed(caseId)` are new read-only aggregation functions, not new tables. Both group/filter existing projection rows (`CustodyCurrentState`, `DiscrepancyFlag`, `ObjectionCurrentState`, `JuryPackageExhibit`) already indexed above — no new index is required at demo scale. Neither function writes anything; both are fully rebuildable from current projections at any time, consistent with the projection-integrity guarantee below.
 
 ### Projection Integrity
 

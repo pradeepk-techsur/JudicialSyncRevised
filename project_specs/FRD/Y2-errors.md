@@ -122,6 +122,23 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 
 **Note:** F22 introduces no new error codes — it reuses the existing `CASE_NOT_FOUND` (404) for every amended case-scoped endpoint; see `F22-multi-case-support-case-selector.md` §Error States.
 
+### Jury Package Finalization Request Errors (F11, added Phase 8)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 403 | ROLE_NOT_PERMITTED | "This role can finalize directly and does not need to request it" | Not retryable by this user — a `DEPUTY`/`CLERK`/`ADMIN` role should use the Finalize action directly instead |
+| 409 | JURY_PACKAGE_ALREADY_FINALIZED | "This jury package has already been finalized" | Not retryable — a finalized package has no pending request state to set *(reuses F5's existing code, unchanged)* |
+
+### Command Center Attention Feed Errors (F8, added Phase 8)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 500 | ATTENTION_FEED_LOAD_FAILED | "Unable to load the attention feed — please retry" | Transient; retry |
+
+**Note:** Phase 8's `GET /api/cases/:id/custody-by-custodian` (F8, new) introduces no new error code — it reuses the existing `COMMAND_CENTER_LOAD_FAILED` (500) for any underlying query failure. The `statusCounts` addition to `GET /api/cases/:id/activity` (F8) introduces no new error code either, since it is computed from data the endpoint already fetches.
+
+**Note:** F24 (Write-Action UI Coverage — Record Ruling & Transfer Custody) introduces no new error codes. Every error it surfaces is an existing code from F02 (`OBJECTION_ALREADY_RESOLVED`, `OBJECTION_NOT_FOUND`), F03 (`CUSTODY_CHAIN_BROKEN`, `INVALID_CUSTODIAN`, `NO_OP_TRANSFER`), F19 (`CUSTODY_TRANSFER_ALREADY_PENDING`, `CUSTODY_CONFIRMATION_NOT_PENDING`, `CUSTODY_CONFIRM_WRONG_USER`, `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION`), and F20 (`ROLE_NOT_PERMITTED`), all unchanged — see `F24-write-action-ui-coverage.md` §Error States for the consolidated list as surfaced through this feature's UI.
+
 ### Versioned Jury Package Export Errors (F23)
 
 | HTTP Status | Error Code | Message | Retry Guidance |

@@ -52,7 +52,7 @@ Specific pain points this demo targets:
 | ORM | Prisma | Type-safe queries over the exhibit/objection/ruling/custody graph |
 | AI/Assistant | Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/anthropic`) | Tool-calling + streaming chat for the Pivota Assistant |
 | Validation | zod | Validates tool-call arguments and API payloads before they reach Prisma |
-| UI components | IBM Carbon Design System (`@carbon/react`) | Consistent, accessible component layer across screens |
+| UI components | IBM Carbon Design System (`@carbon/react`), themed with the Phase 8 dark-dashboard visual language | Consistent, accessible component layer across screens, now presented in the reviewed dark-dashboard theme in place of the original Carbon-light theme |
 | Client state/data | @tanstack/react-query, zustand | Server-state caching and lightweight client state |
 | Data model pattern | Append-only event ledger + current-state projection | Ground-truth history (status/objection/ruling/custody changes) with fast-read derived views |
 | Service layer | Single typed service module (`getExhibits`, `getCustodian`, `getUnresolvedObjections`, `recordEvent`, etc.) | Sole entry point for both UI screens and assistant tool wrappers — no parallel retrieval path |
@@ -169,23 +169,32 @@ Specific pain points this demo targets:
 ---
 
 ### F8: Trial Command Center Screen
-**Description:** A high-level, ambient live view of trial/exhibit activity designed for a judge or deputy to glance at during proceedings without needing to configure or drill into anything.
+**Description:** A high-level, ambient live view of trial/exhibit activity designed for a judge or deputy to glance at during proceedings — now extended, by deliberate product decision in Phase 8, from a strictly passive monitoring surface into a screen that also surfaces the courtroom's two most time-sensitive write actions (recording a ruling, transferring custody) at the exact point the system has already identified they are needed.
 
 **Capabilities:**
 - Live-updating summary of exhibit activity across the current trial (recent status changes, pending objections, recent rulings)
+- Per-status exhibit count stat cards, giving an immediate numeric breakdown of the case's exhibit set by lifecycle state
+- Status-distribution bar visualizing the same breakdown proportionally across the full exhibit set
+- Prioritized "Needs your attention" feed, ranked Critical/High/Pending/Medium, surfacing the specific exhibits/objections most requiring action — not just a flat recent-activity list
+- Inline write actions directly on "Needs your attention" feed entries (record ruling, transfer/assign custodian — see F24), so a judge or deputy can resolve the flagged item without leaving the screen
+- Jury package summary widget showing current draft/finalized package progress at a glance
+- "Custody at a glance" panel grouping exhibits by current custodian, so a deputy can see who holds what without visiting individual Exhibit Detail pages
 - At-a-glance indicators of outstanding discrepancies
-- Designed for passive monitoring during active proceedings, not data entry
 
-**Priority:** P1 (High — reinforces the "ambient awareness" positioning but is sequenced after core data/assistant features)
+**Note — design decision supersedes a prior constraint:** Phase 5 locked in "the Command Center exposes no path to record, edit, or acknowledge anything from that screen — it is strictly passive/read-only monitoring" as a success criterion. Phase 8 deliberately reverses this: the inline write actions on the attention feed are an intentional product decision, not a regression, and are recorded here so the reversal is traceable rather than silently contradicting the Phase 5 criterion.
+
+**Priority:** P0 (Raised from P1 — now carries primary write-action entry points in addition to its original ambient-monitoring role, making it load-bearing for the demo's write-action coverage, not just a glance screen)
 
 ---
 
 ### F9: Case Workspace Screen
-**Description:** The case-level view listing all exhibits, parties, and statuses in one place — the primary screen for browsing and searching the full exhibit set.
+**Description:** The case-level view listing all exhibits, parties, and statuses in one place — the primary screen for browsing and searching the full exhibit set, now also the primary surface for triaging exhibits by attention/custody/ruling status and by jury-package eligibility at a glance.
 
 **Capabilities:**
 - Full exhibit list for the case with current status, party, and witness association
 - Integrated search/filter (F4)
+- Quick-filter chips — All / Needs attention / In my custody / Awaiting ruling — for one-click triage without constructing a manual search query
+- Jury Package eligibility column per row (Included / Not eligible / Blocked), making jury-package readiness visible without navigating to the Jury Package Workspace
 - Surfaces discrepancy flags (F6) inline per exhibit
 - Entry point to drill into an individual Exhibit Detail View (F10)
 
@@ -194,21 +203,29 @@ Specific pain points this demo targets:
 ---
 
 ### F10: Exhibit Detail View Screen
-**Description:** The full history for a single exhibit — every status change, objection, ruling, and custody transfer — presented as a chronological timeline reconstructed directly from the event ledger.
+**Description:** The full history for a single exhibit — every status change, objection, ruling, and custody transfer — presented as a chronological timeline reconstructed directly from the event ledger, now paired with a right-rail of actionable, at-a-glance cards and header-level write actions so a user can both understand and act on an exhibit's state from one screen.
 
 **Capabilities:**
 - Chronological timeline of all events for the exhibit (status changes, objections raised, rulings recorded, custody transfers)
 - Answers "what happened to this exhibit" without assembling fragments from multiple sources
 - Current status, current custodian, and any active discrepancy flags shown prominently
+- Right-rail Objection card, including an inline "Record ruling" action for any open objection (see F24)
+- Right-rail Chain of Custody card, showing the current custodian and transfer history at a glance
+- Right-rail Jury Package eligibility checklist card, showing exactly which eligibility conditions (admission, objection resolution, custody completeness, classification) are met or outstanding for this exhibit
+- Header-level "Transfer custody" action (see F24)
+- Header-level "Ask Pivota about {exhibitLabel}" action, opening the assistant (F7) pre-scoped to this exhibit
 
-**Priority:** P0 (Critical — directly supports the named demo scenario "explain what happened to an exhibit")
+**Priority:** P0 (Critical — directly supports the named demo scenario "explain what happened to an exhibit," and is now also a primary write-action surface via F24)
 
 ---
 
 ### F11: Jury Package Workspace Screen
-**Description:** A curated, exportable workspace presenting the jury-eligible exhibit list (F5) alongside any discrepancy warnings, serving as the authoritative handoff view for jury package preparation.
+**Description:** A curated, exportable workspace presenting the jury-eligible exhibit list (F5) alongside any discrepancy warnings, serving as the authoritative handoff view for jury package preparation — now presented as a per-exhibit card layout rather than a table, with a visible progress indicator and a path for roles that cannot finalize directly to request finalization from a role that can.
 
 **Capabilities:**
+- Draft view presents each exhibit as an individual card, grouped into Blockers and Clean sections, rather than a single flat table — making it immediately legible which exhibits are holding up finalization and which are ready
+- Progress indicator summarizing how many included exhibits are Clean versus Blocked, at a glance
+- "Request finalization from Clerk" action for roles that are not permitted to finalize directly (per the F20 permission matrix), routing the request to a role that can, rather than presenting a disabled control with no path forward
 - Displays the computed jury-ready exhibit list
 - Surfaces discrepancy warnings prominently and blocks/flags finalization until addressed
 - Export/curated presentation suitable for handoff to the next step in the trial process
@@ -383,6 +400,20 @@ Specific pain points this demo targets:
 
 ---
 
+### F24: Write-Action UI Coverage — Record Ruling & Transfer Custody
+**Description:** Surfaces two write actions — recording a judge's ruling on an objection and transferring/assigning an exhibit's custodian — that have existed as backend services (`recordRuling` in objections.ts, `recordCustodyTransfer` in custody.ts) since early phases but have never had any UI entry point in this product. This feature gives both actions a real, role-gated surface reachable from the Trial Command Center's "Needs your attention" feed and from the Exhibit Detail right rail, so these operational write actions no longer require an API client or a backend-only workflow to exercise.
+
+**Capabilities:**
+- Inline "Record ruling" action on an open objection, available from the Command Center's "Needs your attention" feed (F8) and from the Objection card on Exhibit Detail (F10), invoking the existing `recordRuling` service — no new ruling logic, only its first UI surface
+- "Transfer custody" / "Assign custodian" action available from the Exhibit Detail header (F10) and, where applicable, from the Command Center's custody-by-custodian panel (F8), invoking the existing `recordCustodyTransfer` service (and the propose/accept flow established by F19, where already in place) — no new custody logic, only its first UI surface
+- Both actions are gated by the same server-side role-enforcement matrix (F20) already governing every other write path — a role without permission for an action does not see a control that would silently fail
+- Successful submission updates the originating screen (Command Center feed entry clears/re-ranks, Exhibit Detail Objection/Custody cards refresh) through the same live-sync mechanism already used for read data, with no screen-local optimistic state that could diverge from the ledger
+- Failed submission (validation error, role rejection, stale-state conflict) surfaces the specific rejection reason inline, matching the "reject-with-reason" pattern established by F12/F17/F18, never a silent failure or generic error
+
+**Priority:** P0 (Critical — closes a product gap where two core backend capabilities had no way to be exercised by an actual courtroom user; also the explicit trigger for this phase's supersession of the Command Center's prior read-only constraint)
+
+---
+
 ## 6. Non-Functional Requirements
 
 - **Trustworthiness over fluency:** Every assistant answer must be traceable to a specific ledger record; the system must never generate a plausible-sounding but unsupported claim (analogous to real-world sanctions over fabricated AI legal citations).
@@ -393,7 +424,7 @@ Specific pain points this demo targets:
 - **Demo reliability:** The seeded demo scenario must run start-to-finish without manual data entry or environment fragility, since it will be presented live or recorded for court customers.
 - **Non-technical usability:** All screens and assistant interactions must be understandable to non-technical judges and court staff — clarity and trustworthiness of answers matter more than technical sophistication or feature density.
 - **Realistic seed data complexity:** Seed data must include deliberate edge cases (unresolved objections, custody gaps, jury-package discrepancies) — overly clean seed data would make discrepancy detection undemonstrable.
-- **Design-system foundation:** All screens are built on IBM Carbon Design System as the single component/visual-language foundation, providing accessibility-conformant components and a consistent enterprise visual language across every screen.
+- **Design-system foundation:** All screens are built on IBM Carbon Design System as the component foundation. As of Phase 8, the visual language layered on top of Carbon is the reviewed dark-dashboard theme (replacing the original Carbon-light theme) across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace, while retaining Carbon's accessibility-conformant component behavior underneath.
 
 ---
 
@@ -420,6 +451,7 @@ Specific pain points this demo targets:
 | Assistant surfaces information outside a user's authorized role (e.g., sealed/sidebar matters) | Medium-High — trust and positioning risk with legal audience | Apply identical role-based scoping to assistant tool calls as to UI queries; no separate, unscoped retrieval path |
 | Demo positioning drifts toward "new system to learn" instead of "assistant augmenting existing workflow" | Medium — undermines the explicit sales positioning goal | Favor conversational/assistive UX over heavy data-entry forms on every screen; review each screen against the "assistant, not system" framing |
 | Live multi-screen sync (e.g., Command Center vs. Exhibit Detail) feels laggy or inconsistent during a live walkthrough | Medium — undercuts "immediate awareness" claim | Use polling-based live sync tuned against realistic demo pacing; revisit SSE/WebSocket only if polling proves visibly insufficient |
+| Command Center's new inline write actions (record ruling, transfer custody) are triggered accidentally from what was designed as a passive glance screen | Medium — could produce an erroneous ruling/custody record during live proceedings | Inline actions require the same explicit confirmation and role-gating (F20) as their Exhibit Detail/dedicated-flow equivalents; no inline action auto-submits without an explicit confirm step |
 
 ---
 
@@ -435,7 +467,7 @@ Specific pain points this demo targets:
 | F5 | Jury-Ready Exhibit List Generation | Differentiator | P0 |
 | F6 | Discrepancy Identification | Differentiator | P0 |
 | F7 | Pivota Assistant (Natural-Language Q&A) | Differentiator / Core Value | P0 |
-| F8 | Trial Command Center Screen | UI Screen | P1 |
+| F8 | Trial Command Center Screen | UI Screen | P0 |
 | F9 | Case Workspace Screen | UI Screen | P0 |
 | F10 | Exhibit Detail View Screen | UI Screen | P0 |
 | F11 | Jury Package Workspace Screen | UI Screen | P0 |
@@ -451,10 +483,11 @@ Specific pain points this demo targets:
 | F21 | Pending-Ruling Queue | UI Screen | P1 |
 | F22 | Multi-Case Support with Case Selector | Scope Reversal | P1 |
 | F23 | Versioned Jury Packages with PDF Export | Differentiator | P1 |
+| F24 | Write-Action UI Coverage — Record Ruling & Transfer Custody | Write Actions | P0 |
 
 **Priority Summary:**
-- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11, F12, F13, F16, F17, F18, F19, F20 — 17 features
-- **P1 (High):** F4, F8, F14, F15, F21, F22, F23 — 7 features
+- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F8, F9, F10, F11, F12, F13, F16, F17, F18, F19, F20, F24 — 19 features
+- **P1 (High):** F4, F14, F15, F21, F22, F23 — 6 features
 - **P2 / P3:** None at this stage — all defined features are considered necessary for a credible end-to-end demo
 
 ---

@@ -21,7 +21,7 @@
  oldest-first, in plain language]
     │
     ▼
-[Optional: cross-check via "Ask ✦" — "What happened to Exhibit 14?"]
+[Optional: cross-check via "Ask Pivota" — "What happened to Exhibit 14?"]
     │
     ▼
 [Assistant's answer and the timeline agree exactly —
@@ -36,6 +36,7 @@
 2. **Headline facts load above the fold.** Current status, current custodian, and any active discrepancy flags render in a prominent header block before the timeline even renders — answering the most common question ("where does this stand right now") without scrolling.
 3. **Timeline renders complete, in order.** Every `ExhibitEvent` — status changes, objections raised, rulings recorded, custody transfers — appears as one chronological entry, translated to plain language ("Status changed from Offered to Admitted," not raw enum values) (US-10.1). No "show more" pagination — FRD explicitly requires complete history, not "recent N events."
 4. **Each entry is self-contained.** Actor name, timestamp, and a one-line summary — scannable in seconds, matching exactly what the assistant's `getExhibitHistory` tool would state (US-10.1, US-3.3).
+4a. **Right-rail cards summarize without replacing the timeline (Phase 8).** The Objection, Chain of Custody, and Jury Package checklist cards beside the timeline (US-10.3) are a faster at-a-glance summary of facts already in the timeline/header — they read the same `getExhibitHistory` payload, never a separate query, so "what happened" (timeline) and "what does that mean for action" (right rail) can never diverge.
 5. **Independent cross-check available.** The user can open the assistant and ask the same question as a trust-verification step — the screen and the assistant are guaranteed to agree because both read the identical service-layer function (JRN-02.2 Delight Opportunity).
 6. **Sealed exhibit behavior.** If the exhibit is sealed and the viewing role is unauthorized, this entire flow dead-ends at a plain "exhibit not found" — visually and textually identical to a truly nonexistent exhibit ID, never revealing that sealed material exists (US-10.2).
 

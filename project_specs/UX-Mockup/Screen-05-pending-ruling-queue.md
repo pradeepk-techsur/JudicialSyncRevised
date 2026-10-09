@@ -9,7 +9,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask ✦]│
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Pending-Ruling Queue          🕐 updated 2s ago  │
 │ Case          │  Sorted: longest-waiting first                   │
@@ -62,7 +62,7 @@
 |---------|------|----------|
 | Ruling action (Sustained / Overruled / Reserved) | Inline action, 1 of 3 options per row | Calls the existing `POST /api/objections/:id/ruling` (F02) for that specific objection thread; `SUSTAINED`/`OVERRULED` closes the thread (row disappears next poll), `RESERVED` keeps it unresolved (row remains, elapsed time keeps counting) — identical behavior and role gate (`JUDGE`-only, unchanged by F20) to the ruling action already specified on Exhibit Detail View (US-21.2, US-2.2) |
 | "View exhibit history →" | Link-through | Navigates to the Exhibit Detail View (F10) for full context before ruling — same destination as every other drill-through path in the product |
-| "Ask ✦" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
+| "Ask Pivota" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
 
 **Explicitly scoped as judge-only, not merely judge-emphasized (F21):** unlike every other screen in this document, this screen has no "viewed by a non-finalizing/non-acting role" state to specify, because no other role is ever given a navigation path to it at all — there is no judge-only *content* with a read-only fallback for other roles, as there is on the Jury Package Workspace; the entire screen is judge-exclusive by design.
 

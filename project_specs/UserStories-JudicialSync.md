@@ -351,6 +351,35 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+### US-8.3: See Custody at a Glance
+**As a** Courtroom Deputy Dana Reyes, **I want to** see a "Custody at a glance" panel on the Trial Command Center grouping every exhibit by its current custodian, **so that** I can see who holds what without visiting each Exhibit Detail page individually.
+
+**Acceptance Criteria:**
+- [ ] The panel groups exhibits by `currentCustodianUserId` via `getCustodyByCustodian(caseId)`, showing the custodian's name with the exhibit labels and statuses held beneath each grouping
+- [ ] Exhibits with a pending, unconfirmed custody transfer (F19) appear in a visually distinct "pending transfer to {name}" grouping — never silently folded into the current custodian's bucket
+- [ ] Sealed/chambers-ex-parte exhibits are excluded from the panel for roles outside the visibility set, identically to every other screen's role-based filtering
+- [ ] Each custodian grouping exposes an entry point into F24's "Transfer custody" action for F20-authorized roles only — no control renders for a role that may not propose a transfer
+- [ ] The panel polls on the standard 3–5s live-sync interval so a custody confirmation recorded elsewhere regroups the exhibit without a manual refresh
+
+**Priority:** P0 | **Feature Ref:** F8
+
+---
+
+### US-8.4: See a Prioritized "Needs Your Attention" Feed
+**As a** Judge Elena Marsh, **I want to** see a single feed on the Command Center ranking every outstanding objection, custody gap, and sealed-in-package item by severity, **so that** I always address the most urgent issue first instead of scanning multiple separate panels.
+
+**Acceptance Criteria:**
+- [ ] Entries are grouped into four tiers — `CRITICAL` (sealed/ex-parte exhibit improperly `INCLUDED` in a jury package), `HIGH` (admitted exhibit with an open unresolved-objection discrepancy), `PENDING` (unresolved objection on a not-yet-admitted exhibit), `MEDIUM` (admitted exhibit with no custodian) — and every `CRITICAL` entry renders before any `HIGH` entry, every `HIGH` before any `PENDING`, and so on, with no interleaving across tiers
+- [ ] Within a single tier, entries are sorted newest-first by the timestamp of the event that produced the condition (`detectedAt` for discrepancy-sourced tiers, `raisedAt` for the `PENDING` tier)
+- [ ] An unresolved objection on an `ADMITTED` exhibit is counted only in the `HIGH` tier, never simultaneously in `PENDING`
+- [ ] Each `HIGH`/`PENDING` entry's inline action is "Record ruling" and each `MEDIUM` entry's inline action is "Transfer custody"/"Assign custodian," and the control renders only if the viewing user's role is F20-authorized for that specific action — an unauthorized role (e.g. `ATTORNEY`) sees the entry's context but no actionable control
+- [ ] The `CRITICAL` tier's action is a link-through to the Jury Package Workspace's existing "Remove from Package" remediation (F13), not a new inline control
+- [ ] A successful inline action clears or re-ranks its originating feed entry on the next poll tick, with no screen-local optimistic state that could diverge from the ledger
+
+**Priority:** P0 | **Feature Ref:** F8, F24
+
+---
+
 ## Epic 9: Case Workspace Screen (F9)
 
 ### US-9.1: Browse the Full Case Exhibit List
@@ -371,6 +400,21 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 **Acceptance Criteria:**
 - [ ] Clicking any exhibit row navigates to that exhibit's Exhibit Detail View (F10)
 - [ ] Discrepancy indicator icons are visible per row without requiring drill-in
+
+**Priority:** P0 | **Feature Ref:** F9
+
+---
+
+### US-9.3: Triage Exhibits With Quick-Filter Chips and Jury Package Eligibility
+**As a** Courtroom Deputy Dana Reyes, **I want to** use one-click quick-filter chips (All / Needs attention / In my custody / Awaiting ruling) and see a Jury Package eligibility column per exhibit row, **so that** I can triage the full exhibit set without constructing a manual search query.
+
+**Acceptance Criteria:**
+- [ ] Four quick-filter chips are available — All, Needs attention, In my custody, Awaiting ruling — and selecting one narrows the visible row set without requiring the search bar
+- [ ] "Needs attention" matches exhibits with at least one `OPEN` discrepancy flag or at least one `UNRESOLVED` objection thread; "In my custody" matches exhibits where `CustodyCurrentState.currentCustodianUserId` equals the signed-in user; "Awaiting ruling" matches exhibits with at least one `UNRESOLVED` objection thread
+- [ ] Each row renders a Jury Package eligibility badge of exactly one value — `Included`, `Not eligible`, or `Blocked` — computed as `Included` only when a `JuryPackageExhibit` row exists with `status = 'INCLUDED'` and `discrepancyStatus = 'CLEAN'`, `Blocked` when `INCLUDED` and `FLAGGED`, and `Not eligible` for every other case (no row at all, or a row with `status = 'EXCLUDED'`)
+- [ ] If no `JuryPackage` has ever been computed for the case, every row's eligibility reads `Not eligible` rather than erroring or omitting the column
+- [ ] The eligibility badge is never computed independently of what the Jury Package Workspace (F11) shows for the same exhibit — applying a quick-filter chip never changes this computation
+- [ ] Rows continue to poll on the standard 3–5s interval so a filter's membership and eligibility badges update without manual refresh
 
 **Priority:** P0 | **Feature Ref:** F9
 
@@ -402,6 +446,23 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+### US-10.3: See Actionable Right-Rail Cards and Header Actions
+**As a** user viewing Exhibit Detail, **I want to** see an Objection card, a Chain of Custody card, and a Jury Package eligibility checklist in a right rail, plus header-level "Transfer custody" and "Ask Pivota about {exhibitLabel}" actions, **so that** I can both understand and act on this exhibit's current state from one screen.
+
+**Acceptance Criteria:**
+- [ ] The Objection card renders every `ObjectionCurrentState` row for the exhibit with `status = 'UNRESOLVED'` (zero, one, or several), each showing objecting party, grounds, and elapsed time since `raisedAt`; if none exist, the card renders an explicit "No open objections" state rather than an empty card
+- [ ] Each unresolved-objection row carries its own "Record ruling" inline action passing that row's specific `objectionId`, and the action renders only for a `JUDGE`-role viewer
+- [ ] The Chain of Custody card renders the current custodian (or "No custodian of record"), a distinct "Pending transfer to {name} since {time}" banner when a transfer is pending, and the full ordered custody history including `PROPOSED`/`CONFIRMED`/`CANCELLED` events
+- [ ] The Jury Package eligibility checklist card shows four per-condition checks (admitted, objections resolved, custodian on record, classification = `TRIAL`) as met/outstanding, plus the same overall `Included`/`Not eligible`/`Blocked` badge the Case Workspace computes for this exhibit
+- [ ] The header's "Transfer custody" action renders only for a `DEPUTY`/`CLERK`/`ADMIN` role, or additionally for the named pending-transfer receiver when a transfer is pending (identity-gated "Confirm receipt") — it never renders for a role with no permission for any custody action on this exhibit
+- [ ] The header's "Ask Pivota about {exhibitLabel}" action opens the assistant panel pre-scoped to this exhibit's label
+- [ ] All three right-rail cards derive their state from the same `getExhibitHistory` payload the timeline renders from — no card issues an independent query that could diverge from the timeline's facts
+- [ ] A sealed/ex-parte exhibit viewed by an unauthorized role returns 404 before any right-rail card or header action renders, identical to the screen's existing not-found behavior
+
+**Priority:** P0 | **Feature Ref:** F10, F24
+
+---
+
 ## Epic 11: Jury Package Workspace Screen (F11)
 
 ### US-11.1: Review the Jury Package and Its Discrepancy Warnings
@@ -423,6 +484,22 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] The Finalize control is disabled (not just error-returning) whenever any included exhibit's discrepancy status is `FLAGGED` and `OPEN`
 - [ ] Finalization re-validates server-side even if somehow triggered with stale client state, rejecting with 409 if any open discrepancy remains
 - [ ] Once finalized, the screen switches to a read-only, export-ready presentation with no acknowledge/resolve/remove controls
+
+**Priority:** P0 | **Feature Ref:** F11
+
+---
+
+### US-11.3: Request Finalization From a Role That Can Finalize
+**As a** Judge Elena Marsh, **I want to** request finalization of the current jury package draft from a Clerk/Deputy/Admin when my role cannot finalize directly, **so that** a clean package can move forward without my needing finalize authority I'm not meant to have.
+
+**Acceptance Criteria:**
+- [ ] A `JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY` role viewing a `DRAFT` package sees "Request finalization from Clerk" in place of a Finalize control
+- [ ] Clicking it calls `POST /api/jury-package/:id/request-finalization` with the requester's `actorUserId`, setting `finalizationRequestedAt`/`finalizationRequestedBy` on the package — overwriting any prior unresolved request, never stacking
+- [ ] This action never finalizes the package, never bypasses F5's discrepancy gate, and confers no finalize authority to the requester
+- [ ] A finalize-authorized role (`DEPUTY`/`CLERK`/`ADMIN`) viewing the same `DRAFT` package while a request is outstanding sees a visible banner ("Finalization requested by {requesterName} at {time}") directly above the Finalize control
+- [ ] A `DEPUTY`/`CLERK`/`ADMIN` attempting to call the request-finalization endpoint themselves is rejected with 403 `ROLE_NOT_PERMITTED` ("This role can finalize directly and does not need to request it")
+- [ ] A successful finalization clears the outstanding `finalizationRequestedAt`/`finalizationRequestedBy` — the request is resolved by the finalization it led to
+- [ ] Requesting finalization on an already-`FINALIZED` package is rejected with 409 `JURY_PACKAGE_ALREADY_FINALIZED`
 
 **Priority:** P0 | **Feature Ref:** F11
 
@@ -943,6 +1020,54 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+## Epic 24: Write-Action UI Coverage (F24)
+
+### US-24.1: Record a Ruling From the UI With No Non-Judge Bypass
+**As a** Judge Elena Marsh, **I want to** record a ruling (SUSTAINED/OVERRULED/RESERVED) on an unresolved objection directly from the Command Center attention feed or the Exhibit Detail Objection card, **so that** I can resolve objections without an API client or backend-only workflow.
+
+**Acceptance Criteria:**
+- [ ] "Record ruling" is reachable from a `HIGH`/`PENDING` attention-feed entry (F08) and from the Objection card on Exhibit Detail (F10), both passing the specific `objectionId` of one `UNRESOLVED` thread as context — never a bare `exhibitId` with ambiguous thread selection
+- [ ] The disposition selector offers exactly `SUSTAINED`, `OVERRULED`, `RESERVED` — no new disposition value is introduced
+- [ ] Submission requires an explicit confirm step distinct from opening the form; no selection alone auto-submits
+- [ ] On submit, the client calls the existing `POST /api/objections/:id/ruling` endpoint unchanged, applying F02's existing unresolved-thread validation and F20's judge-only role gate
+- [ ] A non-judge role (`CHAMBERS_STAFF`, `DEPUTY`, `CLERK`, `ATTORNEY`, `ADMIN`) sees no "Record ruling" control anywhere in the UI — absent, not disabled — and a direct API call attempting the action as a non-judge is independently rejected with 403 `ROLE_NOT_PERMITTED`, confirming there is no UI path that could bypass the server-side gate
+- [ ] On success, a `SUSTAINED`/`OVERRULED` disposition clears the entry from the attention feed on the next poll tick; a `RESERVED` disposition leaves the thread unresolved and the entry remains, re-ranked by its unchanged `raisedAt`
+- [ ] On failure (e.g., stale-state 409 `OBJECTION_ALREADY_RESOLVED`), the form surfaces the specific rejection reason inline and remains open for correction, never a silent failure
+
+**Priority:** P0 | **Feature Ref:** F24
+
+---
+
+### US-24.2: Assign or Transfer Custody From the UI With Inline Rejection Surfacing
+**As a** Courtroom Deputy Dana Reyes, **I want to** assign a first-time custodian or transfer custody of an exhibit directly from the Exhibit Detail header (or the Command Center custody panel), **so that** I no longer need an API client to exercise this operational action, and I see exactly why a bad attempt failed.
+
+**Acceptance Criteria:**
+- [ ] If the exhibit has no custodian of record, the UI calls the legacy single-step endpoint (`fromCustodianUserId: null`) and the assignment takes effect immediately with no propose/confirm step
+- [ ] If a custodian already exists and no transfer is pending, the UI calls the propose endpoint with `fromCustodianUserId` read-only and pre-filled to the current custodian, and a `toCustodianUserId` picker that excludes the current custodian
+- [ ] If a transfer is already pending, the UI renders the pending state (receiver, proposed-at) with "Cancel pending transfer" (available to the proposer or any F20-authorized propose role) and, visible only to the exact named receiver, "Confirm receipt" — no new proposal is offered while one is outstanding
+- [ ] Every one of the three calls requires an explicit confirm step before submission; none auto-submits on selection
+- [ ] A custody-chain mismatch (stale UI state: `fromCustodianUserId` no longer matches the exhibit's actual current custodian) is rejected with 409 `CUSTODY_CHAIN_BROKEN` and surfaced as a specific inline error on the form — never a silent failure, generic toast, or unexplained no-op
+- [ ] A role outside `DEPUTY`/`CLERK`/`ADMIN` sees no assign/propose/cancel control at all; only the exact `pendingTransferToUserId` match sees "Confirm receipt," independent of role
+- [ ] On success, the Exhibit Detail custody display and any Command Center custody-by-custodian grouping refresh on the next poll tick to reflect the new state
+
+**Priority:** P0 | **Feature Ref:** F24
+
+---
+
+### US-24.3: Preserve Every Pre-Phase-8 Test Contract Through the Dark-Theme Reskin
+**As a** Administrator Priya Nair, **I want to** have every `data-testid` and `aria-label` contract the Phases 1–7 Playwright suite already asserts against (e.g. `jury-exhibit-row`, `exhibit-row`, `acknowledge-inline`) still resolve correctly after the dark-dashboard visual reskin, **so that** the redesign is provably a styling change and not a silent functional or automation regression.
+
+**Acceptance Criteria:**
+- [ ] Every `data-testid` and `aria-label` selector referenced by the pre-Phase-8 Playwright suite resolves to the same element role and content after the reskin — no selector is renamed, removed, or re-scoped as a side effect of the visual migration
+- [ ] This is treated as a non-negotiable, explicit acceptance criterion of the redesign itself, not an implementation detail left to incidental test-passing — a failing selector blocks the phase regardless of how the new screen otherwise looks
+- [ ] The full pre-existing Playwright regression suite (spanning Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) passes unmodified against the reskinned UI, with zero test-file edits required solely to chase a renamed selector
+- [ ] New Phase 8 surfaces (attention feed, custody-at-a-glance, quick-filter chips, right-rail cards, Blockers/Clean cards) introduce their own new `data-testid`/`aria-label` contracts additively, without repurposing or colliding with any existing identifier
+- [ ] Carbon's accessibility-conformant component behavior (keyboard navigation, focus order, ARIA roles) is retained underneath the new dark-dashboard token layer — the reskin changes visual tokens, not the underlying component semantics
+
+**Priority:** P0 | **Feature Ref:** F8, F9, F10, F11
+
+---
+
 ## Summary Table
 
 | Epic | Story Count | P0 | P1 | P2 |
@@ -955,10 +1080,10 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 | Epic 5: Jury-Ready Exhibit List Generation (F5) | 2 | 2 | 0 | 0 |
 | Epic 6: Discrepancy Identification (F6) | 3 | 3 | 0 | 0 |
 | Epic 7: Pivota Assistant (F7) | 5 | 4 | 1 | 0 |
-| Epic 8: Trial Command Center Screen (F8) | 2 | 0 | 2 | 0 |
-| Epic 9: Case Workspace Screen (F9) | 2 | 2 | 0 | 0 |
-| Epic 10: Exhibit Detail View Screen (F10) | 2 | 1 | 1 | 0 |
-| Epic 11: Jury Package Workspace Screen (F11) | 2 | 2 | 0 | 0 |
+| Epic 8: Trial Command Center Screen (F8) | 4 | 2 | 2 | 0 |
+| Epic 9: Case Workspace Screen (F9) | 3 | 3 | 0 | 0 |
+| Epic 10: Exhibit Detail View Screen (F10) | 3 | 2 | 1 | 0 |
+| Epic 11: Jury Package Workspace Screen (F11) | 3 | 3 | 0 | 0 |
 | Epic 12: Admission Integrity Gating (F12) | 3 | 3 | 0 | 0 |
 | Epic 13: Jury Package Ex Parte / Sealed Exclusion (F13) | 3 | 3 | 0 | 0 |
 | Epic 14: Discrepancy Acknowledgment Transparency (F14) | 3 | 0 | 3 | 0 |
@@ -971,7 +1096,8 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 | Epic 21: Pending-Ruling Queue (F21) | 2 | 0 | 2 | 0 |
 | Epic 22: Multi-Case Support (F22) | 3 | 1 | 2 | 0 |
 | Epic 23: Versioned Jury Packages + PDF Export (F23) | 3 | 2 | 1 | 0 |
-| **Total** | **69** | **46** | **21** | **2** |
+| Epic 24: Write-Action UI Coverage (F24) | 3 | 3 | 0 | 0 |
+| **Total** | **77** | **54** | **21** | **2** |
 
 ---
 
@@ -987,4 +1113,4 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-09 (added Epics 16–23 for Phase 7.1: exhibit classification, state-machine hardening, custody handoff confirmation, server-side RBAC, pending-ruling queue, multi-case support, jury-package versioning/PDF export)*
+*Last updated: 2026-10-09 (added Epics 16–23 for Phase 7.1: exhibit classification, state-machine hardening, custody handoff confirmation, server-side RBAC, pending-ruling queue, multi-case support, jury-package versioning/PDF export; added Phase 8 — new Epic 24 (Write-Action UI Coverage: record ruling, assign/transfer custody, dark-theme regression guard) and amended Epics 8–11 (custody-at-a-glance, "Needs your attention" feed, quick-filter chips + jury-package eligibility column, Exhibit Detail right rail + header actions, jury-package finalization request flow))*

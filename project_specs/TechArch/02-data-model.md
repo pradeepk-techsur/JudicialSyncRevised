@@ -317,6 +317,17 @@ CREATE TABLE jury_packages (
                              -- (MAX(version) WHERE case_id = :id AND status = 'FINALIZED') + 1,
                              -- or 1 if none exists; never reassigned afterward; NULL while DRAFT
 
+    -- added Phase 8 (F11): lightweight finalization-request notification.
+    -- Set by POST /api/jury-package/:id/request-finalization (a role
+    -- outside F20's finalize-authorized set asking one that is to
+    -- finalize). Purely additive metadata — confers no authority, bypasses
+    -- no gate, writes no ledger event. At most one outstanding request is
+    -- tracked per package; a new request overwrites the prior one. Cleared
+    -- automatically (set back to NULL) in the same transaction as a
+    -- successful finalize. See §3.11 Phase 8 Schema Changes.
+    finalization_requested_at  TIMESTAMPTZ,
+    finalization_requested_by  UUID REFERENCES users(id),
+
     CONSTRAINT uq_jury_packages_case_version UNIQUE (case_id, version)
     -- Postgres treats NULL as distinct from NULL in a UNIQUE constraint, so
     -- any number of DRAFT (version IS NULL) rows coexist per case without
@@ -363,6 +374,8 @@ CREATE INDEX idx_jury_package_exhibits_package_status
 **Jury Package Exclusion note (Phase 7, F13; amended Phase 7.1, F16):** `computeJuryCandidates`'s candidate query (`services/juryPackage.ts`, see `01-components.md` §2.2) originally filtered `exhibits.is_sealed = false` in the *same* query as `exhibit_current_state.current_status = 'ADMITTED'`. **As of Phase 7.1, this filter reads `exhibits.classification = 'TRIAL'` instead** — both `CHAMBERS_EX_PARTE` and `SEALED` are hard-excluded identically, driven by the three-value taxonomy rather than the boolean, so a chambers-ex-parte or sealed exhibit's row is never created as `INCLUDED` via the normal computation path, and is never passed into `evaluateDiscrepancies` for jury-package purposes (so it can never acquire `CLEAN`/`FLAGGED`). The `status`/`excluded_*` columns above exist solely for the remediation/audit path (legacy or regression rows, or any future manual removal) — they are a safety net, not the primary mechanism. `EXCLUDED` rows are retained (never deleted) and are omitted from `GET /api/cases/:id/jury-package`'s default response but remain queryable for audit.
 
 **Jury Package Versioning note (Phase 7.1, F23):** `version` is assigned only at finalization (see column comment above) and never reassigned afterward. No separate snapshot table is introduced — the existing `jury_package_exhibits` rows, already immutable once their parent package is `FINALIZED` (§3.6, enforced at the service layer), serve directly as each version's permanent record. "Most-recent version" (`isMostRecent` in `GET /api/cases/:id/jury-package/versions`'s response) is computed at read time as `MAX(version)` per case — never stored as an independent flag, consistent with this project's existing principle that derived facts are computed, not independently maintained state that could drift.
+
+**Finalization Request note (Phase 8, F11):** `finalization_requested_at`/`finalization_requested_by` model a single outstanding "please finalize this" notification per package — not a queue, not a new ledger event type, and not a new table. This is a deliberate scope choice: unlike every other write domain in this schema (status, objections, custody), a finalization request carries no authority of its own — F5's discrepancy gate and F20's role matrix are completely unaffected by its presence or absence — so it does not warrant append-only/immutable ledger treatment. A new request simply overwrites the previous one (`UPDATE`, not `INSERT`); a successful `finalizeJuryPackage` clears both columns to `NULL` in the same transaction as the write that sets `status = 'FINALIZED'`. See `01-components.md` §2.2 (`services/juryPackage.ts#requestFinalization`) and `03-api.md` §4.7.
 
 ### 3.7 Assistant Audit Trail
 
@@ -443,3 +456,18 @@ F16–F23 (Phase 7.1) are predominantly service-layer, state-machine, and API-su
 **Rollout note (F23 sparse versioning):** because `version` is only assigned going forward, any `jury_packages` row already `FINALIZED` before this migration lands retains `version = NULL` permanently — it was never assigned one and this feature does not retroactively backfill version numbers for pre-existing finalized packages (doing so would require an arbitrary ordering decision for history that predates the feature). `GET /api/cases/:id/jury-package/versions` lists such a row with `version: null` and `isMostRecent: false` (since `isMostRecent` is computed only over non-null versions) — this is accepted, documented behavior, not a defect, given the project's single-case-then-newly-multi-case demo data is seeded fresh rather than migrated from real pre-existing production history.
 
 **Combined migration:** all eight schema changes above (one enum, one new column + backfill + `NOT NULL` on `exhibits`; three enum values + three new nullable columns on `custody_current_state`; one new column + one constraint on `jury_packages`) land in a single Prisma migration for Phase 7.1 (e.g. `phase_7_1_classification_custody_handoff_jury_versioning`). No table outside this list is touched by Phase 7.1 — `objection_current_state`, `discrepancy_flags`, `assistant_conversations`/`assistant_messages`/`assistant_citations`, and `jury_package_exhibits` (Phase 7's F13 columns) are all unchanged.
+
+### 3.11 Phase 8 Schema Changes (Migration Required)
+
+Phase 8 (F08, F09, F10, F11, F24, and the dark-dashboard visual redesign) is overwhelmingly a UI-layer and read-time-derivation phase. Exactly **one** feature — F11 — requires a schema change, and every other feature is listed explicitly below so that "no schema change" is a confirmed, auditable fact for each, not a silent omission:
+
+| Change | Table/Enum | Required by | Migration? |
+|---|---|---|---|
+| Two new nullable columns `finalization_requested_at` (`TIMESTAMPTZ`), `finalization_requested_by` (`UUID REFERENCES users(id)`) | `jury_packages` | F11 ("Request finalization from Clerk") | **Yes** — `ALTER TABLE ... ADD COLUMN` ×2, both nullable, no backfill needed (every existing row correctly has no outstanding request) |
+| *(no schema change)* | — | F08 (per-status counts, custody-by-custodian, attention feed) | **No** — `statusCounts` is computed from `exhibit_current_state` data the activity endpoint already fetches; `getCustodyByCustodian`/`getAttentionFeed` are new read-only aggregation functions over `custody_current_state`, `discrepancy_flags`, `objection_current_state`, `jury_package_exhibits` — all already indexed (§3.8) — no new table, column, or index |
+| *(no schema change)* | — | F09 (jury-package eligibility column) | **No** — `juryPackageEligibility` is derived at read time from existing `jury_package_exhibits` rows via a left-join already described in `01-components.md` §2.2; no new column on `exhibits` or anywhere else |
+| *(no schema change)* | — | F10 (right-rail cards, header actions) | **No** — `objections[]`, `custodyCard`, `juryPackageChecklist` are read-time re-shapings of data `getExhibitHistory` (or the functions it already composes) already returns; the header's "Transfer custody" action invokes F03/F19's existing endpoints unchanged |
+| *(no schema change)* | — | F24 (Record Ruling UI, Transfer/Assign Custody UI) | **No** — confirmed, by design, in both the FRD and this document: F24 is a pure UI surface over `recordRuling` (F02) and the custody propose/confirm/cancel/legacy-assign functions (F03/F19); it writes through existing `ExhibitEvent` types only, introduces no new event type, column, or table |
+| *(no schema change)* | — | Dark-dashboard visual theming | **No** — a Carbon (`@carbon/react`) theme-token set plus component-level style overrides; a purely presentational change with no data-model surface whatsoever — see `05-tech-stack.md` §6.1a |
+
+**Single-column migration:** the two `jury_packages` columns above land in one small Prisma migration for Phase 8 (e.g. `add_jury_package_finalization_request`). No other table in this document is touched by Phase 8 — in particular, `exhibits`, `exhibit_events`, every current-state projection table, `discrepancy_flags`, and `jury_package_exhibits` are all unchanged, since every other Phase 8 surface (F08, F09, F10, F24) is read-time derivation or UI-only wiring over data that already exists.

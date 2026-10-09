@@ -2,7 +2,7 @@
 
 **Project:** JudicialSync
 **Generated:** 2026-10-06
-**Last Updated:** 2026-10-09 (Phase 7.1 INSERTED: exhibit classification at intake, custodian required at MARKED, two-phase custody propose/confirm, server-side role enforcement surfaced as absent-not-disabled controls system-wide, judge-only Pending-Ruling Queue [new 6th screen], header case selector, jury-package versioning + real PDF export — US-16.1–US-16.2, US-18.1–US-18.2, US-19.1–US-19.4, US-20.1–US-20.6, US-21.1–US-21.2, US-22.1–US-22.3, US-23.1–US-23.3. Prior note retained: Phase 7 admission-rejection error, sealed/ex-parte jury package blocker, discrepancy-acknowledgment role/audit visibility, Case Workspace row clickability, assistant example labels, header indicator, activity-feed date+label fixes — US-12.1–US-12.2, US-13.1–US-13.3, US-14.1–US-14.3, US-15.1–US-15.5)
+**Last Updated:** 2026-10-09 (Phase 8: dark-dashboard visual foundation replacing the Carbon-light theme; Command Center stat-card row, status-distribution bar, "Needs your attention" severity feed with inline write actions, "Custody at a glance" panel, Jury Package summary widget, and date-grouped/filterable Recent Activity — superseding Phase 5's strictly-read-only Command Center constraint for the attention feed's inline actions only; Case Workspace quick-filter chips and Jury Package eligibility column, with Flags rendered as readable text pills; Exhibit Detail header write actions ("Transfer custody," "Ask Pivota about {label}") and a three-card right rail (Objection / Chain of Custody / Jury Package checklist); Jury Package Workspace card-per-exhibit Blockers/Clean layout with a progress banner and "Request finalization from Clerk" — US-8.3, US-8.4, US-9.3, US-10.3, US-11.3, US-24.1, US-24.2, US-24.3. Prior note retained: Phase 7.1 INSERTED: exhibit classification at intake, custodian required at MARKED, two-phase custody propose/confirm, server-side role enforcement surfaced as absent-not-disabled controls system-wide, judge-only Pending-Ruling Queue [new 6th screen], header case selector, jury-package versioning + real PDF export — US-16.1–US-16.2, US-18.1–US-18.2, US-19.1–US-19.4, US-20.1–US-20.6, US-21.1–US-21.2, US-22.1–US-22.3, US-23.1–US-23.3. Earlier note retained: Phase 7 admission-rejection error, sealed/ex-parte jury package blocker, discrepancy-acknowledgment role/audit visibility, Case Workspace row clickability, assistant example labels, header indicator, activity-feed date+label fixes — US-12.1–US-12.2, US-13.1–US-13.3, US-14.1–US-14.3, US-15.1–US-15.5)
 **Based on:** UserStories-JudicialSync.md, JOURNEYS-JudicialSync.md, PRD-JudicialSync.md, FRD-JudicialSync.md, PROJECT.md
 
 ---
@@ -11,14 +11,26 @@
 
 JudicialSync's UX exists to prove one thing: **Pivota is an assistant layered over how courtroom staff already work, not a new system to learn.** Every design decision below is tested against that positioning constraint from PROJECT.md: *"favor conversational/assistive UX over heavy data-entry forms on every screen."*
 
+### Visual Foundation (Phase 8: Dark-Dashboard Theme)
+
+As of Phase 8, the component layer is still IBM Carbon Design System (unchanged since Phase 6 — same components, same accessibility-conformant behavior, same `data-testid`/`aria-label` contracts per US-24.3), but the **token/visual theme layered on top of Carbon changes from the original Carbon-light theme to a reviewed dark-dashboard theme**, carried consistently across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace:
+
+- **Sidebar:** a dark navy, full-height panel (not Carbon's default light `SideNav`) — the sidebar is now the single most visually distinct region of the shell, anchoring the "operational dashboard" framing.
+- **Content area:** remains light, so body text, tables, and timeline entries retain the high-contrast legibility Y2-accessibility.md already requires — only the sidebar and card chrome shift to the dark palette, not the reading surface.
+- **Dashboard panels:** rendered as rounded-corner cards (Carbon `Tile` with the dark-dashboard corner-radius/elevation tokens) rather than Carbon's default flat/square tile edges — this is the visual language the stat-card row, attention feed, custody panel, and Blockers/Clean cards (below) all share.
+- **Severity badges:** a fixed color mapping used identically everywhere a severity tier renders — `CRITICAL` = dark red, `HIGH` = amber, `PENDING` = amber-light (a lighter/desaturated amber, visually distinct from `HIGH`'s amber at a glance per Y2-accessibility.md's "never color alone" rule — each also carries the tier word as text), `MEDIUM` = yellow. See `Y0-patterns.md` §Pattern: Severity Tier Badge.
+- **Header button rename:** the header's "Ask ✦" button is relabeled **"Ask Pivota"** (sparkle glyph dropped in favor of the explicit product name) — same position, same behavior, still opens the Assistant slide-over from any screen.
+- **No functional/behavioral change:** this is a token/styling migration only, identical in spirit to the Phase 6 Carbon migration — every interaction pattern, role gate, polling behavior, and `data-testid`/`aria-label` contract already specified in this document is preserved unchanged (US-24.3). Where this document's existing ASCII wireframes show light-theme framing, read the sidebar as dark navy and panels as rounded dark-dashboard cards; the structural layout and content hierarchy they depict is unchanged.
+
 ### Design Principles
 
 1. **Ask, don't fill out forms.** Wherever a user might reach for a search bar, a filter panel, or a multi-field form, the Pivota Assistant is presented as the faster, equally-authoritative alternative. Structured controls (search bar, status badges, buttons) still exist — they are not removed — but the assistant is never visually subordinate to them. It is reachable from every screen in one motion (US-7.1, JRN-01.1).
 2. **Citations are load-bearing UI, not a tooltip.** Because the entire demo's credibility rests on zero ungrounded claims (US-7.2, PRD §6 NFR "Trustworthiness over fluency"), every factual statement — on-screen or in chat — renders its supporting citation inline and visibly, never as hidden metadata requiring a hover or click to discover.
 3. **Discrepancies are gates, not warnings to dismiss.** The jury package discrepancy gate (US-5.2, US-11.2) is the single highest-trust-building mechanic in the product (JOURNEYS §Shared Opportunities). It is designed as a hard, visually undeniable block — a disabled button with an explicit reason — never a dismissible toast.
-4. **Glanceable over configurable.** The Trial Command Center (F8) has zero filters, zero settings, and zero data-entry controls by design (US-8.1) — it is read-only ambient awareness, reinforcing "assistant," not "dashboard to tune."
+4. **Glanceable over configurable — amended Phase 8.** The Trial Command Center (F8) still has zero filters, zero settings, and no browse/search controls of its own (US-8.1) — every panel except one remains strictly read-only ambient awareness. **Deliberate exception (Phase 8, F24):** the "Needs your attention" feed's inline actions ("Record ruling," "Transfer custody"/"Assign custodian") are a traceable, intentional reversal of Phase 5's "strictly passive/read-only monitoring" success criterion — see Screen-00's "Design decision supersedes a prior constraint" note. This does not reopen the rest of the screen to configuration; it adds exactly two write actions at the exact point the system has already identified they are needed, each still gated by an explicit confirm step (never auto-submit) and by F20's role matrix.
 5. **Plain language over raw data.** Every ledger event (`STATUS_CHANGE`, `OBJECTION_RAISED`, etc.) is rendered as a human sentence ("Status changed from Offered to Admitted") — never as an exposed enum or JSON blob (US-10.1, FRD §PITFALLS.md UX Pitfalls).
 6. **One record, five consistent views.** Status badges, discrepancy icons, and custodian names use identical visual conventions across all five screens (US-1.2) — a judge should never wonder if two screens disagree.
+7. **Readable flags over iconography alone (Phase 8).** Where a prior design relied on an icon-only indicator to convey an exhibit's flagged state (e.g., Case Workspace's ⚠ discrepancy icon), Phase 8 pairs every such indicator with a short, readable text pill ("Ruling pending," "No custodian," "Open objection," "Ex parte · restricted") so the specific condition is legible without a hover or click — consistent with Design Principle 5's "plain language over raw data," now extended to flag/status iconography generally.
 
 ### Primary Personas Driving Design Decisions
 
@@ -37,19 +49,21 @@ All six screens live inside one persistent shell:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask ✦]│ ← global header
-├───────────────┬──────────────────────────────────────────────────┤
-│ ▸ Command Ctr │                                                  │
-│   Case        │              [ Active Screen Content ]          │
-│   Jury Pkg    │                                                  │
-│   Pending Rul.│ ← JUDGE role only; absent from the sidebar       │
-│   Assistant   │    entirely for every other role (F20/F21)       │
-│               │                                                  │
-└───────────────┴──────────────────────────────────────────────────┘
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask Pivota]│ ← global header (light)
+████████████████┬──────────────────────────────────────────────────┤
+█ ▸ Command Ctr █│                                                  │
+█   Case        █│          [ Active Screen Content — light ]      │
+█   Jury Pkg    █│                                                  │
+█   Pending Rul.█│ ← JUDGE role only; absent from the sidebar       │
+█   Assistant   █│    entirely for every other role (F20/F21)       │
+█ (dark navy)   █│                                                  │
+████████████████┴──────────────────────────────────────────────────┘
 ```
 
-- **Sidebar** (persistent, 4 items for most roles; 5 for `JUDGE`): Command Center, Case Workspace, Jury Package, Pivota Assistant, plus **Pending Rulings** (judge-only, see below). This is the entire navigable surface — intentionally small, reinforcing low adoption burden (JTBD-04.4).
-- **"Ask ✦" header button**: opens the Pivota Assistant as a slide-over panel from *any* screen without navigating away — the single most important affordance in the product, since F7 is the universal touchpoint across every journey (JOURNEYS §Convergence Points).
+*(The `█` fill above stands in for the Phase 8 dark-navy sidebar background — a full-height dark panel, not Carbon's default light `SideNav`; the content area to its right remains light, per §Visual Foundation above.)*
+
+- **Sidebar** (persistent, 4 items for most roles; 5 for `JUDGE`; dark-navy full-height background as of Phase 8): Command Center, Case Workspace, Jury Package, Pivota Assistant, plus **Pending Rulings** (judge-only, see below). This is the entire navigable surface — intentionally small, reinforcing low adoption burden (JTBD-04.4).
+- **"Ask Pivota" header button** *(relabeled Phase 8 — was "Ask ✦")*: opens the Pivota Assistant as a slide-over panel from *any* screen without navigating away — the single most important affordance in the product, since F7 is the universal touchpoint across every journey (JOURNEYS §Convergence Points). Same header position and behavior as before the rename; only the label text changed.
 - **Case selector ("`[Case: 2026-CR-0142 ▾]`", Phase 7.1, F22)**: the previously-static case-identifier text in the header's leftmost slot becomes an interactive dropdown — same position, same width budget (one caret glyph added), so the header's element ordering (Case → Discrepancy count → Role → Ask) and overall width are unchanged. Opening it lists every case in the system (`GET /api/cases`, no role restriction — case existence is not sensitive); selecting a different case updates client-side active-case state and triggers every open screen and the assistant to refetch against the newly-selected `caseId`, using the identical refetch mechanism already used on a role switch. On first load with no prior selection, it defaults to the first case by `createdAt` ascending — the original seeded demo case — so the existing single-case demo script requires zero interaction with this control. See `Y0-patterns.md` §Pattern: Case Selector (Header Scope Switch).
 - **Header discrepancy-count indicator ("`[⚠ 1]`")**: resolves a Phase 7 usability defect (US-15.3) in which a numeric element rendered near the role selector carried no label or explanation of any kind. It now shows the count of `OPEN` discrepancy flags scoped to the currently-selected case, paired with a visible `aria-label="N open discrepancies"` (readable without a hover/tooltip) and, when tapped, navigates to the Command Center's Discrepancies panel. If the count is zero, the element is omitted entirely rather than showing a bare, unexplained "0." This treatment is identical on every screen since it lives in the one shared header component — see `Y0-patterns.md` §Pattern: Labeled Header Indicator. "Present and unexplained" is not an acceptable end state for any header element.
 - **Role switcher**: demo-only affordance (no production auth per PROJECT.md scope) letting the presenter switch personas live to show role-scoped visibility (US-7.4, US-10.2). As of Phase 7.1, the seed data's one-user-per-role model (F0) means the role switcher also doubles as an *identity* switch for the handful of actions that require an exact-identity match rather than a role match (custody transfer confirmation, F19/F20) — see `Y0-patterns.md` §Pattern: Two-Phase Custody Handoff.
@@ -67,7 +81,7 @@ All six screens live inside one persistent shell:
 | Exhibit Detail View | `/exhibit/:id` | Case Workspace (row click); Command Center (Recent Activity / Discrepancy item click); Jury Package Workspace (row click); Pivota Assistant (citation link click) | Row click / citation link |
 | Jury Package Workspace | `/jury-package` | App shell | Sidebar: "Jury Package" |
 | Pending-Ruling Queue | `/pending-rulings` | App shell — **`JUDGE` role only**; no sidebar entry exists for any other role | Sidebar: "Pending Rulings" (judge-only, F21) |
-| Pivota Assistant | `/assistant` (full-page view) + global slide-over panel on every screen | App shell (persistent) | Sidebar: "Assistant" (full page) · Header: "Ask ✦" button (slide-over, available everywhere) |
+| Pivota Assistant | `/assistant` (full-page view) + global slide-over panel on every screen | App shell (persistent) | Sidebar: "Assistant" (full page) · Header: "Ask Pivota" button (slide-over, available everywhere) |
 
 **Invariant check — no orphan screens:** Command Center, Case Workspace, Jury Package, and Assistant all have direct sidebar entries from the app shell, visible to every role. The Pending-Ruling Queue (added Phase 7.1) also has a direct sidebar entry, but — unlike the other four — that entry is conditionally rendered: present only when the active role is `JUDGE`, absent for every other role (not merely disabled). This is a deliberate exception to "every screen reachable from the shell for every user," matching F21's explicit judge-only navigation requirement; the underlying read endpoint remains accessible to any role with case visibility (defense-in-depth is enforced server-side, not relied upon from the UI), but no non-judge role is ever given a path to the screen. Exhibit Detail View has no sidebar entry by design, but is reachable from three parent screens (Case Workspace, Command Center, Jury Package) plus the Assistant's citation links — all of which themselves trace to the shell. No screen requires typing a URL.
 
@@ -90,7 +104,7 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 [Any screen — question arises mid-proceeding]
     │
     ▼
-[Tap "Ask ✦" header button → slide-over chat panel opens]
+[Tap "Ask Pivota" header button → slide-over chat panel opens]
     │
     ▼
 [Type or speak natural-language question]
@@ -123,7 +137,7 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 
 **Steps:**
 1. **Question arises.** No system touch yet — the user notices a discrepancy or needs a fact to act on (US-7.1).
-2. **Open the assistant.** One tap/click on the ever-visible "Ask ✦" header button opens a slide-over chat panel over whatever screen is currently active — no navigation away, no lost context.
+2. **Open the assistant.** One tap/click on the ever-visible "Ask Pivota" header button opens a slide-over chat panel over whatever screen is currently active — no navigation away, no lost context.
 3. **Ask in plain language.** A single text input, placeholder text rotating through example questions sourced from the case's actual seeded exhibit labels ("Who currently has custody of P-5?", "What was admitted yesterday?") — never a hardcoded placeholder scheme that doesn't match a real exhibit (US-15.2). No required syntax, no filter menus (reinforces PRD §Strategic Goals — natural-language-first).
 4. **Response streams token-by-token** via the chat panel (US-7.1 — Vercel AI SDK `useChat`), so the user sees progress within ~1 second rather than a blank wait.
 5. **Citation renders inline** with every factual sentence — format: `[Exhibit 14 · Status Change · 2026-10-05 14:32]` as a clickable pill immediately following the claim it supports (US-7.2).
@@ -208,9 +222,9 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 2. **Log a status transition in place.** From the Case Workspace exhibit row (or Exhibit Detail View), the deputy opens a lightweight inline action — not a modal form — offering only the statuses that are valid next transitions per the admission-lifecycle state machine (US-1.1). Invalid states are never shown as selectable options. An attempted `ADMITTED` transition over an unresolved objection or missing custodian is rejected pre-write with every blocking reason named at once (US-12.1, US-12.2); this and every other status-transition action is absent for any role outside `DEPUTY`/`CLERK`/`ADMIN` (US-20.2).
 3. **One log updates everywhere.** The moment a transition is recorded, `ExhibitCurrentState` updates and every open screen (Command Center, Case Workspace, Exhibit Detail, Jury Package, Pending-Ruling Queue, Assistant) reflects it on its next poll cycle (3–5s) — this is the "single log action updates every screen" promise from JRN-02.1, and it is the antidote to the spreadsheet/sticky-note habit the product replaces.
 4. **Log an objection.** Similarly inline: a compact "Raise Objection" action captures `objectingParty` (defaulted from role context where possible) and `grounds` (free text) — two fields, not a form wizard; absent for `JUDGE`/`CHAMBERS_STAFF` (US-2.1, US-20.3).
-5. **Record a ruling.** The judge's ruling (Sustained/Overruled/Reserved) is recorded against the specific open objection thread — if an exhibit has multiple concurrent objections, each is listed as its own resolvable row, never collapsed; recordable from Exhibit Detail View or the judge-only Pending-Ruling Queue (US-2.2).
+5. **Record a ruling.** The judge's ruling (Sustained/Overruled/Reserved) is recorded against the specific open objection thread — if an exhibit has multiple concurrent objections, each is listed as its own resolvable row, never collapsed; recordable from Exhibit Detail View, the judge-only Pending-Ruling Queue, or — as of Phase 8 — inline from the Command Center's "Needs your attention" feed or a Jury Package Blockers card, all four entry points invoking the identical `POST /api/objections/:id/ruling` endpoint with no divergent validation (US-2.2, US-24.1).
 6. **Custody questions answered inline.** "Current Custodian" (or a "pending transfer" indicator, F19) is a persistent field on both the Case Workspace row and the Exhibit Detail header — no separate custody screen to navigate to for a quick lookup (US-3.2).
-7. **Propose, then confirm, a custody transfer — two separate steps, two separate people.** A compact "Propose Custody Transfer" action (absent outside `DEPUTY`/`CLERK`/`ADMIN`, US-20.4) names an intended receiver without changing who the system considers the current custodian. Only that exact named receiver can subsequently see and use "Confirm Receipt" — not the proposer, not any other authorized role — and only their confirmation updates the custody-of-record (US-19.1, US-19.2). A pending transfer can be cancelled by the proposer or any propose-authorized role without ever having changed current custody (US-19.3).
+7. **Propose, then confirm, a custody transfer — two separate steps, two separate people.** A compact "Propose Custody Transfer" action (absent outside `DEPUTY`/`CLERK`/`ADMIN`, US-20.4) names an intended receiver without changing who the system considers the current custodian. Only that exact named receiver can subsequently see and use "Confirm Receipt" — not the proposer, not any other authorized role — and only their confirmation updates the custody-of-record (US-19.1, US-19.2). A pending transfer can be cancelled by the proposer or any propose-authorized role without ever having changed current custody (US-19.3). As of Phase 8, the same first-assignment/propose action is additionally reachable directly from the Command Center's "Assign custodian" attention-feed entry or Custody-at-a-Glance panel, invoking the identical endpoint F24 wires up — no second custody-write code path is introduced (US-24.2).
 8. **Search mid-testimony.** The Case Workspace search bar accepts combinable criteria (keyword, status, witness, date) in one row of controls — chip-style active filters so the deputy can see and clear exactly what's applied without re-opening a filter panel (US-4.1).
 9. **Same question, assistant or search bar — same answer.** Asking the assistant "admitted exhibits from witness Smith" (US-4.2) returns the identical result set, in the identical order, as typing the equivalent filters into the search bar — reinforcing single-source-of-truth trust.
 
@@ -238,7 +252,7 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
  oldest-first, in plain language]
     │
     ▼
-[Optional: cross-check via "Ask ✦" — "What happened to Exhibit 14?"]
+[Optional: cross-check via "Ask Pivota" — "What happened to Exhibit 14?"]
     │
     ▼
 [Assistant's answer and the timeline agree exactly —
@@ -253,6 +267,7 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 2. **Headline facts load above the fold.** Current status, current custodian, and any active discrepancy flags render in a prominent header block before the timeline even renders — answering the most common question ("where does this stand right now") without scrolling.
 3. **Timeline renders complete, in order.** Every `ExhibitEvent` — status changes, objections raised, rulings recorded, custody transfers — appears as one chronological entry, translated to plain language ("Status changed from Offered to Admitted," not raw enum values) (US-10.1). No "show more" pagination — FRD explicitly requires complete history, not "recent N events."
 4. **Each entry is self-contained.** Actor name, timestamp, and a one-line summary — scannable in seconds, matching exactly what the assistant's `getExhibitHistory` tool would state (US-10.1, US-3.3).
+4a. **Right-rail cards summarize without replacing the timeline (Phase 8).** The Objection, Chain of Custody, and Jury Package checklist cards beside the timeline (US-10.3) are a faster at-a-glance summary of facts already in the timeline/header — they read the same `getExhibitHistory` payload, never a separate query, so "what happened" (timeline) and "what does that mean for action" (right rail) can never diverge.
 5. **Independent cross-check available.** The user can open the assistant and ask the same question as a trust-verification step — the screen and the assistant are guaranteed to agree because both read the identical service-layer function (JRN-02.2 Delight Opportunity).
 6. **Sealed exhibit behavior.** If the exhibit is sealed and the viewing role is unauthorized, this entire flow dead-ends at a plain "exhibit not found" — visually and textually identical to a truly nonexistent exhibit ID, never revealing that sealed material exists (US-10.2).
 
@@ -260,8 +275,10 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 ### Flow 4: Assembling, Verifying, and Accepting the Jury Package
 
 **Trigger:** At the close of evidence, the deputy/clerk must assemble a jury package that is provably free of discrepancies; the judge must accept it with confidence; an attorney may independently verify it first.
-**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-16.2, US-23.1, US-23.2, US-23.3
+**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-11.3, US-16.2, US-23.1, US-23.2, US-23.3
 **Journeys:** JRN-02.1 (Assemble the Jury Package), JRN-01.2 (Jury Package Presented → Accept), JRN-03.1 (Verify Jury Package Integrity)
+
+**Phase 8 presentation note:** the "Draft package renders — each row: CLEAN or FLAGGED" step below is, as of Phase 8, a per-exhibit **card** (grouped into Blockers/Clean sections with a progress banner), not a flat table row — see `Screen-03-jury-package.md` §Layout — Draft State (Phase 8: Card-Per-Exhibit, Blockers/Clean). The flow's logic (compute → flag → fix-or-acknowledge → gate → finalize) is unchanged; only the visual grouping changed. Additionally, a role outside the finalize-authorized set now has an explicit "Request finalization from Clerk" step available in place of a disabled Finalize button — see step 12 below (US-11.3).
 
 ```
 [Deputy/Clerk navigates to Jury Package Workspace]
@@ -333,22 +350,28 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 9. **Finalizing mints a version, it does not replace anything (F23).** Each successful finalization is assigned the case's next sequential version number and becomes a permanent, independently-retrievable snapshot — a "Start New Draft" action (role-gated identically to Finalize) begins the next package's lifecycle without touching the version that was just created. Every prior version remains independently viewable and exportable from "View Version History," never superseded or hidden by a later one (US-23.1, US-23.3).
 10. **Export is a real file, not a print dialog (F23).** "Export as PDF" streams a server-generated `application/pdf` file via `@react-pdf/renderer` and triggers an actual download — replacing the prior `window.print()` control, which behaved inconsistently printer-to-printer and device-to-device. Re-exporting the same version at any later date reproduces an identical file, since a `FINALIZED` package's exhibit rows are immutable (US-23.2).
 11. **Chambers-ex-parte material is excluded identically to sealed material (F16).** The candidate-query exclusion that keeps sealed exhibits out of a jury package now runs against the full three-value `classification` field, not just the `isSealed` boolean — a `CHAMBERS_EX_PARTE` exhibit is hard-excluded exactly as a `SEALED` one always was, with the same "Remove from Package" remediation path available for any legacy/regression case (US-16.2).
+12. **A non-finalizing role requests finalization instead of hitting a dead end (Phase 8, F11, US-11.3).** When the judge (or chambers staff/attorney) reviews a clean draft but cannot finalize it directly, "Request finalization from Clerk" replaces the Finalize control in the same position — clicking it records a lightweight, auditable notification (`finalizationRequestedAt`/`finalizationRequestedBy`) and surfaces a banner to the next `DEPUTY`/`CLERK`/`ADMIN` who opens the same draft. This confers no finalize authority and bypasses no gate — it is purely a "please take this action" signal routed to someone who can.
+13. **Blockers carry their fix inline, not just a link-through (Phase 8, F24).** Where the pre-Phase-8 flow's only remediation path was "navigate to Exhibit Detail, fix there," a Blockers card now also offers the fix directly on the card — "Record ruling" for an unresolved objection, "Assign custodian" for a custody gap — invoking the same F24 actions available on Exhibit Detail and the Command Center, so a deputy assembling the package doesn't need to leave this screen for the two most common blocking conditions (US-24.1, US-24.2).
 
 **Key UX Risk Guarded Against:** This flow is identified in JOURNEYS as the single highest-stakes moment in the entire product — a discrepancy surfaced incorrectly here breaks trust for three personas simultaneously (deputy, judge, attorney). The hard-disabled button plus mandatory server re-validation is a deliberate belt-and-suspenders design, not redundant engineering.
 ## Screen Designs
 
 ### Screen: Trial Command Center
 
-**Purpose:** A zero-configuration, read-only ambient view of trial activity, unresolved objections, and discrepancies — designed for a glance during a recess, not a dashboard to tune.
-**User Stories:** US-8.1, US-8.2, US-15.4, US-15.5
+**Purpose:** A near-zero-configuration ambient view of trial activity, per-status exhibit counts, a prioritized attention feed, custody-by-custodian, and jury-package progress — designed for a glance during a recess, now also the fastest path to resolve the two most time-sensitive write actions (record a ruling, transfer/assign custody) at the exact point the system has already flagged they're needed.
+**User Stories:** US-8.1, US-8.2, US-8.3, US-8.4, US-15.4, US-15.5, US-24.1, US-24.2
 **Journey:** JRN-01.2 (Glance During Recess, Spot a Flag)
 **Route:** `/command-center` · **Nav:** Sidebar "Command Center" (default landing screen)
 
-#### Layout
+> **Design decision supersedes a prior constraint (Phase 8, F24):** Phase 5 locked in "the Command Center exposes no path to record, edit, or acknowledge anything from that screen — it is strictly passive/read-only monitoring" as a success criterion. Phase 8 **deliberately reverses this for exactly two inline actions** on the "Needs your attention" feed below — "Record ruling" and "Transfer custody"/"Assign custodian" — because `recordRuling` and `recordCustodyTransfer` had no UI surface anywhere in the product until this phase, and the attention feed is the screen that has already identified precisely which objection or custody gap needs resolving. This is a traceable product decision, not a regression: **every other panel on this screen remains strictly read-only**, exactly as Phase 5 specified — Recent Activity, the stat cards, the status-distribution bar, the Jury Package summary widget, and the Custody-at-a-Glance panel's exhibit listings are all link-through-only, with zero data-entry controls of their own. Both inline actions require an explicit confirm step and are gated by F20's role matrix (absent, not disabled, for an unauthorized role) — see `Y0-patterns.md` §Pattern: Attention Feed Inline Action.
+
+#### Layout — Phase 5/7 Baseline (Recent Activity, Unresolved Objections, Discrepancies)
+
+*(Retained below for continuity with the pre-Phase-8 panel set; see **Layout — Phase 8 (Full Screen)** further down for the complete current screen, which wraps these panels alongside the new stat row, attention feed, jury package widget, and custody panel.)*
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync   [Case: 2026-CR-0142]      [Role: Judge ▾] [Ask ✦] │
+│ JudicialSync   [Case: 2026-CR-0142]      [Role: Judge ▾] [Ask Pivota] │
 ├───────────────┬──────────────────────────────────────────────────┤
 │ ▸ Command Ctr │  Trial Command Center            🕐 updated 3s ago│
 │   Case        │  ┌────────────────────────────────────────────┐  │
@@ -376,28 +399,159 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 └───────────────┴──────────────────────────────────────────────────┘
 ```
 
+#### Layout — Phase 8 (Full Screen)
+
+The complete current screen, stacking the four new widgets above the retained baseline panels. Sidebar is dark-navy per `00-overview.md` §Visual Foundation; panels render as rounded-corner dark-dashboard cards.
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾][Ask Pivota]│
+████████████████┬──────────────────────────────────────────────────┤
+█ ▸ Command Ctr █│  Trial Command Center            🕐 updated 3s ago│
+█   Case        █│  ┌──────────┬──────────┬──────────┬───────────┐  │
+█   Jury Pkg    █│  │ Open     │ Custody  │ Jury pkg │ Admitted  │  │
+█   Assistant   █│  │ objections│ gaps    │ blockers │  7 of 10  │  │
+█               █│  │    2     │    1     │    1     │           │  │
+█               █│  └──────────┴──────────┴──────────┴───────────┘  │
+█               █│  Where the 10 exhibits stand                     │
+█               █│  ┌────────────────────────────────────────────┐  │
+█               █│  │[MARKED 1][OFFERED 2][OBJECTED 2][ADMITTED 7]│  │
+█               █│  │███░░░░░██████░░░░░░░░██████░░░░░░███████████│  │
+█               █│  │ ■Marked ■Offered ■Objected ■Admitted ■Excl. │  │
+█               █│  │                              ■Withdrawn     │  │
+█               █│  └────────────────────────────────────────────┘  │
+█               █│  Needs your attention                             │
+█               █│  ┌────────────────────────────────────────────┐  │
+█               █│  │ ⛔CRITICAL S-2 — ex parte in jury package   │  │
+█               █│  │   [Review and remove →]                     │  │
+█               █│  │ 🔴HIGH  Ex.9 — admitted, objection open     │  │
+█               █│  │   raised 2:15 PM    [Record ruling]         │  │
+█               █│  │ 🟠PENDING Ex.12 — objection unresolved      │  │
+█               █│  │   raised 11:40 AM   [Record ruling]         │  │
+█               █│  │ 🟡MEDIUM Ex.14 — admitted, no custodian     │  │
+█               █│  │   detected 9:23 AM  [Assign custodian]      │  │
+█               █│  └────────────────────────────────────────────┘  │
+█               █│  ┌───────────────────────┬──────────────────────┐│
+█               █│  │ Jury package          │ Custody at a glance  ││
+█               █│  │ ──────────────────────│──────────────────────││
+█               █│  │ 6 of 8 clean           │ D. Reyes: Ex.3, Ex.7 ││
+█               █│  │ ███████████░░░░        │ C. Chen: Ex.9        ││
+█               █│  │ [ Open jury package → ]│ ⚠ No custodian: Ex.14││
+█               █│  └───────────────────────┴──────────────────────┘│
+█               █│  ┌────────────────────────────────────────────┐  │
+█               █│  │ RECENT ACTIVITY  [All][Status][Custody]      │  │
+█               █│  │                  [Objections][Rulings]       │  │
+█               █│  │ TODAY · OCT 8, 2026                          │  │
+█               █│  │ ● Exhibit 14 — Admitted                      │  │
+█               █│  │   Oct 8, 2026, 2:41 PM                       │  │
+█               █│  │ ● Exhibit 7  — Custody transferred           │  │
+█               █│  │   Oct 8, 2026, 2:38 PM                       │  │
+█               █│  │ YESTERDAY · OCT 7, 2026                      │  │
+█               █│  │ ● Exhibit 3  — MARKED → OFFERED              │  │
+█               █│  │   Oct 7, 2026, 4:12 PM                       │  │
+█               █│  │ ... (newest first, scrollable)               │  │
+█               █│  └────────────────────────────────────────────┘  │
+████████████████┴──────────────────────────────────────────────────┘
+```
+
+#### Stat Card Row (added Phase 8, US-8.4 / F08 §Process step 2)
+
+Four small cards, left-to-right, each a single bold number plus a short label — no drill-in interaction of its own (the whole screen remains read-only at this point):
+
+| Card | Value shown | Source |
+|---|---|---|
+| "Open objections" | count of all `ObjectionCurrentState` rows with `status = 'UNRESOLVED'`, case-wide | `getUnresolvedObjections(caseId)` (F2), unchanged query |
+| "Custody gaps" | count of `OPEN` `DiscrepancyFlag` rows with `ruleCode = 'ADMITTED_NO_CUSTODIAN'` | `getDiscrepancies(caseId)` (F6), unchanged query |
+| "Jury package blockers" | count of current `JuryPackageExhibit` rows with `discrepancyStatus = 'FLAGGED'` (plus any CRITICAL sealed/ex-parte row) | current `JuryPackage` (F5), unchanged query |
+| "Admitted X of Y" | `statusCounts.ADMITTED` over the case's total visible exhibit count | new additive `statusCounts` field on `GET /api/cases/:id/activity` (F08 §Process step 2) |
+
+This row is purely informational — no card is clickable in this version; a future phase could link each card to the Case Workspace pre-filtered to the matching condition, but that is explicitly not in this phase's scope.
+
+#### Status-Distribution Bar (added Phase 8, F08 §Process step 2)
+
+A single horizontal segmented bar beneath the stat row, titled "Where the N exhibits stand," visualizing the same `statusCounts` breakdown proportionally (segment width ∝ count), with a color-keyed legend beneath matching the Status Badge Visual Convention pattern's existing per-status colors (`Y0-patterns.md` §Pattern: Status Badge Visual Convention) — no new color mapping is introduced for this bar, it reuses the status badge colors exactly. Hovering (or, on touch, tapping) a segment shows the exact count and status name as a tooltip; the bar itself does not navigate anywhere on click, consistent with the stat row above.
+
+#### "Needs Your Attention" Feed (added Phase 8, US-8.4, F08 §Process steps 4–5)
+
+Ranked list, `CRITICAL` → `HIGH` → `PENDING` → `MEDIUM`, never interleaved; within a tier, newest-first. Each entry shows the severity badge, exhibit label, a one-line plain-language summary, the elapsed/detected time, and — for every tier except `CRITICAL` — an inline action button:
+
+| Tier | Badge color | Example entry | Inline action |
+|---|---|---|---|
+| `CRITICAL` | Dark red | "S-2 — ex parte material improperly included in jury package" | **"Review and remove →"** — link-through to the Jury Package Workspace's existing "Remove from Package" remediation (F13); not a new control, this tier never gets an inline write action of its own per F08 §Process step 4 |
+| `HIGH` | Amber | "Ex. 9 — admitted with an open, unresolved objection" | **"Record ruling"** — opens the inline ruling form for that specific `objectionId` (F24) |
+| `PENDING` | Amber-light | "Ex. 12 — objection unresolved, not yet admitted" | **"Record ruling"** — identical form/endpoint as `HIGH`, same F24 action, different triggering condition |
+| `MEDIUM` | Yellow | "Ex. 14 — admitted, no custodian of record" | **"Assign custodian"** — opens the inline custody-assignment form (first-time assignment path, F24 §Process — Transfer/Assign Custody step 3) |
+
+Every inline action button renders only for an F20-authorized role for that specific action (`JUDGE` for "Record ruling"; `DEPUTY`/`CLERK`/`ADMIN` for "Assign custodian") — absent, not disabled, for any other role, per `Y0-patterns.md` §Pattern: Role-Gated Control Visibility. Clicking an action button expands an inline confirm form directly within the feed entry (not a modal, not a navigation) — see `Y0-patterns.md` §Pattern: Attention Feed Inline Action for the full interaction contract, including the mandatory explicit-confirm step.
+
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):**
+- Feed container: `data-testid="attention-feed"`
+- Each entry: `data-testid="attention-feed-entry"` with `aria-label` stating tier + exhibit + condition, e.g. `aria-label="High priority: Exhibit 9, admitted with unresolved objection"`
+- Each inline action button: `data-testid="attention-feed-action-record-ruling"` / `data-testid="attention-feed-action-assign-custodian"` / `data-testid="attention-feed-action-review-remove"` (scoped per entry, e.g. via a `data-exhibit-id` attribute, since multiple entries can carry the same action type)
+- Severity badge: `data-testid="severity-badge"` with `aria-label="Severity: Critical"` (etc. per tier) — see `Y0-patterns.md` §Pattern: Severity Tier Badge
+
+#### Jury Package Summary Widget (added Phase 8, US-8.4 context / F08 §Process step 6)
+
+Compact card: "{clean} of {total} clean" progress bar (same clean/blocked counting as the Jury Package Workspace's own progress indicator, F11 — never computed independently) plus a single **"Open jury package →"** button navigating to `/jury-package`. Read-only — no finalize/acknowledge/remove action lives here, only the link-through.
+
+**⚠ New `data-testid` needed:** `data-testid="command-center-jury-package-widget"`; button `data-testid="open-jury-package-button"`.
+
+#### "Custody at a Glance" Panel (added Phase 8, US-8.3, F08 §Process step 3)
+
+Groups exhibits by current custodian name, each group showing the custodian's name as a header followed by that custodian's exhibit labels (+ status); a exhibits with a pending (unconfirmed) transfer appear in a separate "Pending transfer to {name}" grouping, never folded into the destination custodian's bucket before confirmation. A distinct **"No custodian"** callout row lists every exhibit with no `CustodyCurrentState` row at all (the `ADMITTED_NO_CUSTODIAN` discrepancy condition), visually separated from the named-custodian groupings. Each custodian group exposes a "Transfer custody" entry point (F24) for F20-authorized roles only — absent for any other role.
+
+**⚠ New `data-testid`/`aria-label` contract needed:**
+- Panel container: `data-testid="custody-at-a-glance"`
+- Each custodian group: `data-testid="custody-group"` with `aria-label="Custody group: {custodian name}, N exhibits"`
+- No-custodian callout row: `data-testid="custody-group-no-custodian"` with `aria-label="N exhibits with no custodian of record"`
+- Pending-transfer grouping: `data-testid="custody-group-pending"` with `aria-label="Pending transfer to {receiver name}"`
+- Inline "Transfer custody" entry point per exhibit row within a group: `data-testid="custody-glance-transfer-action"`
+
+#### Recent Activity — Filter Pills + Date Grouping (amended Phase 8, F08 §Process step 1 unchanged query, presentation only)
+
+The Recent Activity panel is retained from Phase 5/7 (same `getRecentActivity` query, same full timestamp + exhibit-label rule per `Y0-patterns.md` §Pattern: Activity Feed Row Format) with two additive presentation changes:
+- **Filter pills** — `All` / `Status` / `Custody` / `Objections` / `Rulings` — a one-click row above the feed narrowing the rendered event types client-side (no new query parameter; the full day's events are already in the loaded response). `All` is selected by default. This is a client-side display filter only — it does not change what `getRecentActivity` returns, and does not count as a "configuration control" in the sense Design Principle 4 guards against, since it only narrows what's already loaded, the same way a quick-filter chip does on Case Workspace.
+- **Date-grouped headers** — rows are grouped under a bold date header ("TODAY · OCT 8, 2026", "YESTERDAY · OCT 7, 2026") whenever the activity window spans more than one day, making a day-boundary crossing visually unambiguous in addition to the existing full-timestamp-per-row rule (US-15.4, US-15.5 — unchanged, just reinforced by the grouping).
+
+**⚠ New `data-testid` needed:** filter pill row `data-testid="activity-filter-pills"`, each pill `data-testid="activity-filter-pill-{type}"` (e.g. `activity-filter-pill-status`); date group header `data-testid="activity-date-group-header"`.
+
 #### Information Hierarchy
 
 | Priority | Content | Placement |
 |----------|---------|-----------|
-| Primary | Discrepancies panel (count + list) — the highest-risk signal | Right column, visually distinct (warning color), never below the fold |
-| Primary | Recent Activity feed — the ambient pulse of the trial | Full-width top panel, newest-first |
+| Primary | "Needs your attention" feed, severity-ranked, with inline actions (added Phase 8) | Below the status-distribution bar, above the two-column Jury Package/Custody row |
+| Primary | Discrepancies panel (count + list) — the highest-risk signal (retained) | Right column of the baseline two-column row, visually distinct (warning color), never below the fold |
+| Primary | Stat card row (Open objections / Custody gaps / Jury package blockers / Admitted X of Y) (added Phase 8) | Top of screen, directly beneath the screen title — first thing seen |
+| Primary | Recent Activity feed — the ambient pulse of the trial | Lower panel, newest-first, now filter-pilled and date-grouped |
 | Primary | Exhibit label + full date-and-time on every Recent Activity row (incl. raw status-transition rows) | Same row, never summarized away (US-15.4, US-15.5) |
-| Secondary | Unresolved Objections panel | Left of the two-column lower row |
+| Secondary | Status-distribution bar (added Phase 8) | Directly beneath the stat card row |
+| Secondary | Jury Package summary widget + Custody-at-a-Glance panel (added Phase 8) | Two-column row beneath the attention feed |
+| Secondary | Unresolved Objections panel (retained) | Left of the baseline two-column lower row |
 | Tertiary | "Updated Xs ago" freshness indicator | Top-right corner, small type |
 
 #### States
 
 | State | Appearance | User Feedback |
 |-------|------------|----------------|
-| Default (activity exists) | Three populated panels as above | None needed — ambient |
-| Loading (initial load) | Skeleton rows in all three panels | Subtle shimmer, no spinner text |
+| Default (activity exists) | All seven panels/widgets populated as above | None needed — ambient |
+| Loading (initial load) | Skeleton rows/cards in every panel, including the new stat row, attention feed, jury package widget, and custody panel | Subtle shimmer, no spinner text |
 | Empty — no activity yet | Recent Activity panel shows "No activity recorded yet today" | Calm, non-alarming copy |
 | Empty — no unresolved objections | "No unresolved objections — all clear" with a quiet checkmark | Reinforces confidence, not silence-as-ambiguity |
+| Empty — attention feed has zero entries | "Nothing needs your attention right now" with a quiet checkmark, same calm-empty-state treatment as the Unresolved Objections panel | Confirms "feed is empty" is a positive, not an error/loading state (parallels US-8.1's "no unresolved objections" precedent) |
 | Discrepancy present | Discrepancies panel header turns warning-amber, count badge visible from across the room | Visually "impossible to scroll past unnoticed" per US-8.1 |
-| Live update arrives | New row fades in at top of Recent Activity (no jarring re-sort/flash) | No toast needed — ambient by design |
+| Attention feed entry present (any tier) | Severity badge renders in its fixed tier color (`CRITICAL` dark red / `HIGH` amber / `PENDING` amber-light / `MEDIUM` yellow) per `Y0-patterns.md` §Pattern: Severity Tier Badge | Tier is never conveyed by color alone — the tier word renders as visible text alongside the badge |
+| Attention feed inline action — form open, awaiting confirm | Inline form expands within the entry (disposition selector or custodian picker); entry's other content remains visible above the form | Explicit "Submit"/"Confirm" control distinct from the button that opened the form — no auto-submit (US-24.1, US-24.2) |
+| Attention feed inline action — in flight | Submit control shows a brief inline spinner; form remains open, non-interactive | Prevents double-submit |
+| Attention feed inline action — success | Entry fades out (ruling resolved) or re-ranks (reserved ruling; custody re-evaluated) on the next poll tick | No screen-local optimistic removal — the entry only changes once the poll confirms the new ledger state (F24 §Process step 5/6) |
+| Attention feed inline action — rejected (e.g., `403 ROLE_NOT_PERMITTED`, `409 OBJECTION_ALREADY_RESOLVED`, `409 CUSTODY_CHAIN_BROKEN`) | Inline error message within the still-open form, naming the specific rejection reason; entry remains in the feed unchanged | Never a silent failure or generic toast — matches the reject-with-reason pattern (US-24.1, US-24.2) |
+| Attention feed action unavailable for current role (F20) | Entry renders with its context (exhibit, condition, tier) but no action button at all | Absent, not disabled — `Y0-patterns.md` §Pattern: Role-Gated Control Visibility |
+| Custody-at-a-glance — exhibit with no custodian | Rendered in the distinct "No custodian" callout row, never silently grouped under a blank/empty custodian heading | Confirms a custody gap is visible at the panel level, not only via the discrepancy count (US-8.3) |
+| Custody-at-a-glance — pending transfer | Exhibit appears under a "Pending transfer to {name}" grouping, not the sending or receiving custodian's regular bucket | Never silently implies the transfer has already completed (US-8.3, consistent with F19's pending-state treatment on Exhibit Detail) |
+| Jury package widget — no package computed yet | "No jury package started yet" in place of the progress bar, with the same "Open jury package →" link-through | Matches the Jury Package Workspace's own "no package started yet" empty state (F11) rather than showing a misleading 0-of-0 bar |
+| Live update arrives | New row fades in at top of Recent Activity (no jarring re-sort/flash); stat counts and the distribution bar update in place with the same ~400ms highlight fade used elsewhere | No toast needed — ambient by design |
 | Recent Activity row rendering (any event type) | Every row shows both date and time of `recordedAt` ("Oct 8, 2026, 2:41 PM," never time-only) and the exhibit's label, including rows describing a raw `STATUS_CHANGE` transition ("Exhibit 3 — MARKED → OFFERED") | Two events on different days are never visually indistinguishable; no row is ever unattributed to an exhibit (US-15.4, US-15.5) — see `Y0-patterns.md` §Pattern: Activity Feed Row Format |
-| Load failure | Full-panel inline error: "Unable to load trial activity — please retry" with a retry button | Non-blocking — other panels still attempt to load independently |
+| Recent Activity filter pill selected (Phase 8) | Selected pill shows an active/pressed visual state; list narrows to matching event types only, date-group headers retained | Client-side only — no reload, no change to the underlying `getRecentActivity` response |
+| Load failure (any panel) | Full-panel inline error: "Unable to load trial activity — please retry" (baseline panels) or "Unable to load the attention feed — please retry" (`ATTENTION_FEED_LOAD_FAILED`, attention feed specifically) with a retry button | Non-blocking — every panel attempts to load independently; one panel's failure never blocks another's render |
 
 #### Interactive Elements
 
@@ -406,15 +560,21 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 | Recent Activity row | Link-through | Navigates to that exhibit's Exhibit Detail View (US-8.2), landing scrolled to the relevant event |
 | Unresolved Objection row | Link-through | Navigates to Exhibit Detail View, objection section highlighted |
 | Discrepancy row | Link-through | Navigates to Exhibit Detail View (or directly to the flagged row in Jury Package Workspace if already drafted) |
-| "Ask ✦" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
+| "Ask Pivota" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
+| Attention feed "Record ruling" button (added Phase 8) | Inline write action | Expands the disposition selector (Sustained/Overruled/Reserved) within the entry; explicit confirm required; rendered only for `JUDGE` role (F24, US-24.1); `data-testid="attention-feed-action-record-ruling"` |
+| Attention feed "Assign custodian" button (added Phase 8) | Inline write action | Expands a custodian picker (first-time assignment path) within the entry; explicit confirm required; rendered only for `DEPUTY`/`CLERK`/`ADMIN` (F24, US-24.2); `data-testid="attention-feed-action-assign-custodian"` |
+| Attention feed "Review and remove →" link (`CRITICAL` tier, added Phase 8) | Link-through | Navigates to the Jury Package Workspace's existing "Remove from Package" remediation (F13) — not a new write action; `data-testid="attention-feed-action-review-remove"` |
+| Jury package widget "Open jury package →" button (added Phase 8) | Link-through | Navigates to `/jury-package`; `data-testid="open-jury-package-button"` |
+| Custody-at-a-glance "Transfer custody" entry point (added Phase 8) | Link-through / inline write action | Opens the same custody assignment/propose form as the Exhibit Detail header (F24); rendered only for `DEPUTY`/`CLERK`/`ADMIN`; `data-testid="custody-glance-transfer-action"` |
+| Recent Activity filter pills (added Phase 8) | Toggle group | Client-side narrowing of the already-loaded activity list by event-type category; `data-testid="activity-filter-pill-{type}"` |
 
-**Explicitly absent by design (US-8.1):** no filters, no date pickers, no "configure this view" settings, no data-entry controls of any kind. This screen only links through — it never writes to the ledger.
+**Explicitly absent by design (US-8.1), amended Phase 8:** no filters, no date pickers, no "configure this view" settings on any panel **except** the two F24 write actions on the "Needs your attention" feed ("Record ruling," "Transfer custody"/"Assign custodian") and the purely-client-side Recent Activity filter pills (which narrow already-loaded data, writing nothing). Every other element on this screen — stat cards, status-distribution bar, Jury Package widget, Custody-at-a-Glance exhibit listings, Recent Activity, Unresolved Objections, Discrepancies — remains link-through-only; it never writes to the ledger.
 
 **Full timestamp + label rule (F15):** every Recent Activity row renders both the date and the time of `recordedAt` — never time-only — and always includes the event's exhibit label as part of the rendered summary, with no exception for raw `STATUS_CHANGE` rows (US-15.4, US-15.5). This uses the `exhibitLabel` field already present in the activity API response — a rendering fix, not a data-contract change.
 ### Screen: Case Workspace
 
-**Purpose:** The primary browsing and searching surface for the full exhibit set — one trustworthy list instead of a spreadsheet.
-**User Stories:** US-9.1, US-9.2, US-4.1, US-1.1, US-1.2, US-3.1, US-3.2, US-2.1, US-15.1, US-12.1, US-12.2, US-16.1, US-18.1, US-18.2, US-19.1, US-20.1, US-20.2, US-20.3, US-20.4
+**Purpose:** The primary browsing and searching surface for the full exhibit set — one trustworthy list instead of a spreadsheet — now also the primary one-click triage surface for attention/custody/ruling status and jury-package readiness.
+**User Stories:** US-9.1, US-9.2, US-9.3, US-4.1, US-1.1, US-1.2, US-3.1, US-3.2, US-2.1, US-15.1, US-12.1, US-12.2, US-16.1, US-18.1, US-18.2, US-19.1, US-20.1, US-20.2, US-20.3, US-20.4
 **Journey:** JRN-02.1 (Log Exhibit Activity, Answer a Custody Question, Search Mid-Testimony)
 **Route:** `/case` · **Nav:** Sidebar "Case Workspace"
 
@@ -422,25 +582,41 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Deputy ▾][Ask ✦]│
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Deputy ▾][Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Case Workspace                  [+ New Exhibit] │
-│ ▸ Case        │  ┌────────────────────────────────────────────┐  │
-│ Jury Pkg      │  │ 🔍 Search exhibits...   [Status ▾][Witness ▾]│  │
-│ Assistant     │  │     Active filters: witness=Smith  [× clear]│  │
+│ ▸ Case        │  [All 10] [Needs attention 3] [In my custody 2]  │
+│ Jury Pkg      │  [Awaiting ruling 2]                              │
+│ Assistant     │  ┌────────────────────────────────────────────┐  │
+│               │  │ 🔍 Search exhibits...   [Status ▾][Witness ▾]│  │
+│               │  │     Active filters: witness=Smith  [× clear]│  │
 │               │  └────────────────────────────────────────────┘  │
-│               │  ┌────────────────────────────────────────────┐  │
-│               │  │ Label  Desc        Party  Witness Status  Custodian       ⚑│
-│               │  │ Ex. 14 Blood sample PROS  Smith  ●ADMITTED –             ⚠│
-│               │  │ Ex. 7  Phone record DEF   —      ●OFFERED  D.Reyes       │
-│               │  │ Ex. 9  Email thread PROS  Lee     ●OBJECTED C.Chen        │
-│               │  │ Ex. 3  Contract     PLAIN —      ●MARKED  D.Reyes → pending: C.Chen │
-│               │  │ ... (polling live, 3–5s)                     │  │
-│               │  └────────────────────────────────────────────┘  │
+│               │  ┌────────────────────────────────────────────────────────────┐│
+│               │  │ Label  Desc   Party Witness Status  Custodian  Flags  Jury Pkg││
+│               │  │ Ex. 14 Blood  PROS  Smith  ●ADMITTED –        No      Blocked ││
+│               │  │                                               custodian       ││
+│               │  │ Ex. 7  Phone  DEF   —      ●OFFERED  D.Reyes  —       Not     ││
+│               │  │                                                       eligible││
+│               │  │ Ex. 9  Email  PROS  Lee    ●OBJECTED C.Chen   Open    Not     ││
+│               │  │                                       objection      eligible││
+│               │  │ Ex. 3  Contr. PLAIN —      ●MARKED   D.Reyes  Ruling  Not     ││
+│               │  │                                → pending:    pending eligible││
+│               │  │                                   C.Chen                      ││
+│               │  │ Ex. 5  Report PROS  Lee    ●ADMITTED D.Reyes  —       Included││
+│               │  │ ... (polling live, 3–5s)                                      ││
+│               │  └────────────────────────────────────────────────────────────┘│
 └───────────────┴──────────────────────────────────────────────────┘
    entire row (hover: highlight + cursor:pointer) ──▶ Exhibit Detail View (/exhibit/:id)
    "+ New Exhibit" is absent entirely for JUDGE/CHAMBERS_STAFF/ATTORNEY roles (F20) — see Pattern: Role-Gated Control Visibility
 ```
+
+**Quick-filter chips (added Phase 8, US-9.3):** a row of one-click chips — **All N / Needs attention N / In my custody N / Awaiting ruling N** — directly above the search bar, each with a live count badge. Selecting a chip narrows the visible row set immediately, without requiring the search bar or any dropdown — "All" is selected by default and shows the full visible (role-filtered) exhibit count. Matching rules: "Needs attention" matches at least one `OPEN` discrepancy flag OR at least one `UNRESOLVED` objection thread; "In my custody" matches `CustodyCurrentState.currentCustodianUserId` equal to the signed-in user; "Awaiting ruling" matches at least one `UNRESOLVED` objection thread (a narrower, ruling-specific lens on the same underlying condition "Needs attention" also surfaces more broadly). Chips are mutually exclusive (single-select, like a tab strip, not independently combinable toggles) and compose with an active search/filter query exactly as a dropdown filter would — selecting a chip while a search is active narrows the *search results* by the chip's condition, not a separate, parallel list. Chips re-evaluate on every live-sync poll tick so counts and membership stay current without a manual refresh.
+
+**⚠ New `data-testid` needed:** chip row `data-testid="quick-filter-chips"`; each chip `data-testid="quick-filter-chip-{key}"` (`all` / `needs-attention` / `in-my-custody` / `awaiting-ruling`), each carrying `aria-pressed` to reflect single-select state for assistive technology.
+
+**Jury Package column (added Phase 8, US-9.3):** a new rightmost table column rendering one of three color-coded values per row — **Included** (green), **Not eligible** (neutral/grey), **Blocked** (amber) — computed identically to, and never diverging from, the Jury Package Workspace's own per-exhibit discrepancy status (F9 §Process step 3 = F11's row-level grouping). If no `JuryPackage` has ever been computed for the case, every row reads `Not eligible` rather than erroring or omitting the column. `data-testid="exhibit-row-jury-package-badge"` with `aria-label="Jury package status: Blocked"` (etc. per value) — new as of Phase 8.
+
+**Flags column — readable text pills, not icon-only (amended Phase 8, Design Principle 7):** the existing discrepancy/objection/custody indicator column is relabeled "Flags" and now renders a short readable text pill per condition rather than a bare icon requiring a hover to understand — "Ruling pending" (unresolved objection), "No custodian" (`ADMITTED_NO_CUSTODIAN` discrepancy), "Open objection" (unresolved thread on a not-yet-admitted exhibit), "Ex parte · restricted" (chambers-ex-parte/sealed classification visible to an authorized role). A row with zero applicable flags shows an em-dash ("—"), not a blank cell. Multiple simultaneous flags stack as multiple pills in the same cell, never collapsed into a single generic "⚠" glyph. This does not change the underlying discrepancy/objection data — it is a presentation-only amendment to the same column Phase 7 already shipped (`Y0-patterns.md` §Pattern: Discrepancy Flag Treatment, unchanged in substance). `data-testid="exhibit-row-flag-pill"` per pill (new as of Phase 8) — the pre-existing `data-testid="exhibit-row"` and the row's discrepancy-icon hover/click behavior are otherwise unchanged (US-24.3).
 
 **"+ New Exhibit" intake flow (US-16.1, US-18.1, US-18.2, F16, F18):** opens a compact inline panel at the top of the table — not a full-screen modal, consistent with this screen's existing "assistant, not data-entry system" positioning, just a larger instance of the same Inline Row Actions pattern. The panel asks for identity fields (label, description, source, offering party, witness) plus two fields new as of Phase 7.1:
 - **Classification** (required, one of `TRIAL` / `CHAMBERS_EX_PARTE` / `SEALED`, presented as a 3-option radio group) — accompanied by always-visible inline copy: "Classification cannot be changed after the exhibit is created." No edit/reclassify action exists anywhere in the UI for any role, by design (US-16.1).
@@ -456,7 +632,9 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 | Priority | Content | Placement |
 |----------|---------|-----------|
 | Primary | Exhibit label + current status badge | Leftmost columns, largest visual weight |
-| Primary | Discrepancy indicator (⚠) | Rightmost column, same row — visible without drill-in (US-9.2) |
+| Primary | Quick-filter chips (added Phase 8) | Directly above the search bar — first interactive element encountered after the screen title |
+| Primary | Flags column (readable text pills, amended Phase 8) | Same row as before, now labeled text instead of icon-only — visible without drill-in (US-9.2) |
+| Secondary | Jury Package eligibility column (added Phase 8) | Rightmost table column |
 | Secondary | Current custodian name | Mid-row column |
 | Secondary | Offering party, associated witness | Mid-row columns |
 | Tertiary | Description (truncated) | Collapsible/truncated text, full text on hover or in detail view |
@@ -479,6 +657,11 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 | Intake blocked — missing/invalid classification (`CLASSIFICATION_REQUIRED` / `INVALID_CLASSIFICATION`) | "+ New Exhibit" panel stays open with inline field-level error on the classification group; no exhibit created | Forces an explicit choice before any record exists — no silent default (US-16.1) |
 | Intake blocked — no custodian at first MARKED (`CUSTODIAN_REQUIRED_AT_INTAKE`) | "+ New Exhibit" panel stays open with inline field-level error on the custodian field; if the identity-only `POST /api/exhibits` call already succeeded, the panel keeps the exhibit in an explicit "created, not yet marked" sub-state and retries only the MARKED step on resubmit, never silently duplicating the exhibit | No exhibit is ever shown in the main list without a custodian (US-18.1, US-18.2) |
 | Action unavailable for current role (F20) | Control is not rendered at all — "+ New Exhibit," "Record Status," "Propose Custody Transfer," "Raise Objection" are each independently absent per F20's matrix for the active role | Absent, not disabled — see `Y0-patterns.md` §Pattern: Role-Gated Control Visibility (US-20.1–US-20.4) |
+| Quick-filter chip selected (added Phase 8) | Selected chip shows a pressed/active visual state (`aria-pressed="true"`); table narrows to matching rows only; search bar and dropdown filters remain usable and compose with the active chip | Single-select, like a tab strip — selecting a different chip replaces, not adds to, the active narrowing (US-9.3) |
+| Quick-filter chip, zero matches (e.g., "Awaiting ruling 0") | Chip renders with a "0" count and remains selectable; selecting it shows the same "No exhibits match these filters" empty state used for a zero-result search | Consistent empty-state language across both filtering mechanisms (US-9.3) |
+| Jury Package column — no package computed yet (added Phase 8) | Every row reads "Not eligible" | Expected behavior, not a defect — matches F11's "no package started yet" state (US-9.3) |
+| Jury Package column value (added Phase 8) | "Included" (green), "Not eligible" (neutral/grey), or "Blocked" (amber) — color-coded, text always present alongside the color (never color alone) | Matches the Jury Package Workspace's own per-exhibit status for the same exhibit, always (US-9.3) |
+| Flags column, multiple simultaneous conditions (amended Phase 8) | Multiple readable pills stack in the same cell (e.g., "Ruling pending" + "No custodian") | Never collapsed into one generic icon when more than one condition applies |
 | Load failure | Full-table inline error with retry button | — |
 
 #### Interactive Elements
@@ -492,48 +675,71 @@ This mockup covers the 6 screens now in scope: the 5 demo screens originally nam
 | Inline "Record Status" action (row-level) | Compact action, not a modal form | Offers only valid next-transition options (US-1.1); an attempted `ADMITTED` transition is rejected with every blocking reason named if an unresolved objection or missing custodian applies (US-12.1, US-12.2); rendered only for `DEPUTY`/`CLERK`/`ADMIN` (F20 row 2/3) — absent otherwise (US-20.2) |
 | Inline "Propose Custody Transfer" action | Compact action | Requires selecting an active user as the intended receiver; does not change current custodian — see `Y0-patterns.md` §Pattern: Two-Phase Custody Handoff (US-19.1); rendered only for `DEPUTY`/`CLERK`/`ADMIN` (F20 row 6) — absent otherwise (US-20.4); unavailable (control absent) while a transfer is already pending for that exhibit |
 | Inline "Raise Objection" action | Compact action, two fields | Party + grounds only (US-2.1); rendered only for `ATTORNEY`/`DEPUTY`/`CLERK`/`ADMIN` (F20 row 4) — absent for `JUDGE`/`CHAMBERS_STAFF` (US-20.3) |
-| Discrepancy icon (⚠) | Tooltip + link | Hover shows the specific rule fired; click navigates to Exhibit Detail View discrepancy section |
+| Discrepancy icon / Flags pill (amended Phase 8) | Tooltip + link (icon); always-visible label (pill) | Pill text itself conveys the condition without a hover; click/hover still navigates to / expands Exhibit Detail View discrepancy section exactly as before |
+| Quick-filter chip (All / Needs attention / In my custody / Awaiting ruling) (added Phase 8) | Toggle group, single-select | Narrows the visible row set client-side against already-role-filtered data; composes with an active search query; `data-testid="quick-filter-chip-{key}"` (US-9.3) |
+| Jury Package eligibility badge (added Phase 8) | Static, per-row | Computed identically to F11's own per-exhibit status; `data-testid="exhibit-row-jury-package-badge"` (US-9.3) |
+
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):** `quick-filter-chips`, `quick-filter-chip-all`, `quick-filter-chip-needs-attention`, `quick-filter-chip-in-my-custody`, `quick-filter-chip-awaiting-ruling`, `exhibit-row-jury-package-badge`, `exhibit-row-flag-pill` — all additive; the pre-existing `exhibit-row` selector and its row-level action selectors (Record Status, Propose Custody Transfer, Raise Objection) are unchanged.
 
 **Positioning note:** row-level action affordances are deliberately understated (icon buttons, not prominent colored CTAs) — the search/browse experience is the visual star of this screen, with data-entry kept minimal and secondary per the "assistant, not data-entry system" constraint (FRD F09 §Validation). These understated inline actions coexist with full-row clickability without conflict: each inline action stops click-propagation, so clicking a status/custody/objection control never also fires row navigation, while every other point on the row — including empty space and the description/party/witness cells — still navigates (US-15.1, fixes a regression against this screen's originally-specified behavior).
 ### Screen: Exhibit Detail View
 
-**Purpose:** The complete, single-screen chronological story of one exhibit — answers "what happened to this exhibit" without assembling fragments.
-**User Stories:** US-10.1, US-10.2, US-3.3, US-2.2, US-6.3, US-12.1, US-12.2, US-16.1, US-18.1, US-19.1, US-19.2, US-19.3, US-19.4, US-20.2, US-20.4, US-20.5
+**Purpose:** The complete, single-screen chronological story of one exhibit — answers "what happened to this exhibit" without assembling fragments — paired, as of Phase 8, with a three-card right rail (Objection / Chain of Custody / Jury Package checklist) and header-level write actions so a user can both understand and act on an exhibit's state from one screen.
+**User Stories:** US-10.1, US-10.2, US-10.3, US-3.3, US-2.2, US-6.3, US-12.1, US-12.2, US-16.1, US-18.1, US-19.1, US-19.2, US-19.3, US-19.4, US-20.2, US-20.4, US-20.5, US-24.1, US-24.2
 **Journey:** JRN-02.2 (full journey), JRN-01.2 (Request History), JRN-03.1 (Challenge a Custody Gap), JRN-02.1 (Confirm Custody Receipt)
 **Route:** `/exhibit/:id` · **Nav:** Row click from Case Workspace, Command Center, Jury Package Workspace, or Pending-Ruling Queue; citation link from Assistant. No sidebar entry (drill-in only).
 
-#### Layout — Settled Custody
+#### Layout — Phase 8, Two-Column (Left: History/Timeline · Right: Action Rail)
+
+As of Phase 8, the single-column timeline-only layout below is restructured into two columns: the left column retains the header and full chronological History/Timeline exactly as before; the right column is a new three-card rail (Objection, Chain of Custody, Jury Package checklist), each card reading a distinct slice of the same `getExhibitHistory` payload the timeline renders from — no card issues an independent query (F10 §Process steps 4–6).
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask ✦]│
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  ← Back to Case Workspace                        │
 │ Case          │  Exhibit 14 — "Blood sample, lab-sealed"         │
-│ Jury Pkg      │  ┌────────────────────────────────────────────┐  │
-│ Assistant     │  │ Status: ●ADMITTED   Custodian: ⚠ None on   │  │
-│               │  │ Party: PROSECUTION   Witness: Dr. Smith     │  │
-│               │  │ Classification: TRIAL (set at intake,       │  │
-│               │  │   immutable)                                │  │
-│               │  │ ⚠ DISCREPANCY: Admitted, no custodian of    │  │
-│               │  │   record   [Resolve →] [Acknowledge]        │  │
-│               │  └────────────────────────────────────────────┘  │
-│               │  History                                         │
-│               │  ┌────────────────────────────────────────────┐  │
-│               │  │ ● Marked (custodian established: D. Reyes)  │  │
-│               │  │   Oct 5, 9:02 AM · by D. Reyes (Deputy)      │  │
-│               │  │ ● Offered                    Oct 5, 9:15 AM │  │
-│               │  │   by D. Reyes (Deputy)                      │  │
-│               │  │ ● Objection raised — hearsay  Oct 5, 9:17 AM│  │
-│               │  │   by M. Webb (Attorney)                     │  │
-│               │  │ ● Ruling: Overruled           Oct 5, 9:22 AM│  │
-│               │  │   by Judge Marsh                            │  │
-│               │  │ ● Status changed: Offered → Admitted         │  │
-│               │  │   Oct 5, 9:23 AM · by Judge Marsh            │  │
-│               │  │   (no further custody events — gap begins)  │  │
-│               │  └────────────────────────────────────────────┘  │
+│ Jury Pkg      │  [ Transfer custody ]  [ Ask Pivota about Ex.14 ]│
+│ Assistant     │  ┌────────────────────────┐ ┌───────────────────┐│
+│               │  │ Status: ●ADMITTED       │ │ OBJECTION         ││
+│               │  │ Custodian: ⚠ None on   │ │ No open objections││
+│               │  │ Party: PROSECUTION      │ ├───────────────────┤│
+│               │  │ Witness: Dr. Smith      │ │ CHAIN OF CUSTODY  ││
+│               │  │ Classification: TRIAL   │ │ ⚠ No custodian of ││
+│               │  │ ⚠ DISCREPANCY: Admitted,│ │   record          ││
+│               │  │   no custodian of record│ │ [ Assign → ]      ││
+│               │  │   [Resolve →][Acknowledge]│ ├───────────────────┤│
+│               │  │                         │ │ JURY PACKAGE      ││
+│               │  │ History                 │ │ ✓ Admitted        ││
+│               │  │ ● Marked (custodian      │ │ ✓ No open         ││
+│               │  │   established: D. Reyes)│ │   objections      ││
+│               │  │   Oct 5, 9:02 AM         │ │ ✗ Custodian on    ││
+│               │  │ ● Offered  Oct 5, 9:15 AM│ │   record          ││
+│               │  │ ● Objection raised —     │ │ ✓ Classification  ││
+│               │  │   hearsay  Oct 5, 9:17 AM│ │   = TRIAL         ││
+│               │  │ ● Ruling: Overruled      │ │ ⛔ BLOCKED        ││
+│               │  │   Oct 5, 9:22 AM         │ │                   ││
+│               │  │ ● Status: Offered→Admitted│ └───────────────────┘│
+│               │  │   Oct 5, 9:23 AM         │                     │
+│               │  │   (no further custody    │                     │
+│               │  │    events — gap begins)  │                     │
+│               │  └────────────────────────┘                      │
 └───────────────┴──────────────────────────────────────────────────┘
 ```
+
+**Header write actions (added Phase 8, F24, US-10.3):**
+- **"Transfer custody"** — opens the same first-assignment / propose / pending-transfer form described in `F24-write-action-ui-coverage.md`; rendered only for `DEPUTY`/`CLERK`/`ADMIN`, or — while a transfer is pending — additionally and separately for the exact named receiver (identity-gated "Confirm receipt," per the existing Two-Phase Custody Handoff pattern below). `data-testid="exhibit-header-transfer-custody-button"` (new, Phase 8 — the control itself invokes F24's existing propose/assign endpoints).
+- **"Ask Pivota about {exhibitLabel}"** — opens the Pivota Assistant slide-over pre-scoped to this exhibit's label (e.g., the input pre-fills or the assistant's working context is pinned to Exhibit 14), so a follow-up question doesn't require re-stating which exhibit it concerns. `data-testid="ask-pivota-about-exhibit-button"` (new, Phase 8).
+
+#### Right-Rail Cards (added Phase 8, F10 §Process steps 4–6, US-10.3)
+
+**Objection card:** renders every `ObjectionCurrentState` row for this exhibit with `status = 'UNRESOLVED'` (zero, one, or several — never collapsed to "most recent only"), each showing objecting party, grounds, and elapsed time since `raisedAt`. Each row carries its own **"Record ruling"** inline action passing that row's specific `objectionId` — rendered only for `JUDGE` (F24). If zero unresolved threads exist, the card shows an explicit "No open objections" state, never an empty card. `data-testid="exhibit-objection-card"`; each unresolved row `data-testid="exhibit-objection-row"`; action button `data-testid="exhibit-objection-record-ruling-button"`.
+
+**Chain of Custody card:** renders the current custodian (or "No custodian of record"), the pending-transfer banner when applicable (same visual treatment as the existing §Custody Section below — this card does not introduce a second, different pending-transfer presentation), and the full ordered custody history at a glance. Shows "No gaps in the chain" when custody has been continuously recorded since intake, or a visible gap indicator ("⚠ No custodian of record" / "Gap: {N} days with no custodian") otherwise. `data-testid="exhibit-custody-card"`.
+
+**Jury Package checklist card:** four per-condition checks — (a) Admitted, (b) No open objections, (c) Custodian on record, (d) Classification = TRIAL — each rendered with a ✓ (met) or ✗ (outstanding) marker, plus the exhibit's overall eligibility badge (`Included`/`Not eligible`/`Blocked`) computed by the identical precedence rule Case Workspace's eligibility column uses (F9 §Process step 3 = F10 §Process step 6 — never independently derived). `data-testid="exhibit-jury-checklist-card"`; eligibility badge `data-testid="exhibit-jury-eligibility-badge"` with `aria-label="Jury package eligibility: Blocked"` (etc. per value).
+
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):** all identifiers in this section are new as of Phase 8 and must not collide with any pre-existing Playwright-asserted selector — see US-24.3's additive-only requirement.
 
 #### Custody Section — Pending Transfer State (F19)
 
@@ -561,7 +767,9 @@ When a custody transfer has been proposed but not yet confirmed, the header's cu
 | Primary | Current status, current custodian (or pending-transfer banner), active discrepancy flag(s) | Header block, above the fold, before any history |
 | Primary | Discrepancy action (Resolve / Acknowledge) | Directly beneath the flag it belongs to — never a separate screen |
 | Primary | Pending custody transfer banner + Confirm/Cancel actions (F19) | Directly beneath the custodian line, replacing it while a transfer is pending |
-| Secondary | Chronological timeline (complete, oldest-first) | Main scrollable body |
+| Primary | Right-rail Objection / Chain of Custody / Jury Package checklist cards (added Phase 8) | Right column, same vertical extent as the header + top of the timeline — visible without scrolling on a desktop viewport |
+| Primary | Header "Transfer custody" and "Ask Pivota about {label}" actions (added Phase 8) | Directly beneath the exhibit title, above the status/custodian block |
+| Secondary | Chronological timeline (complete, oldest-first) | Left column, main scrollable body |
 | Tertiary | Exhibit identity metadata (description, party, witness, source, classification) | Compact header row, de-emphasized once status/custodian are visible |
 
 #### States
@@ -581,7 +789,16 @@ When a custody transfer has been proposed but not yet confirmed, the header's cu
 | Custody confirm attempted by the wrong user (`CUSTODY_CONFIRM_WRONG_USER`) | Inline error on the "Confirm Receipt" action: "Only the named receiving custodian may confirm this transfer" | Control itself is only ever shown to the actual named receiver (per Role-Gated Control Visibility + identity check), so this error path is a defense-in-depth backstop, not the primary guard (US-19.2, US-20.5) |
 | Custody transfer cancelled | Banner disappears; custodian line reverts to the pre-proposal custodian (unchanged, since a pending transfer never altered it); a `CUSTODY_TRANSFER_CANCELLED` entry appears in the timeline, never erased | Confirms cancellation is a recorded event, not a silent reset (US-19.3) |
 | Action unavailable for current role (F20) | "Record Status," "Propose Custody Transfer," "Confirm Receipt," and "Cancel Transfer" are each independently absent per F20's matrix (and, for Confirm, the additional identity check) | Absent, not disabled — see `Y0-patterns.md` §Pattern: Role-Gated Control Visibility (US-20.2, US-20.4, US-20.5) |
-| Load failure | Inline error: "Unable to load exhibit history — please retry" | Retry button, no partial/broken render |
+| Objection card — no open objections | Card renders explicit "No open objections" text, never an empty/blank card | Confirms "zero" is a deliberate, positive state, not a loading failure (US-10.3) |
+| Objection card — one or more open objections | Each unresolved thread renders as its own row with its own "Record ruling" action, scoped to that row's specific `objectionId` — never ambiguous about which thread a ruling applies to when several are concurrently open | Matches F02's "N concurrent threads" model exactly — no collapsing to "most recent only" (US-10.3, US-24.1) |
+| Objection card inline "Record ruling" — form open, awaiting confirm | Disposition selector (Sustained/Overruled/Reserved) expands within the card; explicit confirm control required before submit | No auto-submit on selecting a disposition (US-24.1) |
+| Objection card inline "Record ruling" — rejected (e.g., `409 OBJECTION_ALREADY_RESOLVED`) | Inline error within the still-open form naming the specific rejection reason | Form remains open for correction/cancellation, never a silent failure (US-24.1) |
+| Chain of Custody card — no gaps | "No gaps in the chain" confirmation text, plus the full transfer history below it | Positive confirmation, not merely the absence of a warning (US-10.3) |
+| Chain of Custody card — gap present | Visible gap indicator ("⚠ No custodian of record") consistent with the header's own discrepancy banner treatment for the same condition | Never a second, differently-worded warning for the same underlying fact (US-10.3) |
+| Jury Package checklist card — any condition outstanding | The specific unmet condition(s) show a ✗ marker with its plain-language label; overall badge reads `Blocked` or `Not eligible` per the same precedence Case Workspace uses | Never a bare "not eligible" with no breakdown of why — this card is explicitly the itemized "why" F9's single badge doesn't spell out (US-10.3) |
+| Jury Package checklist card — all conditions met | All four rows show ✓; overall badge reads `Included` | Matches the Case Workspace row for the same exhibit exactly — no divergence between the two surfaces (US-10.3) |
+| Header "Transfer custody" / "Ask Pivota about {label}" — role-gated absence | "Transfer custody" is independently absent for a role with no custody-write permission and no pending-transfer identity match; "Ask Pivota about {label}" always renders for every role (opening the assistant is never role-restricted) | Absent, not disabled — `Y0-patterns.md` §Pattern: Role-Gated Control Visibility (US-10.3) |
+| Load failure | Inline error: "Unable to load exhibit history — please retry" | Retry button, no partial/broken render; right-rail cards do not render independently of the header/timeline load, since they share the same `getExhibitHistory` call |
 
 #### Interactive Elements
 
@@ -595,21 +812,88 @@ When a custody transfer has been proposed but not yet confirmed, the header's cu
 | "Acknowledge" button | Action, opens inline justification field | Requires non-empty justification (≤500 chars) before submit; idempotent if already acknowledged (US-6.3); only rendered for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` roles — absent, not disabled, otherwise; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed (US-14.1, US-14.2) |
 | Timeline entry | Static, citable | Each entry carries a stable anchor so Assistant citations and direct links can scroll to it precisely; now includes `CUSTODY_TRANSFER_PROPOSED`/`CONFIRMED`/`CANCELLED` entries (F19) in addition to the original event types |
 | "← Back to Case Workspace" | Navigation | Returns to the referring list screen (preserves prior scroll/filter state where feasible) |
-| Ruling action (judge role, on an open objection) | Inline action, 1 of 3 options | Sustained / Overruled / Reserved — role-gated, unchanged by F20 (US-2.2) |
+| Ruling action (judge role, on an open objection) | Inline action, 1 of 3 options | Sustained / Overruled / Reserved — role-gated, unchanged by F20 (US-2.2); as of Phase 8 this is the same "Record ruling" action surfaced on the Objection card (F24) — not a second, separate ruling mechanism |
+| "Transfer custody" (header, added Phase 8) | Action, opens inline form | Settled state → propose form; no-custodian state → immediate first-assignment form; pending state → renders Cancel/Confirm instead (identical underlying behavior to the existing §Custody Section forms, now also reachable from a single header button rather than only inline); `data-testid="exhibit-header-transfer-custody-button"` (US-24.2) |
+| "Ask Pivota about {exhibitLabel}" (header, added Phase 8) | Action | Opens the Assistant slide-over pre-scoped to this exhibit; available to every role (asking a question is never restricted); `data-testid="ask-pivota-about-exhibit-button"` (US-10.3) |
+| Objection card "Record ruling" (added Phase 8) | Inline write action | Scoped to the specific row's `objectionId`; rendered only for `JUDGE`; `data-testid="exhibit-objection-record-ruling-button"` (F24, US-24.1) |
+| Chain of Custody card "Assign →" / propose entry point (added Phase 8) | Inline write action | Same underlying form as the header's "Transfer custody" action, offered a second time at the point of the gap itself for discoverability; rendered only for `DEPUTY`/`CLERK`/`ADMIN`; `data-testid="exhibit-custody-card-assign-button"` (F24, US-24.2) |
+
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):** `exhibit-header-transfer-custody-button`, `ask-pivota-about-exhibit-button`, `exhibit-objection-card`, `exhibit-objection-row`, `exhibit-objection-record-ruling-button`, `exhibit-custody-card`, `exhibit-custody-card-assign-button`, `exhibit-jury-checklist-card`, `exhibit-jury-eligibility-badge` — all additive; none repurpose or collide with a pre-existing Phase 1–7 selector (e.g. the existing inline "Record Status"/"Propose Custody Transfer"/"Acknowledge" selectors on this screen are unchanged).
 
 **Plain-language translation rule:** every timeline entry is composed as a complete sentence ("Status changed from Offered to Admitted," "Custody transfer proposed to C. Chen," "C. Chen confirmed receipt of custody," "Custody transfer to C. Chen cancelled — reason: wrong recipient named") — raw `eventType`/`payload` values are never exposed to the user (US-10.1).
 ### Screen: Jury Package Workspace
 
-**Purpose:** The authoritative, discrepancy-gated handoff view for the jury-eligible exhibit list — the screen where "build a jury package" plays out end-to-end.
-**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3, US-16.2, US-23.1, US-23.2, US-23.3
+**Purpose:** The authoritative, discrepancy-gated handoff view for the jury-eligible exhibit list — the screen where "build a jury package" plays out end-to-end — now presented as a per-exhibit card layout (Blockers/Clean), with a visible progress indicator and a path for non-finalizing roles to request finalization rather than hit a disabled control with no way forward.
+**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-11.3, US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3, US-16.2, US-23.1, US-23.2, US-23.3
 **Journeys:** JRN-02.1 (Assemble), JRN-01.2 (Present/Accept), JRN-03.1 (Verify Integrity)
 **Route:** `/jury-package` · **Nav:** Sidebar "Jury Package"
 
-#### Layout — Draft State
+#### Layout — Draft State (Phase 8: Card-Per-Exhibit, Blockers/Clean)
+
+As of Phase 8, the prior flat table (shown immediately below for traceability) is replaced by a per-exhibit card layout: a top progress banner, a **Blockers** section (one card per blocking exhibit, each carrying its specific remediation action), and a **Clean** section (lightweight cards for exhibits already ready). No underlying computation changes — every card reads the same `JuryPackageExhibit.discrepancyStatus`/`status` fields the prior table rendered.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Deputy ▾][Ask ✦]│
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Deputy ▾][Ask Pivota]│
+├───────────────┬──────────────────────────────────────────────────┤
+│ Command Ctr   │  Jury Package Workspace          ● DRAFT          │
+│ Case          │  (prior: Version 2 finalized · View version      │
+│ ▸ Jury Pkg    │   history ▾)                                     │
+│ Assistant     │  ┌────────────────────────────────────────────┐  │
+│               │  │ ⚠ Not ready to finalize: 3 blockers         │  │
+│               │  │ ██████░░░░░░░░░░  2 of 5 clean               │  │
+│               │  └────────────────────────────────────────────┘  │
+│               │  Blockers (3)                                     │
+│               │  ┌────────────────────────────────────────────┐  │
+│               │  │ ⛔ CRITICAL  S-2 — ex parte material         │  │
+│               │  │   must be removed before finalization        │  │
+│               │  │   [ Remove from package ]                     │  │
+│               │  ├────────────────────────────────────────────┤  │
+│               │  │ ⚠ HIGH  Ex. 9 — unresolved objection         │  │
+│               │  │   raised 2:15 PM · hearsay                    │  │
+│               │  │   [ Record ruling ]  [ Acknowledge ▾ ]        │  │
+│               │  │   ▾ Acknowledge reason: [________________]    │  │
+│               │  ├────────────────────────────────────────────┤  │
+│               │  │ ⚠ MEDIUM  Ex. 14 — no custodian of record    │  │
+│               │  │   detected 9:23 AM                            │  │
+│               │  │   [ Assign custodian ]  [ Acknowledge ▾ ]     │  │
+│               │  └────────────────────────────────────────────┘  │
+│               │  Clean (2)                                        │
+│               │  ┌────────────────────────────────────────────┐  │
+│               │  │ ✓ Ex. 3   ●ADMITTED                          │  │
+│               │  │ ✓ Ex. 7   ●ADMITTED                          │  │
+│               │  └────────────────────────────────────────────┘  │
+│               │  [ Finalize Jury Package ]  ← disabled, greyed    │
+│               │  (non-finalizing role sees instead:)              │
+│               │  [ Request finalization from Clerk ]              │
+└───────────────┴──────────────────────────────────────────────────┘
+```
+
+**Progress banner (added Phase 8):** always rendered at the top of the Draft view — "Not ready to finalize: N blockers" (amber, when `blockedCount > 0`) or "All N exhibits clean — ready to finalize" (calm/green, when zero blockers) — paired with a mini progress bar showing `{cleanCount} of {total} clean`. This is the same `{ total, cleanCount, blockedCount }` summary the pre-Phase-8 caption line already computed (F11 §Outputs) — purely a more prominent, bannered presentation of an existing value, not a new computation. `data-testid="jury-package-progress-banner"`.
+
+**Blockers section (added Phase 8):** one card per `JuryPackageExhibit` row with `discrepancyStatus = 'FLAGGED'` or the sealed/ex-parte CRITICAL condition, each card showing exhibit label, severity treatment, the specific blocking detail inline on the card face (never behind a secondary click), and **the action specific to that blocker type**:
+- **Sealed/ex-parte (CRITICAL):** `[Remove from Package]` only — no Acknowledge option, since this is a structural exclusion, not a tolerable risk (F13, unchanged from the pre-Phase-8 treatment).
+- **Open/unresolved objection:** `[Record ruling]` (F24, judge-only — navigates to or inline-opens the same ruling form as the Objection card on Exhibit Detail) plus `[Acknowledge ▾]`, which expands an inline, in-card textarea for the required justification (≤500 chars) rather than navigating away — "inline expandable acknowledge-reason" per the card's own disclosure copy (`Y0-patterns.md` §Pattern: Permanent-Record Disclosure).
+- **No custodian of record:** `[Assign custodian]` (F24 — opens the same first-assignment/propose form as the Exhibit Detail header) plus `[Acknowledge ▾]`, identical inline-textarea behavior to the objection case above.
+
+Each Blockers card's `[Acknowledge ▾]` disclosure triangle expands/collapses the justification textarea in place — the card height grows, nothing navigates away, and the always-visible permanent-record disclosure copy (per `Y0-patterns.md` §Pattern: Permanent-Record Disclosure) renders above the textarea the moment it expands, not only after a first attempt to submit with it empty.
+
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):**
+- Blockers section container: `data-testid="jury-package-blockers-section"`
+- Each blocker card: `data-testid="jury-package-blocker-card"` with `aria-label` naming exhibit + blocker type, e.g. `aria-label="Blocker: Exhibit 9, unresolved objection"`
+- Inline acknowledge-reason textarea (per card): `data-testid="jury-package-blocker-acknowledge-textarea"`
+- "Record ruling" / "Assign custodian" action buttons on a blocker card: `data-testid="jury-package-blocker-record-ruling-button"` / `data-testid="jury-package-blocker-assign-custodian-button"`
+- Clean section container: `data-testid="jury-package-clean-section"`; each clean card `data-testid="jury-package-clean-card"`
+
+**Clean section (added Phase 8):** lightweight cards (or compact rows within a single bordered group) for every `discrepancyStatus = 'CLEAN'` exhibit — label + status badge only, no action controls, since there is nothing to resolve. Visually de-emphasized relative to the Blockers section (smaller card chrome, no severity color), reinforcing that this list exists for completeness/confidence ("these N are already ready"), not for action.
+
+#### Layout — Draft State (Pre-Phase-8 Flat Table, Retained for Traceability)
+
+*The table below is the exact pre-Phase-8 presentation this screen replaced. It is kept here only so the Phase 8 card layout's per-row data mapping (above) is auditable against its predecessor — the live screen renders the card layout, not this table, as of this phase.*
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Deputy ▾][Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Jury Package Workspace          ● DRAFT          │
 │ Case          │  (prior: Version 2 finalized · View version      │
@@ -633,9 +917,17 @@ When a custody transfer has been proposed but not yet confirmed, the header's cu
 └───────────────┴──────────────────────────────────────────────────┘
 ```
 
-**Version history affordance, Draft state (F23):** whenever at least one `FINALIZED` version already exists for the case, the Draft header additionally shows "(prior: Version N finalized · View version history ▾)" — a secondary, collapsed-by-default link, so a deputy mid-build can still locate and export an earlier version without abandoning the current draft. If no version has ever been finalized, this line is omitted entirely (first-ever package for the case).
+**Version history affordance, Draft state (F23):** whenever at least one `FINALIZED` version already exists for the case, the Draft header additionally shows "(prior: Version N finalized · View version history ▾)" — a secondary, collapsed-by-default link, so a deputy mid-build can still locate and export an earlier version without abandoning the current draft. If no version has ever been finalized, this line is omitted entirely (first-ever package for the case). Unchanged in the Phase 8 card layout — this header line sits directly above the new progress banner.
 
-**Sealed/ex-parte blocker row (US-13.1, US-13.3):** a row whose underlying exhibit is `isSealed = true` (e.g., `S-2`, a chambers sidebar note) never renders `✓ Clean` or `⚠ Flagged: ...` — it renders in a distinct, higher-severity "⛔ CRITICAL" treatment with explicit copy ("ex parte material — must be removed") and no `[Fix →]`/`[Acknowledge]` actions, only `[Remove from Package]`. This evaluation is independent of and takes precedence over F6's `discrepancyStatus` for that row. The Finalize control stays disabled while any such row is present, same as for an open discrepancy. In the normal case (computation already excludes sealed exhibits at the query level per F13), this row never appears at all — it is shown here only to specify the required remediation treatment for the regression/legacy-data case where one is nonetheless present.
+**Sealed/ex-parte blocker row (US-13.1, US-13.3):** a row whose underlying exhibit is `isSealed = true` (e.g., `S-2`, a chambers sidebar note) never renders `✓ Clean` or `⚠ Flagged: ...` — it renders in a distinct, higher-severity "⛔ CRITICAL" treatment with explicit copy ("ex parte material — must be removed") and no `[Fix →]`/`[Acknowledge]` actions, only `[Remove from Package]`. This evaluation is independent of and takes precedence over F6's `discrepancyStatus` for that row. The Finalize control stays disabled while any such row is present, same as for an open discrepancy. In the normal case (computation already excludes sealed exhibits at the query level per F13), this row never appears at all — it is shown here only to specify the required remediation treatment for the regression/legacy-data case where one is nonetheless present. As of Phase 8, this treatment renders as the CRITICAL Blockers card described above rather than a table row, with no change to its underlying precedence/remediation rules.
+
+#### Request Finalization From Clerk (added Phase 8, US-11.3)
+
+A role permitted to view this screen but **not** in F20's finalize-authorized set (`DEPUTY`/`CLERK`/`ADMIN`) — i.e., `JUDGE`, `CHAMBERS_STAFF`, or `ATTORNEY` — sees **"Request finalization from Clerk"** rendered in the exact position the (for them, never-actionable) "Finalize Jury Package" control would otherwise occupy, rather than a disabled button with no path forward. Clicking it calls `POST /api/jury-package/:id/request-finalization`, setting `finalizationRequestedAt`/`finalizationRequestedBy` on the package (overwriting any prior unresolved request — at most one outstanding request is tracked, never stacked). This action never finalizes the package, never bypasses the discrepancy gate, and confers no finalize authority to the requester.
+
+A finalize-authorized role (`DEPUTY`/`CLERK`/`ADMIN`) viewing the same `DRAFT` package while a request is outstanding sees a visible banner — **"Finalization requested by {requesterName} at {time}"** — directly above the Finalize control, so the request surfaces exactly where the action it asks for would be taken. A successful finalize clears the outstanding request fields automatically (the request is resolved by the finalization it led to).
+
+**⚠ New `data-testid`/`aria-label` contract needed:** `data-testid="request-finalization-button"` (rendered only for non-finalizing roles, in place of the Finalize button); `data-testid="finalization-requested-banner"` (rendered only for finalize-authorized roles when a request is outstanding) with `aria-label="Finalization requested by {requesterName} at {time}"`.
 
 #### Layout — Finalized State
 
@@ -679,29 +971,41 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 
 | Priority | Content | Placement |
 |----------|---------|-----------|
-| Primary | Package status badge (`DRAFT`/`FINALIZED`) + discrepancy summary banner | Top of screen, largest visual weight |
-| Primary | Sealed/ex-parte critical blocker row (if present) — highest-severity signal on this screen, never rendered as clean | Same table, visually distinct from and more severe than an ordinary `⚠ Flagged` row (US-13.1, US-13.3) |
-| Primary | Finalize/Export action and its enabled/disabled state with reason | Persistent, bottom or top of exhibit list — never scrolled out of view |
+| Primary | Progress banner ("Not ready to finalize: N blockers" + mini progress bar) (added Phase 8) | Top of screen, directly beneath the status badge/version line — largest visual weight |
+| Primary | Package status badge (`DRAFT`/`FINALIZED`) + discrepancy summary banner | Top of screen |
+| Primary | Blockers section — one card per blocking exhibit, each with its specific remediation action (added Phase 8, replaces the flat-table flagged rows) | Directly beneath the progress banner, above the Clean section |
+| Primary | Sealed/ex-parte critical blocker card (if present) — highest-severity signal on this screen, never rendered as clean | Top of the Blockers section, visually distinct from and more severe than an ordinary blocker card (US-13.1, US-13.3) |
+| Primary | Finalize / Request-finalization action and its enabled/disabled state with reason | Persistent, bottom of screen — never scrolled out of view |
 | Primary | Current version number + "most recent" indicator once finalized (F23) | Directly beside the `FINALIZED` status badge |
-| Secondary | Per-row discrepancy flag and resolution actions | Inline within each flagged row |
+| Secondary | Clean section — lightweight cards for ready exhibits (added Phase 8, replaces the flat-table clean rows) | Beneath the Blockers section |
+| Secondary | Per-card discrepancy detail and resolution actions (Record ruling / Assign custodian / Remove from package) | Inline on each Blockers card face |
+| Secondary | Inline expandable acknowledge-reason textarea (added Phase 8) | Expands in place within the Blockers card it belongs to |
 | Secondary | Acknowledgment role-eligibility and permanent-record disclosure, and the full acknowledgment audit record (actor, role, timestamp, justification) once acknowledged | Inline, always visible — never hover/tooltip-only (US-14.1, US-14.2, US-14.3) |
+| Secondary | "Request finalization from Clerk" action / "Finalization requested by..." banner (added Phase 8, US-11.3) | Same position the Finalize control occupies, for non-finalizing roles; banner directly above Finalize for finalize-authorized roles |
 | Secondary | Version History (prior finalized versions + their independent export actions) (F23) | Collapsed by default, one click away from both Draft and Finalized states |
-| Tertiary | Exhibit status badges (all rows are `ADMITTED` by construction, so this is confirmatory, not discriminating) | Row-level, de-emphasized relative to the discrepancy column |
+| Tertiary | Exhibit status badges (all rows are `ADMITTED` by construction, so this is confirmatory, not discriminating) | Card-level, de-emphasized relative to the blocker detail |
 
 #### States
 
 | State | Appearance | User Feedback |
 |-------|------------|----------------|
-| Draft, zero discrepancies | All rows "✓ Clean"; Finalize button enabled (solid, primary color) | "All exhibits clean — ready to finalize" caption |
-| Draft, open discrepancies | Flagged rows amber with rule explanation + actions; Finalize button visibly disabled (greyed, non-clickable) with caption "{n} exhibit(s) have unresolved discrepancies" | Disabled state is a true HTML-disabled control, not a styled-but-clickable button that errors on click (US-11.2) |
-| Draft, discrepancy acknowledged | Row badge changes to a muted "Acknowledged by C. Chen (Clerk) · Oct 8, 2026, 3:10 PM: [full justification text]" state — actor, role, timestamp, and justification all shown in full, never truncated/summarized/hidden behind a secondary click (still visible, not cleared); counts toward "clean enough to finalize" per the gate's ACK/RESOLVED rule | Finalize button re-enables once all flags are ACK'd or RESOLVED (US-6.3, US-14.3) |
-| Acknowledge control — non-eligible role | No "Acknowledge" control rendered at all for roles outside `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` | Absent, not disabled or greyed-out — never an affordance the system won't honor (US-14.1) |
-| Acknowledge control — eligible role, before action | "Acknowledge" button visible with inline, always-on copy: "Acknowledging will be recorded as a permanent action under your name and role." Justification field labeled "Justification (recorded permanently)." | Disclosure is visible before the action is confirmed, not only after (US-14.1, US-14.2) |
-| Sealed/ex-parte exhibit present | Row rendered as a distinct "⛔ CRITICAL · ex parte material" blocker — never `✓ Clean`, never `⚠ Flagged` — independent of and taking precedence over the row's own `discrepancyStatus`; Finalize stays disabled while the row is present | Structurally impossible to mistake for an ordinary discrepancy or a clean row (US-13.1, US-13.3) |
-| Sealed/ex-parte exhibit — "Remove from Package" (eligible role) | `DEPUTY`/`CLERK`/`ADMIN` see an enabled "Remove from Package" action on the blocker row; `JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY` see the identical blocker row with no action control | Role gate is absence-based, matching the Acknowledge-control pattern (US-13.2, US-13.3) |
-| Sealed exhibit removed via remediation action | Row disappears from the active/included list immediately; an auditable "Removed by D. Reyes (Deputy) · Oct 8, 2026, 3:12 PM · reason: sealed/ex parte material" record is retained and visible (e.g., on Exhibit Detail's history) — the row is never silently deleted | Deliberate, auditable remediation, never a silent fix with no trace (US-13.2) |
+| Draft, zero discrepancies | Blockers section omitted entirely (or shows "Blockers (0)" collapsed); Clean section shows every included exhibit; progress banner reads calm green; Finalize button enabled (solid, primary color) | "All N exhibits clean — ready to finalize" caption on the progress banner |
+| Draft, open discrepancies | Blockers section populated with one card per blocking exhibit, each showing its rule explanation + specific action inline; progress banner reads amber "Not ready to finalize: N blockers"; Finalize button visibly disabled (greyed, non-clickable) | Disabled state is a true HTML-disabled control, not a styled-but-clickable button that errors on click (US-11.2) |
+| Draft, discrepancy acknowledged | Blocker card's badge changes to a muted "Acknowledged by C. Chen (Clerk) · Oct 8, 2026, 3:10 PM: [full justification text]" state — actor, role, timestamp, and justification all shown in full, never truncated/summarized/hidden behind a secondary click; card moves from Blockers to Clean on the next poll tick once counted as "clean enough to finalize" per the gate's ACK/RESOLVED rule | Finalize button re-enables once all flags are ACK'd or RESOLVED (US-6.3, US-14.3) |
+| Blockers card "Acknowledge ▾" expanded (added Phase 8) | Inline textarea grows within the card; always-on disclosure copy ("Acknowledging will be recorded as a permanent action under your name and role") renders above the textarea the instant it expands | Disclosure is visible before the action is confirmed, not only after an empty-submit attempt (US-14.1, US-14.2) |
+| Acknowledge control — non-eligible role | No "Acknowledge ▾" control rendered at all on a card for roles outside `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` | Absent, not disabled or greyed-out — never an affordance the system won't honor (US-14.1) |
+| Blockers card "Record ruling" / "Assign custodian" in-flight (added Phase 8) | Button shows a brief inline spinner; card's other controls remain visible but non-interactive | Prevents double-submit (US-24.1, US-24.2) |
+| Blockers card action rejected (e.g., `409 OBJECTION_ALREADY_RESOLVED`, `409 CUSTODY_CHAIN_BROKEN`) | Inline error within the card naming the specific rejection reason; card remains in the Blockers section unchanged | Never a silent failure — matches the reject-with-reason pattern (US-24.1, US-24.2) |
+| Sealed/ex-parte exhibit present | Rendered as a distinct "⛔ CRITICAL · ex parte material" card at the top of the Blockers section — never in the Clean section, never an ordinary amber blocker card — independent of and taking precedence over the exhibit's own `discrepancyStatus`; Finalize stays disabled while the card is present | Structurally impossible to mistake for an ordinary discrepancy or a clean exhibit (US-13.1, US-13.3) |
+| Sealed/ex-parte exhibit — "Remove from Package" (eligible role) | `DEPUTY`/`CLERK`/`ADMIN` see an enabled "Remove from Package" action on the CRITICAL card; `JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY` see the identical card with no action control | Role gate is absence-based, matching the Acknowledge-control pattern (US-13.2, US-13.3) |
+| Sealed exhibit removed via remediation action | Card disappears from the Blockers section immediately; an auditable "Removed by D. Reyes (Deputy) · Oct 8, 2026, 3:12 PM · reason: sealed/ex parte material" record is retained and visible (e.g., on Exhibit Detail's history) — the record is never silently deleted | Deliberate, auditable remediation, never a silent fix with no trace (US-13.2) |
 | Finalizing (in-flight) | Finalize button shows a brief inline spinner/"Finalizing..." label | Prevents double-submit |
-| Finalize rejected (stale client state) | Inline error banner lists the specific blocking exhibits; button re-disables; affected rows re-flag | Never a generic "error occurred" — always names the blocking exhibit(s) (US-5.2) |
+| Finalize rejected (stale client state) | Inline error banner lists the specific blocking exhibits; button re-disables; affected exhibits reappear as Blockers cards | Never a generic "error occurred" — always names the blocking exhibit(s) (US-5.2) |
+| Non-finalizing role views Draft (added Phase 8, US-11.3) | "Request finalization from Clerk" renders in the position Finalize would otherwise occupy | Never a disabled control with no path forward for this role (US-11.3) |
+| Request finalization — in flight | Button shows a brief inline spinner/"Requesting..." label | Prevents double-submit |
+| Request finalization — success | Button becomes "Finalization requested" (disabled, confirmatory) until the request is cleared by a subsequent finalize | Confirms the request was recorded, not merely attempted (US-11.3) |
+| Request finalization — outstanding, viewed by finalize-authorized role (added Phase 8) | "Finalization requested by {requesterName} at {time}" banner renders directly above the Finalize control | Surfaced exactly where the requested action would be taken, not on a separate notifications page (US-11.3) |
+| A finalize-authorized role attempts to call request-finalization directly (`403 ROLE_NOT_PERMITTED`) | Control is never rendered for this role in the first place (they see Finalize, not Request); a direct API attempt is independently rejected | "This role can finalize directly and does not need to request it" (US-11.3) — defense-in-depth backstop, not the primary guard |
 | Finalized | Status badge turns to a calm green "FINALIZED · Version N (most recent) ✓ Zero discrepancies" banner; all acknowledge/resolve/remove controls disappear; "Export as PDF," "Start New Draft," and "View Version History" appear | This is the explicit, now-versioned "zero discrepancies" confirmation stamped for the record, satisfying JRN-01.2's acceptance moment; the version number makes clear this is a permanent, independently-retrievable snapshot, not a one-shot replaceable state (US-23.1) |
 | Exporting (in-flight) | "Export as PDF" shows a brief inline spinner/"Generating PDF..." label | A real server-generated file download begins on completion — never a browser print dialog (US-23.2) |
 | Export attempted on a draft (`JURY_PACKAGE_EXPORT_NOT_FINALIZED`) | Export control is hard-disabled on any `DRAFT` package shown in the Version History list, never merely hidden | Matches F5's existing hard-gate pattern rather than erroring only after a click (US-23.2) |
@@ -716,22 +1020,26 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 
 | Element | Type | Behavior |
 |---------|------|----------|
-| "Finalize Jury Package" | Primary action button | Disabled whenever any row is `FLAGGED` + `OPEN`; on click, triggers fresh server-side re-validation before committing (US-5.2, US-11.2) |
-| "Fix →" link on a flagged row | Contextual link | Navigates to that exhibit's Exhibit Detail View to resolve the underlying condition |
-| "Acknowledge" button on a flagged row | Action, opens inline justification field | Same acknowledgment flow as Exhibit Detail View (US-6.3); rendered only for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` — absent, not disabled, for other roles; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed; justification field labeled "Justification (recorded permanently)" (US-14.1, US-14.2) |
-| "Remove from Package" button on a sealed/ex-parte blocker row | Action, confirmation step | Rendered only for `DEPUTY`/`CLERK`/`ADMIN` — absent for other roles; appends an immutable, auditable exclusion event and removes the row from the active list, retaining it for audit (never deletes it); unavailable once the package is `FINALIZED` (US-13.2) |
+| "Finalize Jury Package" | Primary action button | Disabled whenever any Blockers card exists; on click, triggers fresh server-side re-validation before committing (US-5.2, US-11.2); rendered only for `DEPUTY`/`CLERK`/`ADMIN` — see "Request finalization from Clerk" below for other roles |
+| "Record ruling" on a Blockers card (added Phase 8, F24) | Inline write action | Opens the ruling disposition form for that card's specific `objectionId`; rendered only for `JUDGE`; `data-testid="jury-package-blocker-record-ruling-button"` (US-24.1) |
+| "Assign custodian" on a Blockers card (added Phase 8, F24) | Inline write action | Opens the first-assignment/propose form for that card's exhibit; rendered only for `DEPUTY`/`CLERK`/`ADMIN`; `data-testid="jury-package-blocker-assign-custodian-button"` (US-24.2) |
+| "Acknowledge ▾" button on a Blockers card | Action, expands inline justification textarea in place | Same acknowledgment flow as Exhibit Detail View (US-6.3); rendered only for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` — absent, not disabled, for other roles; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed; justification field labeled "Justification (recorded permanently)"; `data-testid="jury-package-blocker-acknowledge-textarea"` (US-14.1, US-14.2) |
+| "Remove from Package" button on the sealed/ex-parte CRITICAL card | Action, confirmation step | Rendered only for `DEPUTY`/`CLERK`/`ADMIN` — absent for other roles; appends an immutable, auditable exclusion event and removes the card from the Blockers section, retaining the record for audit (never deletes it); unavailable once the package is `FINALIZED` (US-13.2) |
+| "Request finalization from Clerk" (added Phase 8, F11, US-11.3) | Primary action button (in place of Finalize) | Rendered only for roles outside F20's finalize-authorized set (`JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY`); calls `POST /api/jury-package/:id/request-finalization`; never finalizes, never bypasses the discrepancy gate; `data-testid="request-finalization-button"` |
 | "Export as PDF ⬇" (any `FINALIZED` version) | Action | Calls `GET /api/jury-package/:id/export`, streams back a real `application/pdf` file and triggers a browser download — replaces the prior `window.print()`-based "Export / Print" control entirely; available to every viewing role; hard-disabled (never merely hidden) for a `DRAFT` package (US-23.2) |
 | "Start New Draft" (finalized state only) | Action | Creates a new `DRAFT` `JuryPackage` for the case, independent of and without altering the just-finalized version; rendered only for `DEPUTY`/`CLERK`/`ADMIN` (same role set as Finalize, unchanged by F20) — absent otherwise (US-23.1) |
 | "View Version History ▾" | Disclosure toggle | Expands the per-case list of every `FINALIZED` version plus the current `DRAFT` (if any), each with its own independent "Export as PDF" action and an `isMostRecent` indicator on exactly one row; available to every viewing role from both Draft and Finalized states (US-23.3) |
-| Exhibit row (any state) | Click target | Navigates to Exhibit Detail View for full context |
+| Blockers / Clean card (any state) | Click target | Navigates to Exhibit Detail View for full context — same click-through behavior the prior table's row offered |
 
-**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce. The sealed/ex-parte exclusion (F13/F16) is structural at the candidate-query level, not a client-side filter — this screen's "Remove from Package" action exists purely as an auditable remediation path for the regression/legacy-data case, never as the primary mechanism keeping sealed material out of the package. As of Phase 7.1 (F23), finalization is no longer a one-shot action that replaces the draft in place — it mints a new, immutable, numbered version and leaves every prior version independently retrievable and exportable; "Start New Draft" is the explicit action that begins the next version's lifecycle, never an automatic side effect of finalizing.
+**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):** `jury-package-progress-banner`, `jury-package-blockers-section`, `jury-package-blocker-card`, `jury-package-blocker-acknowledge-textarea`, `jury-package-blocker-record-ruling-button`, `jury-package-blocker-assign-custodian-button`, `jury-package-clean-section`, `jury-package-clean-card`, `request-finalization-button`, `finalization-requested-banner` — all additive; the pre-existing `jury-exhibit-row` selector family referenced by the Phase 1–7 Playwright suite (per US-24.3's named example) must continue to resolve against whatever element the card layout uses for its equivalent row/card, so the suite passes unmodified.
+
+**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce. The sealed/ex-parte exclusion (F13/F16) is structural at the candidate-query level, not a client-side filter — this screen's "Remove from Package" action exists purely as an auditable remediation path for the regression/legacy-data case, never as the primary mechanism keeping sealed material out of the package. As of Phase 7.1 (F23), finalization is no longer a one-shot action that replaces the draft in place — it mints a new, immutable, numbered version and leaves every prior version independently retrievable and exportable; "Start New Draft" is the explicit action that begins the next version's lifecycle, never an automatic side effect of finalizing. As of Phase 8, the Blockers/Clean card layout and the "Request finalization from Clerk" path are presentation- and workflow-additive only — F5's discrepancy gate, F13's structural exclusion, and F20's role matrix are unchanged and remain the sole source of what is actually enforced server-side.
 ### Screen: Pivota Assistant (Conversational UI)
 
 **Purpose:** The universal, natural-language entry point to every fact in the system — the single feature the entire demo's success depends on (PRD F7). Available two ways: as a slide-over panel from any screen, and as a dedicated full-page view for sustained, longer review sessions (e.g., the administrator's evaluation walkthrough, JRN-04.1).
 **User Stories:** US-7.1, US-7.2, US-7.3, US-7.4, US-15.2
 **Journeys:** JRN-01.1, JRN-02.1, JRN-02.2, JRN-03.1, JRN-04.1 — the Assistant is the one touchpoint common to every journey in the product.
-**Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask ✦" button (slide-over, present on every screen)
+**Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask Pivota" button (slide-over, present on every screen)
 
 #### Layout — Slide-Over Panel (default, lightweight entry point)
 
@@ -767,7 +1075,7 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync   [Case: 2026-CR-0142]      [Role: Admin ▾]  [Ask ✦]│
+│ JudicialSync   [Case: 2026-CR-0142]      [Role: Admin ▾]  [Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Pivota Assistant                                │
 │ Case          │  ┌────────────────────────────────────────────┐  │
@@ -821,7 +1129,7 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 | Send button / Enter key | Submit | Triggers `useChat` streaming request tagged with current role/session |
 | Example-question chip (empty state) | Tappable suggestion | Pre-fills and can auto-submit the chip's question — zero-typing path for a first-time demo viewer |
 | Citation pill | Link | Navigates to the cited record's home screen (Exhibit Detail View), event highlighted |
-| "Ask ✦" header button (global) | Toggle | Opens/closes the slide-over panel from any of the other four screens without losing that screen's state underneath |
+| "Ask Pivota" header button (global) | Toggle | Opens/closes the slide-over panel from any of the other four screens without losing that screen's state underneath |
 | Conversation history scrollback | Passive | Full session history persists and is reviewable (supports PER-04's audit use case, US-7.2) |
 
 **Tone and copy guidelines (reinforces conversational positioning):**
@@ -841,7 +1149,7 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask ✦]│
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾] [Ask Pivota]│
 ├───────────────┬──────────────────────────────────────────────────┤
 │ Command Ctr   │  Pending-Ruling Queue          🕐 updated 2s ago  │
 │ Case          │  Sorted: longest-waiting first                   │
@@ -894,14 +1202,14 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 |---------|------|----------|
 | Ruling action (Sustained / Overruled / Reserved) | Inline action, 1 of 3 options per row | Calls the existing `POST /api/objections/:id/ruling` (F02) for that specific objection thread; `SUSTAINED`/`OVERRULED` closes the thread (row disappears next poll), `RESERVED` keeps it unresolved (row remains, elapsed time keeps counting) — identical behavior and role gate (`JUDGE`-only, unchanged by F20) to the ruling action already specified on Exhibit Detail View (US-21.2, US-2.2) |
 | "View exhibit history →" | Link-through | Navigates to the Exhibit Detail View (F10) for full context before ruling — same destination as every other drill-through path in the product |
-| "Ask ✦" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
+| "Ask Pivota" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
 
 **Explicitly scoped as judge-only, not merely judge-emphasized (F21):** unlike every other screen in this document, this screen has no "viewed by a non-finalizing/non-acting role" state to specify, because no other role is ever given a navigation path to it at all — there is no judge-only *content* with a read-only fallback for other roles, as there is on the Jury Package Workspace; the entire screen is judge-exclusive by design.
 
 **No new backend surface:** this screen introduces no new endpoint, no new schema, and no new validation — it is a new client-side screen (sort + live-recomputed elapsed time + role-gated nav entry) over F02's existing, unchanged `getUnresolvedObjections(caseId)` response, additively widened with `exhibitLabel` via a read-time join (F21).
 ## Interaction Patterns
 
-**Design System (as of Phase 6):** All patterns below are implemented using IBM Carbon Design System (carbondesignsystem.com) components and design tokens, replacing the prior Tailwind/shadcn visual foundation. The interaction guarantees described in each pattern are unchanged from that prior implementation — only the underlying component/styling layer changed, not the behavior.
+**Design System (as of Phase 6, re-themed Phase 8):** All patterns below are implemented using IBM Carbon Design System (carbondesignsystem.com) components. The component layer and every interaction guarantee described in each pattern is unchanged since Phase 6. **Phase 8 amendment:** the visual *theme* layered on top of Carbon changes from the original Carbon-light theme to a reviewed dark-dashboard theme (dark-navy sidebar, light content area, rounded-corner card panels) — see `00-overview.md` §Visual Foundation. This is a token/styling migration only, exactly like the Phase 6 Carbon migration before it: no pattern's behavior, role-gating, or `data-testid`/`aria-label` contract changes as a result (US-24.3).
 
 ### Pattern: Inline Row Actions (not modal forms)
 
@@ -1056,25 +1364,57 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 **Behavior:** The case identifier (`[Case: 2026-CR-0142]`) becomes an interactive dropdown (`[Case: 2026-CR-0142 ▾]`) in the exact same header slot — no change to header width or the ordering of the other header elements (Case → Discrepancy count → Role → Ask). Opening it lists every case in the system with no role restriction (case existence is not sensitive — only exhibit-level classification/sealed visibility is, and that is unaffected by case selection). Selecting a different case triggers an immediate refetch on every currently-open screen and the assistant's working context, using the same refetch mechanism already wired to role switches — no screen is allowed to continue silently displaying data scoped to the previously-selected case, even for a single frame. On first load with no prior selection, defaults to the first case by `createdAt` ascending, so the original single-case demo script requires zero interaction with this control.
 **Examples:** App header case selector (US-22.1, US-22.2, US-22.3).
 **Rationale:** JOURNEYS' administrator persona (JRN-04.1 "Switch Cases and Confirm Isolation") treats any observed stale-data carryover during a case switch as a disqualifying finding for the entire product, not a minor bug — the refetch-everything-immediately behavior is therefore a hard requirement of this pattern, not an optimization.
+
+---
+
+### Pattern: Severity Tier Badge (F08, Phase 8)
+
+**When to use:** Any entry in the Command Center's "Needs your attention" feed, and anywhere else a severity tier (`CRITICAL`/`HIGH`/`PENDING`/`MEDIUM`) is rendered.
+**Behavior:** A fixed color mapping, applied identically everywhere a tier renders, never introduced ad hoc per-screen: `CRITICAL` = dark red, `HIGH` = amber, `PENDING` = amber-light (a lighter/desaturated amber, deliberately distinct from `HIGH`'s amber at a glance), `MEDIUM` = yellow. As with the Status Badge Visual Convention pattern, color is never the sole signal — the tier word itself ("Critical," "High," "Pending," "Medium") always renders as visible text alongside the badge, and an `aria-label` (e.g., `aria-label="Severity: Critical"`) carries the same information to assistive technology. Tiers are never interleaved in a ranked list: every `CRITICAL` entry renders before any `HIGH` entry, every `HIGH` before any `PENDING`, and so on — this pattern governs the badge's *appearance*, not the list's sort order (see F08 §Process step 5 for the sort rule itself).
+**Examples:** Command Center "Needs your attention" feed entries (US-8.4).
+**Rationale:** A judge scanning the feed under time pressure needs the highest-severity item to be visually unmistakable without reading every row's text first — a single shared badge component (not a per-tier bespoke treatment) is what guarantees `CRITICAL` always reads as more urgent than `MEDIUM` at a glance, consistently, everywhere it appears.
+
+---
+
+### Pattern: Attention Feed Inline Action (F24, Phase 8)
+
+**When to use:** The "Record ruling" and "Transfer custody"/"Assign custodian" controls on a Command Center attention-feed entry — the two write actions that supersede Phase 5's strictly-read-only Command Center constraint (see `00-overview.md` Design Principle 4 and `Screen-00-trial-command-center.md`'s "Design decision supersedes a prior constraint" note).
+**Behavior:** Clicking the action button expands an inline form directly within the feed entry — never a modal, never a navigation away from the Command Center — following the same "inline, not modal" spirit as the Inline Row Actions pattern. The form always requires an explicit, distinct confirm step before the underlying write request is sent; no selection (e.g., picking a disposition or a custodian) auto-submits by itself. The button itself renders only for an F20-authorized role for that specific action (`JUDGE` for "Record ruling"; `DEPUTY`/`CLERK`/`ADMIN` for "Assign custodian"/"Transfer custody") — absent, not disabled, for any other role, per the Role-Gated Control Visibility pattern. On success, the entry does not optimistically disappear or update — it waits for the next live-sync poll tick to confirm the new ledger state, then either fades out (ruling resolved) or re-ranks (reserved ruling; custody re-evaluated under a new condition). On failure, the specific rejection reason (e.g., `409 OBJECTION_ALREADY_RESOLVED`, `409 CUSTODY_CHAIN_BROKEN`) renders inline within the still-open form, matching the Multi-Reason Blocking Error pattern's "name the specific reason" spirit, and the entry remains in the feed unchanged.
+**Examples:** Command Center "Needs your attention" feed — "Record ruling" (`HIGH`/`PENDING` tiers), "Assign custodian" (`MEDIUM` tier) (US-24.1, US-24.2).
+**Rationale:** The PRD's own risk register (§8) names "Command Center's new inline write actions triggered accidentally from what was designed as a passive glance screen" as a medium-impact risk; the explicit-confirm-required rule and the no-optimistic-update rule are this pattern's two direct mitigations, and both must hold even though this is the one part of the Command Center no longer strictly read-only.
+
+---
+
+### Pattern: Readable Flag Pill (Design Principle 7, Phase 8)
+
+**When to use:** Any indicator that previously relied on an icon alone to convey an exhibit's flagged/blocked condition — currently Case Workspace's "Flags" column (renamed from a bare discrepancy icon) and the Jury Package eligibility badge.
+**Behavior:** Every such indicator pairs a short, specific, readable text label with its color treatment — "Ruling pending," "No custodian," "Open objection," "Ex parte · restricted," "Included," "Not eligible," "Blocked" — rather than an icon or color swatch requiring a hover/click to interpret. Multiple simultaneous conditions on the same row render as multiple stacked pills, never collapsed into one generic warning glyph. This does not change any underlying discrepancy/eligibility computation — it is a rendering-layer requirement layered on top of the existing Discrepancy Flag Treatment pattern, not a replacement for it (the amber/color semantics of that pattern are unchanged; this pattern adds the mandatory label).
+**Examples:** Case Workspace Flags column (amended Phase 8), Case Workspace and Exhibit Detail Jury Package eligibility badges (added Phase 8).
+**Rationale:** Design Principle 5 ("plain language over raw data") already governs ledger-event rendering; Phase 8's UX review found the same principle was not yet applied to flag/status iconography — a judge or deputy glancing at a row with an unfamiliar icon has to stop and hover, which is exactly the "glance, don't drill in" friction the rest of this document works to eliminate.
 ## Responsive Considerations
 
 Per PROJECT.md §Out of Scope, JudicialSync targets **web/desktop screens only** — no mobile-native app is in scope. However, a judge's bench tablet (JRN-01.2: "Opens the Trial Command Center on the bench tablet during a two-minute recess") is an explicitly named real-world touchpoint, so tablet-width responsiveness is a first-class concern even though mobile phone layouts are not.
 
 ### Desktop (>1024px) — Primary Design Target
 
-- Full sidebar (labeled icons + text) always visible, pinned left.
+- Full sidebar (labeled icons + text, dark-navy background as of Phase 8) always visible, pinned left.
 - Case Workspace and Jury Package Workspace render full multi-column tables with all fields visible without horizontal scroll.
 - The Pivota Assistant slide-over panel occupies roughly 30% of viewport width, docked right, with the underlying screen dimmed but still visible for context.
-- Exhibit Detail View renders the header block and timeline in a single generous-width column (timelines are inherently vertical; no benefit to a two-column layout here); the pending-custody banner (F19) spans the same column width as the status/custodian line it temporarily replaces, never introducing a second column.
+- Exhibit Detail View (amended Phase 8): renders as **two columns** — the left column keeps the header block and timeline at generous width (timelines are inherently vertical; no benefit to splitting this further); the right column is the fixed-width, three-card rail (Objection / Chain of Custody / Jury Package checklist), stacked vertically and visible without scrolling at this breakpoint; the pending-custody banner (F19) spans the left column's full width, replacing the status/custodian line it temporarily substitutes, never bleeding into the right rail.
+- Trial Command Center (amended Phase 8): the stat-card row renders as four equal-width cards in a single row; the status-distribution bar spans the full content width beneath it; the "Needs your attention" feed, Jury Package summary widget, and Custody-at-a-Glance panel each render at full readable width with no truncation of severity badges or custodian names.
+- Jury Package Workspace (amended Phase 8): Blockers and Clean cards render in a single-column stack (not a grid) at this breakpoint, matching the inline-expandable-textarea interaction's need for full card width when a card's Acknowledge disclosure is open.
 - The Pending-Ruling Queue (F21, judge-only) renders as a single generous-width column of rows, each row's three ruling-action buttons laid out horizontally inline — no drill-in required to act, consistent with it being a triage screen, not a browse screen.
 - The header's Case Selector (F22) opens as a simple dropdown anchored to its header slot — it does not reflow or widen the header bar at any desktop width.
 
 ### Tablet (768px–1024px) — Judge's Bench Device, High Priority
 
 - Sidebar collapses to icon-only (labels on tap/hover) to preserve content width — this is the primary device for JRN-01.2's "glance during recess" moment, so Command Center legibility at this width is tested explicitly.
-- Case Workspace and Jury Package Workspace tables drop lower-priority columns first (description, source) while keeping status badge, custodian, and discrepancy indicator — the three fields a judge glancing mid-recess needs most (US-9.1 information hierarchy).
+- Case Workspace and Jury Package Workspace tables drop lower-priority columns first (description, source) while keeping status badge, custodian, and discrepancy indicator — the three fields a judge glancing mid-recess needs most (US-9.1 information hierarchy). **Amended Phase 8:** the Jury Package eligibility column and the Flags text pills are treated as equal-priority to status/custodian and are also retained at this breakpoint — a judge glancing at the bench needs "is this blocked" as much as "what's its status."
+- Trial Command Center (amended Phase 8): the four-card stat row wraps to a 2×2 grid rather than scrolling horizontally; the status-distribution bar's legend wraps beneath the bar instead of staying single-line; the Jury Package summary widget and Custody-at-a-Glance panel stack vertically (one above the other) rather than side-by-side, preserving full-width legibility for each over a cramped two-column squeeze.
+- Exhibit Detail View (amended Phase 8): the two-column desktop layout collapses to a single column — the right-rail cards (Objection, Chain of Custody, Jury Package checklist) render stacked beneath the timeline, each at full width, rather than beside it, since a judge's tablet-width viewport cannot comfortably support two full-width columns simultaneously.
+- Jury Package Workspace (amended Phase 8): Blockers cards retain their full inline-expandable-textarea width (never truncated), since the Acknowledge action is a judge-reachable control (per F6's role set including `JUDGE`) and must remain fully usable on the bench device.
 - The Pivota Assistant slide-over expands to ~60% of viewport width at this breakpoint (text legibility matters more than preserving background-screen visibility on a smaller canvas) — reinforces that on the bench, asking a question is the primary action, not a secondary overlay.
-- Touch targets (row actions, citation pills, Finalize button) sized to a minimum 44×44px tap area, since a judge on a tablet may be using touch rather than a trackpad.
+- Touch targets (row actions, citation pills, Finalize button, and — added Phase 8 — attention-feed inline action buttons and Blockers-card action buttons) sized to a minimum 44×44px tap area, since a judge on a tablet may be using touch rather than a trackpad.
 - The Pending-Ruling Queue's three ruling-action buttons (Sustained/Overruled/Reserved) retain the same 44×44px minimum tap target at this breakpoint, since this screen exists specifically for the judge's bench-tablet use case (JRN-01.2 "Check the Pending-Ruling Queue") and is never expected to be used at desktop-only precision.
 
 ### Mobile (<768px) — Out of Scope, Graceful Degradation Only
@@ -1091,6 +1431,9 @@ Accessibility is directly tied to this product's core claim — a judge ruling l
 - Status badges (`MARKED`/`OFFERED`/`OBJECTED`/`ADMITTED`/`EXCLUDED`/`WITHDRAWN`) never rely on color alone — each pairs a distinct color with a filled/outlined dot shape AND the status word as text, so the distinction holds for colorblind users and in grayscale print/export (relevant to the Jury Package Workspace's export feature).
 - Discrepancy amber and the "finalized/clean" green meet WCAG AA contrast ratios (4.5:1 minimum for text) against their panel backgrounds.
 - The decline-response styling in the Assistant is distinguished from a grounded answer by the *presence/absence of a citation pill*, not by color alone — ensuring the distinction is legible to screen-reader users and colorblind users alike.
+- **Severity Tier Badges (added Phase 8):** `CRITICAL` (dark red), `HIGH` (amber), `PENDING` (amber-light), `MEDIUM` (yellow) each meet WCAG AA contrast against the card background they render on, and — critically, since `HIGH` and `PENDING` are both amber-family — the tier word itself always renders as visible text alongside the badge, so the two tiers remain distinguishable for colorblind users even where the color difference alone might not be, per `Y0-patterns.md` §Pattern: Severity Tier Badge.
+- **Dark-dashboard sidebar contrast (added Phase 8):** the dark-navy sidebar's text/icon labels meet WCAG AA contrast (4.5:1 minimum) against the navy background; the content area to the right of the sidebar remains light, so no body text, table cell, or timeline entry inherits reduced contrast from the sidebar's dark theme — only the sidebar and card chrome use the dark palette (`00-overview.md` §Visual Foundation).
+- **Jury Package eligibility / Flags text pills (added Phase 8):** `Included`/`Not eligible`/`Blocked` and the Flags column's readable labels ("Ruling pending," "No custodian," etc.) pair their color coding with the label text itself, meeting the same "never color alone" requirement already applied to status badges and discrepancy treatment (`Y0-patterns.md` §Pattern: Readable Flag Pill).
 
 ### Keyboard Navigation
 
@@ -1100,6 +1443,8 @@ Accessibility is directly tied to this product's core claim — a judge ruling l
 - The Pivota Assistant input is keyboard-first by design: Enter submits, Shift+Enter inserts a newline for longer questions, and the example-question chips are Tab-reachable and Enter-activatable.
 - The "Finalize Jury Package" disabled state is exposed via the native `disabled` attribute (not just a CSS class), so assistive technology correctly announces it as unavailable rather than silently skipping it or announcing it as clickable.
 - Citation pills are real `<a>`/button elements in the DOM tab order, never a styled `<span>` requiring a mouse click.
+- **Added Phase 8:** the Command Center attention feed's inline action buttons ("Record ruling," "Assign custodian"/"Transfer custody"), the Custody-at-a-Glance panel's per-exhibit "Transfer custody" entry points, the Jury Package widget's "Open jury package →" link, every Blockers-card action ("Record ruling," "Assign custodian," "Remove from Package," "Acknowledge ▾"), the inline acknowledge-reason textarea, the "Request finalization from Clerk" button, the Exhibit Detail header's "Transfer custody" and "Ask Pivota about {label}" buttons, and the Case Workspace quick-filter chip row are all independently Tab-reachable and Enter/Space-activatable, in a tab order matching each surface's visual top-to-bottom, left-to-right layout.
+- **Added Phase 8:** the Recent Activity filter pills behave as a standard keyboard-operable toggle group — arrow keys move between pills, Enter/Space selects, matching native ARIA `tablist`/`radiogroup` conventions for a mutually-exclusive selection.
 
 ### Screen Reader Considerations
 
@@ -1109,6 +1454,9 @@ Accessibility is directly tied to this product's core claim — a judge ruling l
 - The sealed-exhibit "not found" page uses identical markup/ARIA structure to a genuine 404, so assistive technology cannot be used to infer a difference that sighted UI also doesn't reveal (preserving US-10.2's non-disclosure guarantee across modalities).
 - The pending-custody-transfer banner (F19) uses a `role="status"` region (informational, not an error) distinct from the `role="alert"` used by discrepancy banners, so screen-reader users do not perceive an in-progress handoff as a problem requiring urgent attention.
 - The Pending-Ruling Queue's elapsed-wait-time values update their text content on each live-sync tick inside a polite `aria-live` region scoped to the row, not the whole list, so a screen-reader user isn't re-announced the entire queue every 3–5 seconds — only the row(s) whose wait time or presence actually changed.
+- **Added Phase 8:** the Command Center "Needs your attention" feed uses the same scoped-`aria-live` pattern as the Pending-Ruling Queue — an entry appearing, re-ranking, or clearing announces only that entry, not the whole feed, on each poll tick.
+- **Added Phase 8:** a Jury Package Blockers card moving to the Clean section (after a fix or acknowledgment) is announced via a polite `aria-live` region scoped to the Blockers/Clean section boundary, so a screen-reader user hears "exhibit moved to Clean" without the entire card list being re-announced.
+- **Added Phase 8:** an attention-feed or Blockers-card inline action's success/failure outcome is announced via a polite `aria-live` region local to that entry/card — a rejection reason is read aloud the same way a sighted user sees the inline error text, never silently left for visual-only discovery.
 
 ### ARIA Labels Needed
 
@@ -1119,3 +1467,8 @@ Accessibility is directly tied to this product's core claim — a judge ruling l
 - Landmark roles (`nav` for the sidebar, `main` for screen content, `complementary` for the Assistant slide-over panel) so keyboard and screen-reader users can jump directly between the app shell's regions.
 - `aria-label` on the header Case Selector stating the full current case identifier (e.g., `aria-label="Active case: 2026-CR-0142, click to switch cases"`), not just the visible truncated text.
 - The sidebar's "Pending Rulings" entry, when rendered (judge role only), carries no special ARIA distinction from any other sidebar item — its role-gated absence for other roles is itself the accessibility-relevant behavior (a screen reader for a non-judge role simply never encounters it in the nav list, consistent with the "absent, not disabled" principle applied visually).
+- **Added Phase 8:** `aria-label` on each severity badge stating the full tier in words (e.g., `aria-label="Severity: Critical"`), per `Y0-patterns.md` §Pattern: Severity Tier Badge — mirrors the existing status-badge `aria-label` convention above.
+- **Added Phase 8:** `aria-label` on each Jury Package eligibility badge and Flags pill stating the full condition in words (e.g., `aria-label="Jury package eligibility: Blocked"`, `aria-label="Flag: No custodian of record"`) — per `Y0-patterns.md` §Pattern: Readable Flag Pill.
+- **Added Phase 8:** `aria-pressed` on each Case Workspace quick-filter chip and each Recent Activity filter pill, reflecting single-select toggle-group state for assistive technology.
+- **Added Phase 8:** `aria-expanded` on each Blockers card's "Acknowledge ▾" disclosure control, reflecting whether the inline justification textarea is currently expanded.
+- **Added Phase 8:** `aria-describedby` linking the Command Center attention feed's inline action buttons to the entry's underlying condition text (e.g., the "Record ruling" button is described by the objection's grounds/elapsed-time text), so a screen-reader user activating the control understands which specific objection it will act on without needing to have just read the preceding row.
