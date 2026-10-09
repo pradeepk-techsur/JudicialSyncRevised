@@ -161,7 +161,7 @@ Plans:
 - [ ] 07-06-PLAN.md — F14 discrepancy acknowledgment transparency: read-time justification join + always-visible disclosure + full audit record rendering
 - [ ] 07-07-PLAN.md — F13 exclude workflow: excludeJuryPackageExhibit service/route + Jury Package Workspace CRITICAL row + Remove-from-Package UI
 
-**Status**: Verified
+**Status**: Passed
 ### Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
@@ -185,5 +185,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
-| 7. Fix admission integrity and UI usability issues | 7/7 | Verified | — |
+| 7. Fix admission integrity and UI usability issues | 7/7 | Passed | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
