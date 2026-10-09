@@ -1,9 +1,11 @@
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { AdmissionBlockedError } from '@/lib/errors';
 import { getUnresolvedObjections } from '@/services/objections';
+import { getDiscrepancies } from '@/services/discrepancies';
 import { recordStatusChange } from '@/services/status';
 import { runSeed } from '@/data/seed';
 
@@ -211,5 +213,68 @@ describe('seed loader (F0a)', () => {
     for (const pattern of bannedWrites) {
       expect(code).not.toMatch(pattern);
     }
+  });
+
+  it('legacyAdmitForDemo is confined to seed.ts (grep-audited, mirrors T-07-05 for forceAdmitBypassingGate)', () => {
+    // EXPLICIT SECURITY/GAP-CLOSURE AUDITOR FLAG (CONTEXT.md): the seed-only
+    // legacy-admit helper deliberately skips F12's admission gate. It is a
+    // NARRATIVE device, never a live capability — so it must be reachable from
+    // NOWHERE but seed.ts. This grep proves that, among all NON-TEST source
+    // files, exactly one references it: seed.ts. Test files are excluded from the
+    // confinement scope because they are not a reachable import path (this very
+    // audit file names the symbol to assert on it) — the same carve-out T-07-05
+    // uses, where forceAdmitBypassingGate is allowed to live only in *.test.ts.
+    // The suite fails the moment any route / service / component imports it.
+    const output = execSync(
+      `grep -rln "legacyAdmitForDemo" src --include="*.ts" --include="*.tsx"`,
+      { encoding: 'utf-8' },
+    ).trim();
+    const files = output
+      .split('\n')
+      .filter(Boolean)
+      .filter((f) => !/\.test\.tsx?$/.test(f));
+    expect(files).toEqual(['src/data/seed.ts']);
+  });
+
+  it('plants P-6/P-7 as ADMITTED legacy fixtures firing their F6 rules through the live engine', async () => {
+    const { caseId } = await runSeed();
+
+    // Both new fixtures reached ADMITTED (via the seed-only legacy-admit helper).
+    const states = await prisma.exhibitCurrentState.findMany({
+      where: { exhibit: { caseId, exhibitLabel: { in: ['P-6', 'P-7'] } } },
+      select: { currentStatus: true, exhibit: { select: { exhibitLabel: true } } },
+    });
+    const statusByLabel = new Map(
+      states.map((s) => [s.exhibit.exhibitLabel, s.currentStatus]),
+    );
+    expect(statusByLabel.get('P-6')).toBe('ADMITTED');
+    expect(statusByLabel.get('P-7')).toBe('ADMITTED');
+
+    // The case-wide discrepancy feed (as a JUDGE, who can see every exhibit)
+    // includes BOTH new OPEN flags — produced by the LIVE engine inside
+    // legacyAdmitForDemo, not synthesized.
+    const flags = await getDiscrepancies(caseId, 'JUDGE');
+
+    const p6Exhibit = await prisma.exhibit.findFirst({
+      where: { caseId, exhibitLabel: 'P-6' },
+      select: { id: true },
+    });
+    const p7Exhibit = await prisma.exhibit.findFirst({
+      where: { caseId, exhibitLabel: 'P-7' },
+      select: { id: true },
+    });
+
+    const p6Flag = flags.find(
+      (f) => f.exhibitId === p6Exhibit!.id && f.ruleCode === 'ADMITTED_NO_CUSTODIAN',
+    );
+    const p7Flag = flags.find(
+      (f) =>
+        f.exhibitId === p7Exhibit!.id && f.ruleCode === 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+    );
+
+    expect(p6Flag).toBeTruthy();
+    expect(p6Flag?.status).toBe('OPEN');
+    expect(p7Flag).toBeTruthy();
+    expect(p7Flag?.status).toBe('OPEN');
   });
 });

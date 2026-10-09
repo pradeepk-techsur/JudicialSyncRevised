@@ -574,20 +574,23 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
 /**
  * Verify the deliberately-planted fixtures are present: the unresolved-objection
  * fixture (P-1), the two F12 admission-blockable fixtures (P-2 single-reason /
- * P-3 dual-reason), AND Phase 2's sealed-exhibit role-based-visibility fixture.
- * Each must hold or the seed is rejected (SeedIntegrityError → caller rolls back
- * the entire partial seed).
+ * P-3 dual-reason), Phase 2's sealed-exhibit role-based-visibility fixture, AND
+ * (Phase 8, F08/F24) the two legacy-admit fixtures P-6/P-7 that each fire their
+ * target F6 discrepancy rule through the LIVE engine. Each must hold or the seed
+ * is rejected (SeedIntegrityError → caller rolls back the entire partial seed).
  *
  * NOTE (F12): the former "≥1 OPEN ADMITTED_NO_CUSTODIAN flag" / "≥1 OPEN
- * UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag" checks were REMOVED. Under F12's
- * admission gate (plan 07-01), no fresh exhibit can ever reach ADMITTED while
- * either F6 precondition holds — the gate runs before the ledger write — so
- * those flags can no longer organically arise in the seed by design. F6's
- * rule-engine logic itself is still fully covered by
- * src/services/discrepancies.test.ts's white-box fixtures (which construct the
- * precondition directly), not by seed data. The seed must only ever contain
- * states the live system can legitimately produce, so we do NOT synthesize a
- * fake flag to keep the old assertion alive.
+ * UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag" case-wide checks were REMOVED for
+ * P-1..P-5 because, under F12's admission gate (plan 07-01), no fresh exhibit
+ * going through recordStatusChange can ever reach ADMITTED while either F6
+ * precondition holds. The P-6/P-7 checks below (#5/#6) are NOT a revival of
+ * those: they assert flags produced exclusively by the seed-only
+ * legacyAdmitForDemo helper (which deliberately skips the F12 gate to represent
+ * pre-gate-rollout exhibits), NOT by the live gate. F6's rule-engine logic
+ * itself also remains covered by src/services/discrepancies.test.ts's white-box
+ * fixtures. The seed must only ever contain states the live system — OR this
+ * narrowly-scoped, grep-confined seed helper — can legitimately produce; we do
+ * NOT synthesize a fake flag row directly.
  */
 async function assertSeedIntegrity(caseId: string): Promise<void> {
   // 1. At least one unresolved objection exists case-wide.
@@ -641,7 +644,43 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
     );
   }
 
-  // 5. (REMOVED — see the function doc-comment above.) The former "both F6 rule
+  // 5. P-6: a legacy-admitted exhibit with zero custody must carry an OPEN
+  //    ADMITTED_NO_CUSTODIAN flag, produced by the LIVE engine inside
+  //    legacyAdmitForDemo — not a synthetic row. Depends on the seed-only
+  //    legacy-admit helper, NOT the live F12 gate (which would block this
+  //    exact state for any non-seed caller).
+  const p6Flag = await prisma.discrepancyFlag.findFirst({
+    where: {
+      caseId,
+      ruleCode: 'ADMITTED_NO_CUSTODIAN',
+      status: 'OPEN',
+      exhibit: { exhibitLabel: 'P-6' },
+    },
+  });
+  if (!p6Flag) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected P-6 to carry an OPEN ADMITTED_NO_CUSTODIAN flag via legacyAdmitForDemo, found none',
+    );
+  }
+
+  // 6. P-7: a legacy-admitted exhibit with an unresolved objection must carry
+  //    an OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag, produced by the LIVE
+  //    engine inside legacyAdmitForDemo. Same caveat as #5.
+  const p7Flag = await prisma.discrepancyFlag.findFirst({
+    where: {
+      caseId,
+      ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+      status: 'OPEN',
+      exhibit: { exhibitLabel: 'P-7' },
+    },
+  });
+  if (!p7Flag) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected P-7 to carry an OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag via legacyAdmitForDemo, found none',
+    );
+  }
+
+  // 7. (REMOVED — see the function doc-comment above.) The former "both F6 rule
   //    codes OPEN" check is permanently unsatisfiable post-F12: the admission
   //    gate makes it structurally impossible for a fresh seed exhibit to reach
   //    ADMITTED while either ADMITTED_NO_CUSTODIAN or
