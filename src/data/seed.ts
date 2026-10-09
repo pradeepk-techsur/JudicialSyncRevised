@@ -143,6 +143,33 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     const attorney = users.ATTORNEY;
     const judge = users.JUDGE;
 
+    // F15 item 6 — stagger most planted events so the Command Center's date+time
+    // fix is actually verifiable (without this, every event lands within the same
+    // wall-clock second of seed execution and would look identical even after the
+    // display fix). Anchored to the REAL moment the seed runs (never a fixed
+    // historical date, so the demo always shows "recent" activity):
+    //   - A short real delay is inserted BETWEEN exhibits (not between the calls
+    //     within one exhibit's history) so each exhibit's events land in a
+    //     visibly different real-time window from its neighbors.
+    //   - CUSTODY_TRANSFER / OBJECTION_RAISED / RULING_RECORDED events get an
+    //     EXPLICIT recordedAt via the recordedAt passthrough added in Part A
+    //     (custody.ts/objections.ts). It resolves to real-now AT THE CALL SITE,
+    //     so an interleaved event (e.g. an objection raised between OFFERED and
+    //     OBJECTED) always sits chronologically BETWEEN the two surrounding
+    //     STATUS_CHANGE events, preserving the per-exhibit non-decreasing
+    //     timeline contract (history.test.ts). It does NOT jump the timestamp
+    //     minutes ahead of the real-now STATUS_CHANGE events, which would break
+    //     that ordering — STATUS_CHANGE goes through recordStatusChange
+    //     (src/services/status.ts), which this plan deliberately does NOT modify
+    //     (owned by plan 07-01, same wave), so those events keep their natural
+    //     real-now timestamp and the explicit ones must stay consistent with it.
+    //     The recordedAt plumbing itself remains in place so a future change that
+    //     lets status.ts accept an override can stagger the whole timeline into
+    //     distinct minutes without further seed work.
+    const nextRecordedAt = (): Date => new Date();
+    const sleep = (ms: number): Promise<void> =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
     // Step 3 + 4 — exhibit identity records AND their histories, built
     // EXCLUSIVELY through the live service write path.
 
@@ -174,6 +201,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       'PROSECUTION',
       'Det. Raymond Cole',
     );
+    await sleep(1200);
     await recordStatusChange({ exhibitId: exUnresolved, toStatus: 'MARKED', actorUserId: deputy });
     await recordStatusChange({ exhibitId: exUnresolved, toStatus: 'OFFERED', actorUserId: deputy });
     await recordObjection({
@@ -181,12 +209,18 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       objectingParty: 'DEFENSE',
       grounds: 'Confession obtained without Miranda warning — moved to suppress',
       actorUserId: attorney,
+      recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({ exhibitId: exUnresolved, toStatus: 'OBJECTED', actorUserId: clerk });
     // Deliberately NO recordRuling — thread remains UNRESOLVED.
 
-    // --- Planted edge case B: "Custody Gap" ---
-    // MARKED → OFFERED → ADMITTED with ZERO custody transfers ever recorded.
+    // --- Planted edge case B: "Admission Blocked — No Custodian" (F12) ---
+    // MARKED -> OFFERED, zero custody transfers ever recorded. Demonstrates
+    // F12's gate directly: attempting to admit this exhibit is REJECTED with
+    // ADMISSION_BLOCKED (reasons: ["NO_CUSTODIAN"]) rather than silently
+    // producing an already-broken ADMITTED exhibit (the old, now-impossible
+    // behavior this edge case used to model).
+    await sleep(1200);
     const exCustodyGap = await makeExhibit(
       'P-2',
       'Photograph of the scene (printout)',
@@ -195,13 +229,15 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     );
     await recordStatusChange({ exhibitId: exCustodyGap, toStatus: 'MARKED', actorUserId: deputy });
     await recordStatusChange({ exhibitId: exCustodyGap, toStatus: 'OFFERED', actorUserId: deputy });
-    await recordStatusChange({ exhibitId: exCustodyGap, toStatus: 'ADMITTED', actorUserId: judge });
-    // Deliberately NO recordCustodyTransfer — the gap is the ABSENCE of events.
+    // Deliberately NO further transition and NO custody transfer — this is the
+    // demonstrable "ready to offer, blocked from admission" state.
 
-    // --- Planted edge case C: "Jury-Eligible Discrepancy" ---
-    // MARKED → OFFERED → OBJECTED → ADMITTED, objection raised and left
-    // UNRESOLVED. Simultaneously ADMITTED AND carrying an open objection thread —
-    // exactly the UNRESOLVED_OBJECTION_JURY_ELIGIBLE condition Phase 3 detects.
+    // --- Planted edge case C: "Admission Blocked — Dual Reason" (F12) ---
+    // MARKED -> OFFERED -> OBJECTED, objection left UNRESOLVED, zero custody
+    // transfers. Attempting to admit this exhibit is REJECTED with BOTH
+    // reasons listed at once (ADMISSION_BLOCKED: UNRESOLVED_OBJECTION +
+    // NO_CUSTODIAN) — the dual-reason counterpart to P-2's single-reason case.
+    await sleep(1200);
     const exJuryEligible = await makeExhibit(
       'P-3',
       'Lab report — DNA match analysis',
@@ -215,37 +251,18 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       objectingParty: 'DEFENSE',
       grounds: 'Chain-of-custody foundation not established for the sample',
       actorUserId: attorney,
+      recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({
       exhibitId: exJuryEligible,
       toStatus: 'OBJECTED',
       actorUserId: clerk,
     });
-    // OBJECTED → ADMITTED is an allowed transition even with an open objection.
-    await recordStatusChange({
-      exhibitId: exJuryEligible,
-      toStatus: 'ADMITTED',
-      actorUserId: judge,
-    });
-    // Give it a full custody chain so the ONLY flagged condition is the open
-    // objection (keeps this distinct from the custody-gap exhibit).
-    await recordCustodyTransfer({
-      exhibitId: exJuryEligible,
-      fromCustodianUserId: null,
-      toCustodianUserId: deputy,
-      reason: 'intake at marking',
-      actorUserId: deputy,
-    });
-    await recordCustodyTransfer({
-      exhibitId: exJuryEligible,
-      fromCustodianUserId: deputy,
-      toCustodianUserId: clerk,
-      reason: 'to clerk for record',
-      actorUserId: clerk,
-    });
-    // Deliberately NO recordRuling — objection thread stays UNRESOLVED.
+    // Deliberately NO recordRuling, NO recordCustodyTransfer, NO ADMITTED attempt.
 
     // --- Clean exhibit 1: fully ADMITTED with a complete custody chain, no objections ---
+    // Custody is established BEFORE the ADMITTED call so F12's gate passes.
+    await sleep(1200);
     const exClean1 = await makeExhibit(
       'P-4',
       'Surveillance video still frame',
@@ -254,13 +271,13 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     );
     await recordStatusChange({ exhibitId: exClean1, toStatus: 'MARKED', actorUserId: deputy });
     await recordStatusChange({ exhibitId: exClean1, toStatus: 'OFFERED', actorUserId: deputy });
-    await recordStatusChange({ exhibitId: exClean1, toStatus: 'ADMITTED', actorUserId: judge });
     await recordCustodyTransfer({
       exhibitId: exClean1,
       fromCustodianUserId: null,
       toCustodianUserId: deputy,
       reason: 'intake',
       actorUserId: deputy,
+      recordedAt: nextRecordedAt(),
     });
     await recordCustodyTransfer({
       exhibitId: exClean1,
@@ -268,9 +285,14 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       toCustodianUserId: clerk,
       reason: 'to clerk for jury package prep',
       actorUserId: clerk,
+      recordedAt: nextRecordedAt(),
     });
+    await recordStatusChange({ exhibitId: exClean1, toStatus: 'ADMITTED', actorUserId: judge });
 
     // --- Clean exhibit 2: objection raised then OVERRULED, then ADMITTED, custody intact ---
+    // Both the OVERRULED ruling AND the custody transfer precede the ADMITTED
+    // call so neither F12 blocking condition holds at admission time.
+    await sleep(1200);
     const exClean2 = await makeExhibit(
       'D-1',
       'Defendant’s employment records',
@@ -284,23 +306,28 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       objectingParty: 'PROSECUTION',
       grounds: 'Relevance',
       actorUserId: attorney,
+      recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({ exhibitId: exClean2, toStatus: 'OBJECTED', actorUserId: clerk });
     await recordRuling({
       objectionId: clean2Obj.objectionId,
       disposition: 'OVERRULED',
       actorUserId: judge,
+      recordedAt: nextRecordedAt(),
     });
-    await recordStatusChange({ exhibitId: exClean2, toStatus: 'ADMITTED', actorUserId: judge });
     await recordCustodyTransfer({
       exhibitId: exClean2,
       fromCustodianUserId: null,
       toCustodianUserId: deputy,
       reason: 'intake',
       actorUserId: deputy,
+      recordedAt: nextRecordedAt(),
     });
+    await recordStatusChange({ exhibitId: exClean2, toStatus: 'ADMITTED', actorUserId: judge });
 
     // --- Clean exhibit 3: objection SUSTAINED → EXCLUDED (terminal) ---
+    // Unaffected by F12 (terminal transition is EXCLUDED, never ADMITTED).
+    await sleep(1200);
     const exExcluded = await makeExhibit(
       'D-2',
       'Hearsay statement transcript',
@@ -314,16 +341,20 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       objectingParty: 'PROSECUTION',
       grounds: 'Inadmissible hearsay',
       actorUserId: attorney,
+      recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({ exhibitId: exExcluded, toStatus: 'OBJECTED', actorUserId: clerk });
     await recordRuling({
       objectionId: excludedObj.objectionId,
       disposition: 'SUSTAINED',
       actorUserId: judge,
+      recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({ exhibitId: exExcluded, toStatus: 'EXCLUDED', actorUserId: judge });
 
     // --- Clean exhibit 4: OFFERED then WITHDRAWN (terminal) ---
+    // Unaffected by F12 (terminal transition is WITHDRAWN, never ADMITTED).
+    await sleep(1200);
     const exWithdrawn = await makeExhibit(
       'D-3',
       'Character reference letters (bundle)',
@@ -338,6 +369,8 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     });
 
     // --- Clean exhibit 5: still only MARKED (not yet entered into evidence) ---
+    // Unaffected by F12 (never leaves MARKED).
+    await sleep(1200);
     const exMarked = await makeExhibit(
       'P-5',
       'Physical evidence envelope — recovered firearm',
@@ -351,6 +384,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       toCustodianUserId: deputy,
       reason: 'intake at marking',
       actorUserId: deputy,
+      recordedAt: nextRecordedAt(),
     });
 
     // --- Sealed exhibit: chambers-only sidebar material (Phase 2's first
@@ -358,6 +392,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     // and custody history so the Case Workspace / Exhibit Detail screens have
     // real content to render for JUDGE/CHAMBERS_STAFF/ADMIN, and a real row to
     // prove absent for DEPUTY/CLERK/ATTORNEY. ---
+    await sleep(1200);
     const exSealed = await makeExhibit(
       'S-1',
       'Chambers sidebar note — ex parte submission',
@@ -375,14 +410,18 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       toStatus: 'OFFERED',
       actorUserId: users.CHAMBERS_STAFF,
     });
-    await recordStatusChange({ exhibitId: exSealed, toStatus: 'ADMITTED', actorUserId: judge });
+    // Custody established BEFORE the ADMITTED call so F12's gate passes — this
+    // fixture must remain ADMITTED + sealed (F13's regression test, plan 07-03,
+    // depends on it).
     await recordCustodyTransfer({
       exhibitId: exSealed,
       fromCustodianUserId: null,
       toCustodianUserId: users.CHAMBERS_STAFF,
       reason: 'chambers intake',
       actorUserId: users.CHAMBERS_STAFF,
+      recordedAt: nextRecordedAt(),
     });
+    await recordStatusChange({ exhibitId: exSealed, toStatus: 'ADMITTED', actorUserId: judge });
 
     const exhibitCount = await prisma.exhibit.count({ where: { caseId } });
 
@@ -403,11 +442,22 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
 }
 
 /**
- * Verify the deliberately-planted fixtures are present: the three Phase 1 edge
- * cases, Phase 2's sealed-exhibit role-based-visibility fixture, AND Phase 3's
- * two discrepancy rules having actually fired (≥1 OPEN ADMITTED_NO_CUSTODIAN and
- * ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag). Each must hold or the seed is
- * rejected (SeedIntegrityError → caller rolls back the entire partial seed).
+ * Verify the deliberately-planted fixtures are present: the unresolved-objection
+ * fixture (P-1), the two F12 admission-blockable fixtures (P-2 single-reason /
+ * P-3 dual-reason), AND Phase 2's sealed-exhibit role-based-visibility fixture.
+ * Each must hold or the seed is rejected (SeedIntegrityError → caller rolls back
+ * the entire partial seed).
+ *
+ * NOTE (F12): the former "≥1 OPEN ADMITTED_NO_CUSTODIAN flag" / "≥1 OPEN
+ * UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag" checks were REMOVED. Under F12's
+ * admission gate (plan 07-01), no fresh exhibit can ever reach ADMITTED while
+ * either F6 precondition holds — the gate runs before the ledger write — so
+ * those flags can no longer organically arise in the seed by design. F6's
+ * rule-engine logic itself is still fully covered by
+ * src/services/discrepancies.test.ts's white-box fixtures (which construct the
+ * precondition directly), not by seed data. The seed must only ever contain
+ * states the live system can legitimately produce, so we do NOT synthesize a
+ * fake flag to keep the old assertion alive.
  */
 async function assertSeedIntegrity(caseId: string): Promise<void> {
   // 1. At least one unresolved objection exists case-wide.
@@ -417,35 +467,39 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
       'Seed integrity check failed: expected ≥1 unresolved objection, found 0',
     );
   }
+  const unresolvedByExhibit = new Set(unresolved.map((o) => o.exhibitId));
 
-  // 2. At least one ADMITTED exhibit with NO custody-current-state row (gap).
-  const admitted = await prisma.exhibitCurrentState.findMany({
-    where: { currentStatus: 'ADMITTED', exhibit: { caseId } },
+  // 2. (REPLACES old "ADMITTED with no custody" check) At least one OFFERED
+  //    exhibit exists with no custody row — P-2's "admission blocked, single
+  //    reason" fixture.
+  const offeredNoCustody = await prisma.exhibitCurrentState.findMany({
+    where: { currentStatus: 'OFFERED', exhibit: { caseId } },
     select: { exhibitId: true },
   });
-  const admittedIds = admitted.map((a) => a.exhibitId);
-
-  const custodyRows = await prisma.custodyCurrentState.findMany({
-    where: { exhibitId: { in: admittedIds } },
+  const custodyRowsForOffered = await prisma.custodyCurrentState.findMany({
+    where: { exhibitId: { in: offeredNoCustody.map((r) => r.exhibitId) } },
     select: { exhibitId: true },
   });
-  const haveCustody = new Set(custodyRows.map((c) => c.exhibitId));
-  const admittedNoCustody = admittedIds.filter((id) => !haveCustody.has(id));
-  if (admittedNoCustody.length < 1) {
+  const haveCustodyOffered = new Set(custodyRowsForOffered.map((c) => c.exhibitId));
+  const offeredBlockable = offeredNoCustody.filter((r) => !haveCustodyOffered.has(r.exhibitId));
+  if (offeredBlockable.length < 1) {
     throw new SeedIntegrityError(
-      'Seed integrity check failed: expected ≥1 ADMITTED exhibit with no custody record, found 0',
+      'Seed integrity check failed: expected >=1 OFFERED exhibit with no custody (admission-blockable), found 0',
     );
   }
 
-  // 3. At least one ADMITTED exhibit carrying ≥1 UNRESOLVED objection
-  //    (jury-package-eligible discrepancy).
-  const unresolvedByExhibit = new Set(
-    unresolved.map((o) => o.exhibitId),
-  );
-  const admittedWithUnresolved = admittedIds.filter((id) => unresolvedByExhibit.has(id));
-  if (admittedWithUnresolved.length < 1) {
+  // 3. (REPLACES old "ADMITTED with unresolved objection" check) At least one
+  //    OBJECTED exhibit exists with an unresolved objection AND no custody —
+  //    P-3's "admission blocked, dual reason" fixture.
+  const objectedNoCustodyWithUnresolved = (
+    await prisma.exhibitCurrentState.findMany({
+      where: { currentStatus: 'OBJECTED', exhibit: { caseId } },
+      select: { exhibitId: true },
+    })
+  ).filter((r) => unresolvedByExhibit.has(r.exhibitId));
+  if (objectedNoCustodyWithUnresolved.length < 1) {
     throw new SeedIntegrityError(
-      'Seed integrity check failed: expected ≥1 ADMITTED exhibit with an unresolved objection, found 0',
+      'Seed integrity check failed: expected >=1 OBJECTED exhibit with an unresolved objection (dual-reason admission-blockable), found 0',
     );
   }
 
@@ -457,31 +511,12 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
     );
   }
 
-  // 5. Both Phase 3 (F6) discrepancy rules must actually have FIRED on seed. The
-  //    flags are NOT inserted directly — they arise purely because 03-01 wired
-  //    evaluateDiscrepancies into the status/ruling/custody service write paths,
-  //    so running the seed through those services produces them automatically.
-  //    This converts "the engine is wired" into a boot-time, demo-blocking
-  //    guarantee: if a future change silently stops the engine from firing on
-  //    seed, the seed throws and rolls back rather than shipping a jury screen
-  //    that cannot demonstrate the finalize gate (CONTEXT: "the seeded case must
-  //    make both discrepancy rules fire out of the box").
-  const openFlags = await prisma.discrepancyFlag.findMany({
-    where: { caseId, status: 'OPEN' },
-    select: { ruleCode: true },
-  });
-  const openRuleCodes = new Set(openFlags.map((f) => f.ruleCode));
-
-  if (!openRuleCodes.has('ADMITTED_NO_CUSTODIAN')) {
-    throw new SeedIntegrityError(
-      'Seed integrity check failed: expected ≥1 OPEN ADMITTED_NO_CUSTODIAN flag, found 0',
-    );
-  }
-  if (!openRuleCodes.has('UNRESOLVED_OBJECTION_JURY_ELIGIBLE')) {
-    throw new SeedIntegrityError(
-      'Seed integrity check failed: expected ≥1 OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag, found 0',
-    );
-  }
+  // 5. (REMOVED — see the function doc-comment above.) The former "both F6 rule
+  //    codes OPEN" check is permanently unsatisfiable post-F12: the admission
+  //    gate makes it structurally impossible for a fresh seed exhibit to reach
+  //    ADMITTED while either ADMITTED_NO_CUSTODIAN or
+  //    UNRESOLVED_OBJECTION_JURY_ELIGIBLE precondition holds. F6's logic remains
+  //    covered by discrepancies.test.ts's direct-projection fixtures.
 }
 
 // CLI entry point: `tsx src/data/seed.ts` (npm run seed / Docker boot) runs the

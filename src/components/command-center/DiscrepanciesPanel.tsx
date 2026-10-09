@@ -72,6 +72,7 @@ export function DiscrepanciesPanel() {
 
   return (
     <Tile
+      id="discrepancies"
       data-testid="discrepancies-panel"
       aria-label="Discrepancies"
     >

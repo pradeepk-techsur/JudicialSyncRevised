@@ -26,6 +26,7 @@ export function DiscrepancyBanner({
   flags: DiscrepancyFlagSummary[];
 }) {
   const role = useRoleStore((s) => s.role);
+  const users = useRoleStore((s) => s.users);
   const canAcknowledge = ACK_ROLES.includes(role);
   const acknowledge = useAcknowledgeDiscrepancy();
   const { flags: caseFlags } = useDiscrepancyCount();
@@ -58,6 +59,16 @@ export function DiscrepancyBanner({
       <ul className={styles.list}>
         {flags.map((flag) => {
           const isOpen = flag.status === 'OPEN';
+          // F14: for an ACKNOWLEDGED flag, resolve the FULL record (actor,
+          // timestamp, justification) from the already-loaded case-wide flags
+          // (no new fetch) and the roster, so the record renders inline, always
+          // visible, never behind a secondary click.
+          const fullRecord = caseFlags.find(
+            (f) => f.exhibitId === exhibitId && f.ruleCode === flag.ruleCode,
+          );
+          const ackUser = fullRecord?.acknowledgedBy
+            ? users.find((u) => u.id === fullRecord.acknowledgedBy)
+            : undefined;
           return (
             <li key={flag.ruleCode} data-testid="exhibit-discrepancy-flag" data-rule-code={flag.ruleCode}>
               <div className={styles.flagRow}>
@@ -79,6 +90,13 @@ export function DiscrepancyBanner({
                   </button>
                 )}
               </div>
+              {!isOpen && fullRecord?.acknowledgedAt && (
+                <p className={styles.ackRecord} data-testid="discrepancy-ack-record">
+                  Acknowledged by {ackUser?.name ?? 'Unknown'} ({ackUser?.role ?? '—'}) ·{' '}
+                  {new Date(fullRecord.acknowledgedAt).toLocaleString()}:{' '}
+                  {fullRecord.justification ?? ''}
+                </p>
+              )}
               {openRule === flag.ruleCode && (
                 <AcknowledgeInline
                   pending={acknowledge.isPending}

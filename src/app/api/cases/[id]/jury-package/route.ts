@@ -10,6 +10,11 @@ import { errorResponse } from '@/lib/apiError';
 // none has been initiated (the "no package yet" state). The service enforces that
 // this never creates a package as a side effect (ROADMAP criterion 5); the route
 // just delegates. Unknown case id → 404 CASE_NOT_FOUND.
+//
+// F13: NO change needed here — the route does zero row-shaping of its own. The
+// `exhibits[]` it returns is whatever getJuryPackage()/toView() produces, which
+// now filters out any status='EXCLUDED' JuryPackageExhibit row (plan 07-07). An
+// excluded row can therefore never reach a client through this endpoint.
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },

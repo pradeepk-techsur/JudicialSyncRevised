@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { getExhibitStatus, recordStatusChange } from '@/services/status';
+import { recordCustodyTransfer } from '@/services/custody';
 import { ConflictError, UnprocessableError } from '@/lib/errors';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
@@ -57,6 +58,17 @@ describe('recordStatusChange / getExhibitStatus', () => {
     expect(offered.currentState.currentStatus).toBe('OFFERED');
     expect((await getExhibitStatus(exhibitId))?.currentStatus).toBe('OFFERED');
 
+    // F12 admission gate: establish custody before ADMITTED so NO_CUSTODIAN
+    // does not block this normal-admission sequence (this test is about the
+    // status state machine, not the admission gate).
+    await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: null,
+      toCustodianUserId: userId,
+      reason: 'intake',
+      actorUserId: userId,
+    });
+
     const admitted = await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId: userId });
     expect(admitted.currentState.currentStatus).toBe('ADMITTED');
     const finalState = await getExhibitStatus(exhibitId);
@@ -84,6 +96,15 @@ describe('recordStatusChange / getExhibitStatus', () => {
 
     await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: userId });
     await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: userId });
+    // F12 admission gate: establish custody before ADMITTED so this test can
+    // reach the terminal ADMITTED state it needs to exercise STATUS_FINALIZED.
+    await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: null,
+      toCustodianUserId: userId,
+      reason: 'intake',
+      actorUserId: userId,
+    });
     await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId: userId });
 
     await expect(

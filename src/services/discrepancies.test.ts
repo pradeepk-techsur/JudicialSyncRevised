@@ -51,15 +51,60 @@ async function seedFixture() {
   };
 }
 
-// Drive an exhibit MARKED → OFFERED → ADMITTED through the status service, then
-// run an explicit evaluation. Task 3 wires evaluateDiscrepancies into the write
-// paths so the explicit call becomes redundant (re-evaluation is idempotent), but
-// calling it here keeps this suite self-contained regardless of task order.
-async function admit(exhibitId: string, actorUserId: string) {
+// Test-only bypass for the ADMITTED-transition step alone. F12's live gate
+// (plan 07-01) now forbids reaching ADMITTED with no custodian or an open
+// objection for EVERY real caller — by design. This helper exists ONLY so
+// tests that are specifically exercising discrepancy-flag / acknowledge /
+// finalize-gate behavior (not the admission gate itself) can still construct
+// a genuinely-firing precondition: it directly appends a STATUS_CHANGE ledger
+// event and upserts ExhibitCurrentState to ADMITTED, bypassing the gate, then
+// calls evaluateDiscrepancies so the resulting flag is REAL (survives any
+// later fresh re-evaluation, e.g. finalize's), not a synthetic row that a
+// re-evaluation would silently resolve away.
+async function forceAdmitBypassingGate(
+  exhibitId: string,
+  caseId: string,
+  actorUserId: string,
+): Promise<void> {
+  const agg = await prisma.exhibitEvent.aggregate({
+    where: { exhibitId },
+    _max: { sequenceNo: true },
+  });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId,
+      caseId,
+      eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OFFERED', toStatus: 'ADMITTED' },
+      actorUserId,
+      sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: {
+      exhibitId,
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+    update: {
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+  });
+  await evaluateDiscrepancies(exhibitId);
+}
+
+// Drive an exhibit MARKED → OFFERED → ADMITTED. MARKED/OFFERED go through the
+// real status service; the final ADMITTED step uses forceAdmitBypassingGate so
+// the fixture is a genuinely custody-less ADMITTED exhibit (the precondition
+// these discrepancy-engine tests need) despite F12's live admission gate.
+async function admit(exhibitId: string, caseId: string, actorUserId: string) {
   await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId });
   await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId });
-  await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId });
-  await evaluateDiscrepancies(exhibitId);
+  await forceAdmitBypassingGate(exhibitId, caseId, actorUserId);
 }
 
 describe('discrepancy engine', () => {
@@ -75,7 +120,7 @@ describe('discrepancy engine', () => {
 
   it('creates exactly one OPEN ADMITTED_NO_CUSTODIAN flag for an admitted, custody-less exhibit (idempotent)', async () => {
     const { exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
 
     // The wiring in status.ts already fires evaluate on ADMITTED, but call it
     // directly too to prove idempotency — a second eval must NOT duplicate.
@@ -91,7 +136,7 @@ describe('discrepancy engine', () => {
 
   it('resolves ADMITTED_NO_CUSTODIAN once custody is recorded', async () => {
     const { exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
 
     let open = await prisma.discrepancyFlag.findFirst({
       where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
@@ -118,10 +163,13 @@ describe('discrepancy engine', () => {
   });
 
   it('flags then resolves UNRESOLVED_OBJECTION_JURY_ELIGIBLE across a ruling', async () => {
-    const { exhibitId, deputyId, judgeId } = fx;
+    const { caseId, exhibitId, deputyId, judgeId } = fx;
 
     // Offer, raise an objection, then admit (custody recorded so the custody rule
-    // does not also fire and muddy the assertions).
+    // does not also fire and muddy the assertions). The objection is deliberately
+    // left UNRESOLVED at admit time — which F12's live gate would block — so the
+    // ADMITTED step uses forceAdmitBypassingGate to construct the genuinely-firing
+    // UNRESOLVED_OBJECTION_JURY_ELIGIBLE precondition this test exercises.
     await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
     await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
     const { objectionState } = await recordObjection({
@@ -136,8 +184,7 @@ describe('discrepancy engine', () => {
       toCustodianUserId: deputyId,
       actorUserId: deputyId,
     });
-    await recordStatusChange({ exhibitId, toStatus: 'ADMITTED', actorUserId: deputyId });
-    await evaluateDiscrepancies(exhibitId);
+    await forceAdmitBypassingGate(exhibitId, caseId, deputyId);
 
     const open = await prisma.discrepancyFlag.findFirst({
       where: {
@@ -176,7 +223,7 @@ describe('discrepancy engine', () => {
 
   it('acknowledges an OPEN flag: writes a ledger event AND flips the flag in one call', async () => {
     const { exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
 
     const flag = await prisma.discrepancyFlag.findFirstOrThrow({
       where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
@@ -200,7 +247,7 @@ describe('discrepancy engine', () => {
 
   it('rejects empty/whitespace justification with JUSTIFICATION_REQUIRED (422)', async () => {
     const { exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
     const flag = await prisma.discrepancyFlag.findFirstOrThrow({
       where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
     });
@@ -216,7 +263,7 @@ describe('discrepancy engine', () => {
 
   it('rejects an ATTORNEY acknowledger with ROLE_NOT_PERMITTED (403)', async () => {
     const { exhibitId, deputyId, attorneyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
     const flag = await prisma.discrepancyFlag.findFirstOrThrow({
       where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
     });
@@ -232,7 +279,7 @@ describe('discrepancy engine', () => {
 
   it('is idempotent on an already-ACKNOWLEDGED flag: no second ledger event', async () => {
     const { exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
     const flag = await prisma.discrepancyFlag.findFirstOrThrow({
       where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
     });
@@ -269,7 +316,7 @@ describe('discrepancy engine', () => {
 
   it('getDiscrepancies returns active flags case-wide, excluding RESOLVED', async () => {
     const { caseId, exhibitId, deputyId } = fx;
-    await admit(exhibitId, deputyId);
+    await admit(exhibitId, fx.caseId, deputyId);
 
     let active = await getDiscrepancies(caseId, 'JUDGE');
     expect(active.length).toBeGreaterThanOrEqual(1);
@@ -284,6 +331,31 @@ describe('discrepancy engine', () => {
     await evaluateDiscrepancies(exhibitId);
     active = await getDiscrepancies(caseId, 'JUDGE');
     expect(active.some((f) => f.ruleCode === 'ADMITTED_NO_CUSTODIAN')).toBe(false);
+  });
+
+  it('getDiscrepancies and getExhibitDiscrepancies include justification for an ACKNOWLEDGED flag, omit it for OPEN (F14)', async () => {
+    const { caseId, exhibitId, deputyId } = fx;
+    await admit(exhibitId, caseId, deputyId);
+    const flag = await prisma.discrepancyFlag.findFirstOrThrow({
+      where: { exhibitId, ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN' },
+    });
+
+    const beforeAck = await getExhibitDiscrepancies(exhibitId);
+    expect(beforeAck.find((f) => f.id === flag.id)?.justification).toBeUndefined();
+
+    await acknowledgeDiscrepancy({
+      discrepancyFlagId: flag.id,
+      actorUserId: deputyId,
+      justification: 'Reviewed — custodian will be assigned at recess',
+    });
+
+    const afterAckCaseWide = await getDiscrepancies(caseId, 'JUDGE');
+    const ackedCaseWide = afterAckCaseWide.find((f) => f.id === flag.id);
+    expect(ackedCaseWide?.justification).toBe('Reviewed — custodian will be assigned at recess');
+
+    const afterAckExhibit = await getExhibitDiscrepancies(exhibitId);
+    const ackedExhibit = afterAckExhibit.find((f) => f.id === flag.id);
+    expect(ackedExhibit?.justification).toBe('Reviewed — custodian will be assigned at recess');
   });
 
   it('getDiscrepancies hides sealed-exhibit flags from roles that cannot view sealed', async () => {
@@ -301,7 +373,10 @@ describe('discrepancy engine', () => {
     });
     await recordStatusChange({ exhibitId: sealed.id, toStatus: 'MARKED', actorUserId: deputyId });
     await recordStatusChange({ exhibitId: sealed.id, toStatus: 'OFFERED', actorUserId: deputyId });
-    await recordStatusChange({ exhibitId: sealed.id, toStatus: 'ADMITTED', actorUserId: deputyId });
+    // Custody-less ADMITTED is exactly what F12 blocks — bypass the gate to build
+    // the genuinely-firing ADMITTED_NO_CUSTODIAN flag this sealed-visibility test
+    // needs.
+    await forceAdmitBypassingGate(sealed.id, caseId, deputyId);
 
     // JUDGE (sealed-visible) sees the sealed exhibit's flag...
     const asJudge = await getDiscrepancies(caseId, 'JUDGE');

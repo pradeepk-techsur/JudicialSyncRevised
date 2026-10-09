@@ -14,7 +14,7 @@ import { JuryPackageFinalized } from '@/components/jury/JuryPackageFinalized';
 //   - juryPackage.status DRAFT     → JuryPackageDraft (gate + acknowledge)
 //   - juryPackage.status FINALIZED → JuryPackageFinalized (read-only export)
 export default function JuryPackagePage() {
-  const { data, isLoading, isError, dataUpdatedAt, initiate, finalize, acknowledge } =
+  const { data, isLoading, isError, dataUpdatedAt, initiate, finalize, exclude, acknowledge } =
     useJuryPackage();
   // Case-wide flags: the Draft view resolves the concrete DiscrepancyFlag.id for
   // an (exhibitId, ruleCode) pair from here (the jury rows carry no flag id).
@@ -65,6 +65,9 @@ export default function JuryPackagePage() {
       caseFlags={caseFlags}
       dataUpdatedAt={dataUpdatedAt}
       onFinalize={(id) => finalize.mutate(id)}
+      onExclude={(exhibitId) =>
+        exclude.mutate({ juryPackageId: pkg.id, exhibitId, reason: 'SEALED_EXPARTE' })
+      }
       onAcknowledge={(flagId, justification) =>
         acknowledge.mutateAsync({ flagId, justification })
       }

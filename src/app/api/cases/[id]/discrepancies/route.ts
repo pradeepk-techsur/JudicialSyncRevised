@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/apiError';
 // Serialize a DiscrepancyFlag row to the TechArch 03-api.md DiscrepancyFlag shape
 // (dates → ISO strings). Shared by the case- and exhibit-scoped routes so the two
 // can never drift.
-export function toDiscrepancyFlagDto(flag: DiscrepancyFlag) {
+export function toDiscrepancyFlagDto(flag: DiscrepancyFlag & { justification?: string }) {
   return {
     id: flag.id,
     caseId: flag.caseId,
@@ -21,6 +21,11 @@ export function toDiscrepancyFlagDto(flag: DiscrepancyFlag) {
     acknowledgedAt: flag.acknowledgedAt ? flag.acknowledgedAt.toISOString() : null,
     acknowledgedBy: flag.acknowledgedBy ?? null,
     resolvedAt: flag.resolvedAt ? flag.resolvedAt.toISOString() : null,
+    // F14: the acknowledging justification text, surfaced inline on the Exhibit
+    // Detail banner and Jury Package Workspace. Only present for ACKNOWLEDGED
+    // flags (null when the read-time join found no payload text); undefined for
+    // OPEN flags so the wire shape omits it entirely.
+    justification: flag.status === 'ACKNOWLEDGED' ? (flag.justification ?? null) : undefined,
   };
 }
 

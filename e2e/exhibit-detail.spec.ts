@@ -95,6 +95,124 @@ test.describe('Exhibit Detail View', () => {
     await expect(page).toHaveURL(/\/case$/);
   });
 
+  test('F14: acknowledge shows the permanence disclosure + relabeled field before, and the full record after', async ({
+    page,
+    request,
+  }) => {
+    // Per plan 07-02's seed no exhibit organically carries an OPEN discrepancy
+    // flag (F12 blocks custody-less/open-objection admission). This is a UI-only
+    // transparency test, so we mock the two GETs that feed the banner with a
+    // forced OPEN flag, and flip them to ACKNOWLEDGED once the acknowledge POST
+    // fires — mirroring the page.route mocking pattern used elsewhere in the suite.
+    const caseId = await getCaseId(request);
+    const caseRes = await request.get('/api/case');
+    const { users } = await caseRes.json();
+    // The default session role is JUDGE (can acknowledge); use a real JUDGE user
+    // id so the client-side name/role resolution off the roster succeeds.
+    const judge = users.find((u: { role: string }) => u.role === 'JUDGE');
+    expect(judge).toBeTruthy();
+
+    const { exhibitId } = await getExhibitRow(request, 'P-1');
+    const RULE = 'ADMITTED_NO_CUSTODIAN';
+    const FLAG_ID = 'flag-f14-e2e';
+    const JUSTIFICATION = 'Reviewed — custodian will be assigned at recess';
+
+    // Mutable mock state: the flag starts OPEN and flips to ACKNOWLEDGED.
+    let acked = false;
+
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          exhibit: {
+            id: exhibitId,
+            caseId,
+            exhibitLabel: 'P-1',
+            description: 'F14 test exhibit',
+            offeringParty: 'PROSECUTION',
+            associatedWitness: null,
+            isSealed: false,
+          },
+          currentStatus: 'ADMITTED',
+          currentCustodianName: null,
+          discrepancyFlags: [
+            {
+              ruleCode: RULE,
+              status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+              label: 'Admitted without a custodian on record',
+            },
+          ],
+          timeline: [],
+        }),
+      });
+    });
+
+    await page.route('**/api/cases/**/discrepancies', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: FLAG_ID,
+            caseId,
+            exhibitId,
+            ruleCode: RULE,
+            status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+            detectedAt: new Date().toISOString(),
+            details: {},
+            acknowledgedAt: acked ? new Date().toISOString() : null,
+            acknowledgedBy: acked ? judge.id : null,
+            resolvedAt: null,
+            justification: acked ? JUSTIFICATION : undefined,
+          },
+        ]),
+      });
+    });
+
+    await page.route('**/api/discrepancies/*/acknowledge', async (route) => {
+      acked = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto(`/exhibit/${exhibitId}`);
+
+    // Open the inline acknowledge control.
+    await page.getByTestId('exhibit-acknowledge-trigger').first().click();
+
+    // BEFORE confirming: the always-visible permanence disclosure and the
+    // relabeled justification field are both present.
+    await expect(page.getByTestId('acknowledge-disclosure')).toBeVisible();
+    await expect(page.getByTestId('acknowledge-disclosure')).toContainText(
+      'recorded as a permanent action under your name and role',
+    );
+    await expect(
+      page.getByLabel(/Justification \(recorded permanently\)/),
+    ).toBeVisible();
+
+    // Submit the acknowledgment.
+    const textarea = page.getByTestId('acknowledge-textarea').first();
+    await textarea.fill(JUSTIFICATION);
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
+      ),
+      page.getByTestId('acknowledge-confirm').first().click(),
+    ]);
+
+    // AFTER: the full record renders inline — acting user's name + the justification.
+    const record = page.getByTestId('discrepancy-ack-record');
+    await expect(record).toBeVisible({ timeout: 10000 });
+    await expect(record).toContainText(judge.name);
+    await expect(record).toContainText(JUSTIFICATION);
+  });
+
   test('cross-screen parity: status shown here matches the shared service the Case Workspace reads', async ({ page, request }) => {
     // Read P-3's status from the SAME service layer the Case Workspace list
     // renders (GET /api/cases/:id/exhibits → ExhibitListRow.currentStatus).

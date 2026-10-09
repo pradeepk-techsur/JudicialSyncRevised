@@ -1,6 +1,8 @@
 import type {
+  ExhibitEvent,
   ExhibitStatus,
   JuryPackage,
+  JuryPackageExhibit,
   Prisma,
   PrismaClient,
   Role,
@@ -10,6 +12,7 @@ import { ConflictError, NotFoundError, RoleNotPermittedError, UnprocessableError
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { ruleLabel } from '@/lib/discrepancyLabels';
 import { canViewSealed } from '@/services/visibility';
+import { recordEvent } from '@/services/events';
 import { evaluateDiscrepancies, getExhibitDiscrepancies } from '@/services/discrepancies';
 
 // F5 — Jury-Ready Exhibit List Generation (discrepancy-gated).
@@ -18,14 +21,22 @@ import { evaluateDiscrepancies, getExhibitDiscrepancies } from '@/services/discr
 // computation, one-living-DRAFT initiate, a strictly READ-ONLY reconciling GET
 // (ROADMAP criterion 5 — never a side-effect draft), and a fresh-gated finalize.
 //
-// SEALED-MEMBERSHIP POLICY (the invariant every function below honors):
-// jury-package MEMBERSHIP (the persisted JuryPackageExhibit rows) is CASE TRUTH
-// and viewer-independent — it is computed over ALL admitted exhibits with a
-// FIXED full-visibility lens, NEVER scoped to the acting user's role. Sealed
-// exhibits are filtered ONLY when SHAPING the returned view/export, per the
-// requesting role. Consequently a sealed admitted exhibit with an OPEN
-// discrepancy still blocks finalize even for a deputy who can never see it on
-// screen — the finalize gate reads membership, not the role-filtered view.
+// SEALED-MEMBERSHIP POLICY (F13 — supersedes the pre-Phase-7 design):
+// A sealed/ex-parte exhibit is now STRUCTURALLY EXCLUDED from jury-package
+// membership itself, not merely from the role-filtered view. `computeJuryCandidates`
+// filters `isSealed: false` in the SAME query as the ADMITTED filter, so a sealed
+// exhibit's JuryPackageExhibit row can never be created by the normal computation
+// path. (This closes the highest-severity defect motivating Phase 7: a sealed
+// exhibit could previously be admitted into a package and shown like any other.)
+//
+// Non-sealed membership remains CASE TRUTH and viewer-independent — computed over
+// all ADMITTED, non-sealed exhibits regardless of the acting role; role-based
+// view filtering in toView() is an additional, orthogonal narrowing. A LEGACY
+// JuryPackageExhibit row for a sealed-but-still-ADMITTED exhibit (predating this
+// fix) is deliberately RETAINED by reconcileDraftMembership — never silently
+// deleted — so it can be explicitly remediated by the exclude workflow (plan
+// 07-07). Staleness is therefore computed from the exhibit's ACTUAL currentStatus,
+// not from absence in the sealed-filtered candidate set.
 
 // A Prisma client OR an interactive-transaction client (mirrors events.ts /
 // discrepancies.ts) so finalize can re-evaluate + gate + finalize atomically.
@@ -51,6 +62,8 @@ export interface JuryPackageExhibitView {
   currentStatus: ExhibitStatus; // ADMITTED for all rows
   discrepancyStatus: 'CLEAN' | 'FLAGGED'; // LIVE, freshly evaluated; backward-compat with TechArch
   flags: DiscrepancyFlagSummary[]; // ADDITIVE per-flag OPEN/ACKNOWLEDGED; empty [] when CLEAN
+  isSealed: boolean; // ADDITIVE (F13): drives the CRITICAL-row UI treatment (⛔ ex parte)
+  status: 'INCLUDED'; // ADDITIVE (F13): the view NEVER contains EXCLUDED rows (filtered in toView)
   addedAt: string;
 }
 
@@ -64,12 +77,19 @@ export interface JuryCandidate {
 }
 
 /**
- * ALL admitted exhibits of a case — the full-visibility MEMBERSHIP set. There is
- * deliberately NO sealed exclusion in this query: membership is case truth. Each
- * candidate carries `isSealed` so callers can drop sealed rows from the RETURNED
- * VIEW (never from membership). The `requestingUserRole` param is retained for
- * signature symmetry with the view-shaping callers, but it MUST NOT change which
- * rows are considered members.
+ * The ADMITTED, NON-SEALED exhibits of a case — the jury-package MEMBERSHIP set.
+ *
+ * F13: sealed/ex-parte exhibits are EXCLUDED FROM MEMBERSHIP here, via an
+ * `isSealed: false` predicate applied in the SAME query as the ADMITTED filter —
+ * a sealed exhibit's row is never materialized as a candidate at all, so it can
+ * never become a JuryPackageExhibit member through the normal computation path.
+ * (Before F13 this function returned sealed exhibits too and relied solely on
+ * toView() to drop them per-role; that left sealed exhibits as real member rows,
+ * the highest-severity defect Phase 7 fixes.)
+ *
+ * Each candidate still carries `isSealed` for callers that want it, though it is
+ * now always `false` here. The `requestingUserRole` param is retained for
+ * signature symmetry with the view-shaping callers but does not change membership.
  */
 export async function computeJuryCandidates(
   caseId: string,
@@ -79,7 +99,7 @@ export async function computeJuryCandidates(
 ): Promise<JuryCandidate[]> {
   const db = client ?? prisma;
   const rows = await db.exhibitCurrentState.findMany({
-    where: { currentStatus: 'ADMITTED', exhibit: { caseId } },
+    where: { currentStatus: 'ADMITTED', exhibit: { caseId, isSealed: false } },
     select: {
       exhibit: { select: { id: true, exhibitLabel: true, isSealed: true } },
     },
@@ -112,17 +132,30 @@ async function liveFlags(
 }
 
 /**
- * Shape the role-filtered, live view from a set of member candidates. Drops rows
- * that are `isSealed && !canViewSealed(role)` — this is the ONLY place sealed
- * filtering happens. Each kept row's `flags`/`discrepancyStatus` are freshly
- * computed; `addedAt` comes from the persisted membership row when available.
+ * Shape the role-filtered, live view from a set of member candidates.
+ *
+ * Two orthogonal narrowings happen here and ONLY here:
+ *  1. F13 status filter — an EXCLUDED JuryPackageExhibit row is NEVER part of the
+ *     returned view (per F13 point 6). The persisted status lives on the row, not
+ *     on the candidate, so it is threaded in via `statusByExhibit`; a member with
+ *     no persisted status yet (a fresh initiate-loop row) is treated as INCLUDED,
+ *     matching the schema default.
+ *  2. Sealed role filter — drops rows that are `isSealed && !canViewSealed(role)`.
+ *
+ * A kept row carries `isSealed` (drives the CRITICAL-row UI) and a `status` that
+ * is always `'INCLUDED'` by construction. Each row's `flags`/`discrepancyStatus`
+ * are freshly computed; `addedAt` comes from the persisted membership row.
  */
 async function toView(
   members: JuryCandidate[],
   requestingUserRole: Role,
   addedAtByExhibit: Map<string, Date>,
+  statusByExhibit: Map<string, 'INCLUDED' | 'EXCLUDED'>,
 ): Promise<JuryPackageExhibitView[]> {
-  const visible = members.filter(
+  const included = members.filter(
+    (m) => statusByExhibit.get(m.exhibitId) !== 'EXCLUDED',
+  );
+  const visible = included.filter(
     (m) => !(m.isSealed && !canViewSealed(requestingUserRole)),
   );
   const rows: JuryPackageExhibitView[] = [];
@@ -134,6 +167,8 @@ async function toView(
       currentStatus: 'ADMITTED',
       discrepancyStatus,
       flags,
+      isSealed: m.isSealed,
+      status: 'INCLUDED',
       addedAt: (addedAtByExhibit.get(m.exhibitId) ?? new Date()).toISOString(),
     });
   }
@@ -163,19 +198,37 @@ async function assertJuryWriteRole(actorUserId: string): Promise<void> {
 async function reconcileDraftMembership(
   caseId: string,
   juryPackageId: string,
-): Promise<{ members: JuryCandidate[]; addedAtByExhibit: Map<string, Date> }> {
+): Promise<{
+  members: JuryCandidate[];
+  addedAtByExhibit: Map<string, Date>;
+  statusByExhibit: Map<string, 'INCLUDED' | 'EXCLUDED'>;
+}> {
   const candidates = await computeJuryCandidates(caseId, 'ADMIN' /* full-visibility lens */);
-  const candidateIds = new Set(candidates.map((c) => c.exhibitId));
 
   const existingRows = await prisma.juryPackageExhibit.findMany({
     where: { juryPackageId },
-    select: { id: true, exhibitId: true, addedAt: true },
+    select: { id: true, exhibitId: true, addedAt: true, status: true },
   });
   const existingByExhibit = new Map(existingRows.map((r) => [r.exhibitId, r]));
 
-  // Remove rows for exhibits no longer ADMITTED.
+  // Determine staleness from each existing row's exhibit's ACTUAL currentStatus
+  // (a direct, unfiltered query), NOT from absence in `candidates` — `candidates`
+  // is sealed-filtered post-F13, so a sealed-but-still-ADMITTED row would be
+  // absent from it yet is NOT stale.
+  const existingExhibitIds = existingRows.map((r) => r.exhibitId);
+  const actualStates = await prisma.exhibitCurrentState.findMany({
+    where: { exhibitId: { in: existingExhibitIds } },
+    select: { exhibitId: true, currentStatus: true },
+  });
+  const stillAdmitted = new Set(
+    actualStates.filter((s) => s.currentStatus === 'ADMITTED').map((s) => s.exhibitId),
+  );
+  // A row is stale ONLY when its exhibit is no longer ADMITTED at all — NOT
+  // merely because it's sealed and therefore absent from `candidates` (F13: a
+  // sealed-but-still-ADMITTED row must be RETAINED, never silently deleted, so
+  // it can be explicitly remediated via the exclude workflow in plan 07-07).
   const staleRowIds = existingRows
-    .filter((r) => !candidateIds.has(r.exhibitId))
+    .filter((r) => !stillAdmitted.has(r.exhibitId))
     .map((r) => r.id);
 
   // Add rows for newly-admitted exhibits.
@@ -207,13 +260,33 @@ async function reconcileDraftMembership(
     }
   });
 
-  // Rebuild the addedAt map after reconcile (new rows now exist).
+  // Rebuild the membership + maps from the ACTUAL persisted rows after reconcile.
+  // Members are derived from the persisted JuryPackageExhibit rows (not from the
+  // sealed-filtered `candidates`) so a RETAINED legacy sealed-but-ADMITTED row —
+  // absent from `candidates` post-F13 but kept in the DB — is still surfaced as a
+  // member, letting toView() render it as the CRITICAL blocker and offer the
+  // Remove-from-Package action (F13). Each member carries its real `isSealed`.
   const finalRows = await prisma.juryPackageExhibit.findMany({
     where: { juryPackageId },
-    select: { exhibitId: true, addedAt: true },
+    select: {
+      exhibitId: true,
+      addedAt: true,
+      status: true,
+      exhibit: { select: { exhibitLabel: true, isSealed: true } },
+    },
+    orderBy: { exhibit: { exhibitLabel: 'asc' } },
   });
   const addedAtByExhibit = new Map(finalRows.map((r) => [r.exhibitId, r.addedAt]));
-  return { members: candidates, addedAtByExhibit };
+  const statusByExhibit = new Map<string, 'INCLUDED' | 'EXCLUDED'>(
+    finalRows.map((r) => [r.exhibitId, r.status]),
+  );
+  const members: JuryCandidate[] = finalRows.map((r) => ({
+    exhibitId: r.exhibitId,
+    exhibitLabel: r.exhibit.exhibitLabel,
+    currentStatus: 'ADMITTED' as const,
+    isSealed: r.exhibit.isSealed,
+  }));
+  return { members, addedAtByExhibit, statusByExhibit };
 }
 
 /**
@@ -235,11 +308,11 @@ export async function initiateJuryPackage(
     orderBy: { createdAt: 'desc' },
   });
   if (existingDraft) {
-    const { members, addedAtByExhibit } = await reconcileDraftMembership(
+    const { members, addedAtByExhibit, statusByExhibit } = await reconcileDraftMembership(
       caseId,
       existingDraft.id,
     );
-    const exhibits = await toView(members, requestingUserRole, addedAtByExhibit);
+    const exhibits = await toView(members, requestingUserRole, addedAtByExhibit, statusByExhibit);
     return { juryPackage: existingDraft, exhibits };
   }
 
@@ -271,10 +344,19 @@ export async function initiateJuryPackage(
 
   const rows = await prisma.juryPackageExhibit.findMany({
     where: { juryPackageId: juryPackage.id },
-    select: { exhibitId: true, addedAt: true },
+    select: { exhibitId: true, addedAt: true, status: true },
   });
   const addedAtByExhibit = new Map(rows.map((r) => [r.exhibitId, r.addedAt]));
-  const exhibits = await toView(candidates, requestingUserRole, addedAtByExhibit);
+  // A fresh initiate's rows are all newly-created INCLUDED candidates; map their
+  // persisted status (defaulting any not-yet-readable row to INCLUDED, the schema
+  // default) so toView's F13 filter has a complete map.
+  const statusByExhibit = new Map<string, 'INCLUDED' | 'EXCLUDED'>(
+    rows.map((r) => [r.exhibitId, r.status]),
+  );
+  for (const c of candidates) {
+    if (!statusByExhibit.has(c.exhibitId)) statusByExhibit.set(c.exhibitId, 'INCLUDED');
+  }
+  const exhibits = await toView(candidates, requestingUserRole, addedAtByExhibit, statusByExhibit);
   return { juryPackage, exhibits };
 }
 
@@ -310,6 +392,7 @@ export async function getJuryPackage(
       select: {
         exhibitId: true,
         addedAt: true,
+        status: true,
         exhibit: { select: { exhibitLabel: true, isSealed: true } },
       },
     });
@@ -320,15 +403,21 @@ export async function getJuryPackage(
       isSealed: r.exhibit.isSealed,
     }));
     const addedAtByExhibit = new Map(rows.map((r) => [r.exhibitId, r.addedAt]));
-    const exhibits = await toView(members, requestingUserRole, addedAtByExhibit);
+    const statusByExhibit = new Map<string, 'INCLUDED' | 'EXCLUDED'>(
+      rows.map((r) => [r.exhibitId, r.status]),
+    );
+    const exhibits = await toView(members, requestingUserRole, addedAtByExhibit, statusByExhibit);
     return { juryPackage: latest, exhibits };
   }
 
   // DRAFT → reconcile membership to the live ADMITTED set (viewer-independent),
   // then return the role-filtered live view. Reconcile MAY write; it never
   // CREATES a package.
-  const { members, addedAtByExhibit } = await reconcileDraftMembership(caseId, latest.id);
-  const exhibits = await toView(members, requestingUserRole, addedAtByExhibit);
+  const { members, addedAtByExhibit, statusByExhibit } = await reconcileDraftMembership(
+    caseId,
+    latest.id,
+  );
+  const exhibits = await toView(members, requestingUserRole, addedAtByExhibit, statusByExhibit);
   return { juryPackage: latest, exhibits };
 }
 
@@ -336,8 +425,14 @@ export async function getJuryPackage(
  * Finalize with a hard gate re-evaluated FRESH over MEMBERSHIP (all
  * JuryPackageExhibit rows — INCLUDING sealed exhibits the acting user cannot
  * see), never a role-filtered view and never the cached discrepancy_status
- * column (T-03-07). An exhibit BLOCKS iff it has ≥1 OPEN flag; ACKNOWLEDGED and
- * RESOLVED satisfy the gate. A 409 names the blocking exhibits via `details`.
+ * column (T-03-07). Two independent server-authority gates run over membership:
+ *   1. SEALED/EX PARTE (F13): any INCLUDED member whose exhibit `isSealed` is a
+ *      HARD blocker regardless of discrepancy state → 409
+ *      JURY_PACKAGE_SEALED_EXHIBIT_PRESENT (so a retained legacy sealed row with
+ *      no OPEN flag can never be finalized; the UI shows the same block).
+ *   2. DISCREPANCY: an exhibit BLOCKS iff it has ≥1 OPEN flag; ACKNOWLEDGED and
+ *      RESOLVED satisfy the gate → 409 JURY_PACKAGE_DISCREPANCIES_OPEN.
+ * Each 409 names the blocking exhibits via `details`.
  */
 export async function finalizeJuryPackage(
   juryPackageId: string,
@@ -362,14 +457,36 @@ export async function finalizeJuryPackage(
   await assertJuryWriteRole(actorUserId);
 
   const finalized = await prisma.$transaction(async (tx) => {
-    // MEMBERSHIP = ALL rows (incl. sealed); the gate reads membership, not a view.
+    // MEMBERSHIP = all INCLUDED rows (incl. sealed ones the actor cannot see);
+    // the gate reads membership, not a role-filtered view. F13: an EXCLUDED row is
+    // never evaluated against the discrepancy gate (point 7).
     const members = await tx.juryPackageExhibit.findMany({
-      where: { juryPackageId },
+      where: { juryPackageId, status: 'INCLUDED' },
       select: {
         exhibitId: true,
-        exhibit: { select: { exhibitLabel: true } },
+        exhibit: { select: { exhibitLabel: true, isSealed: true } },
       },
     });
+
+    // F13 SERVER-AUTHORITY GATE: any INCLUDED member whose exhibit is sealed/ex
+    // parte is a HARD blocker, independent of discrepancy flags. A retained
+    // LEGACY sealed-but-ADMITTED row (reconcileDraftMembership keeps it, never
+    // silently deletes it) carries custody and no unresolved objection, so it has
+    // NO OPEN discrepancy flag — the OPEN-only gate would wrongly pass it. The UI
+    // disables Finalize on such rows; this makes the server enforce the same
+    // posture so a direct POST cannot finalize a package still containing ex parte
+    // material. Distinct code so the route surfaces "remove ex parte material
+    // first" (plan 07-07: a sealed row is never finalizable).
+    const sealedExhibits = members
+      .filter((m) => m.exhibit.isSealed)
+      .map((m) => ({ exhibitId: m.exhibitId, exhibitLabel: m.exhibit.exhibitLabel }));
+    if (sealedExhibits.length > 0) {
+      throw new ConflictError(
+        'JURY_PACKAGE_SEALED_EXHIBIT_PRESENT',
+        `Cannot finalize: ${sealedExhibits.length} sealed/ex parte exhibit(s) must be removed before finalizing — remove ex parte material first`,
+        { sealedExhibits },
+      );
+    }
 
     const blockingExhibits: { exhibitId: string; exhibitLabel: string; ruleCodes: string[] }[] = [];
 
@@ -405,4 +522,78 @@ export async function finalizeJuryPackage(
   });
 
   return { juryPackage: finalized };
+}
+
+/**
+ * Explicitly EXCLUDE one INCLUDED jury-package exhibit row (F13).
+ *
+ * This is the human-remediation half of F13: plan 07-03 made it structurally
+ * impossible for a NEW sealed exhibit to become a member, and this function lets
+ * an authorized user permanently remove a LEGACY/regression row (e.g. a
+ * sealed-but-ADMITTED row predating the fix) from a DRAFT package.
+ *
+ * AUDIT CONTRACT (T-07-14): the row is UPDATED (status → EXCLUDED, with
+ * excludedAt/excludedBy/exclusionReason populated) — NEVER deleted — and the
+ * exclusion is paired with an immutable JURY_PACKAGE_EXHIBIT_EXCLUDED ledger
+ * event via recordEvent (the sole ledger writer), so the removal is a permanent,
+ * auditable record rather than a silent disappearance.
+ *
+ * Ordering mirrors finalizeJuryPackage: existence check → finalized-immutability
+ * check (409, BEFORE any role check or write, T-07-13) → role gate (403 via the
+ * actor's ACTUAL User.role, never a client claim, T-07-12) → INCLUDED-row lookup
+ * → transactional event + update.
+ */
+export async function excludeJuryPackageExhibit(args: {
+  juryPackageId: string;
+  exhibitId: string;
+  actorUserId: string;
+  reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL';
+  note?: string;
+}): Promise<{ event: ExhibitEvent; juryPackageExhibit: JuryPackageExhibit }> {
+  const { juryPackageId, exhibitId, actorUserId, reason, note } = args;
+
+  const pkg = await prisma.juryPackage.findUnique({ where: { id: juryPackageId } });
+  if (!pkg) {
+    throw new NotFoundError('JURY_PACKAGE_NOT_FOUND', 'No jury package found with the given ID');
+  }
+  if (pkg.status === 'FINALIZED') {
+    throw new ConflictError(
+      'JURY_PACKAGE_ALREADY_FINALIZED',
+      'This jury package has already been finalized',
+    );
+  }
+
+  await assertJuryWriteRole(actorUserId);
+
+  const row = await prisma.juryPackageExhibit.findFirst({
+    where: { juryPackageId, exhibitId, status: 'INCLUDED' },
+  });
+  if (!row) {
+    throw new NotFoundError(
+      'JURY_PACKAGE_EXHIBIT_NOT_FOUND',
+      'No included jury-package exhibit row found for this exhibit',
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const event = await recordEvent(
+      {
+        exhibitId,
+        eventType: 'JURY_PACKAGE_EXHIBIT_EXCLUDED',
+        payload: { juryPackageId, exhibitId, reason, note },
+        actorUserId,
+      },
+      tx,
+    );
+    const juryPackageExhibit = await tx.juryPackageExhibit.update({
+      where: { id: row.id },
+      data: {
+        status: 'EXCLUDED',
+        excludedAt: new Date(),
+        excludedBy: actorUserId,
+        exclusionReason: reason,
+      },
+    });
+    return { event, juryPackageExhibit };
+  });
 }

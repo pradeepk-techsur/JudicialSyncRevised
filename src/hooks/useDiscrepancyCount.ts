@@ -17,6 +17,9 @@ export interface CaseDiscrepancyFlag {
   acknowledgedAt: string | null;
   acknowledgedBy: string | null;
   resolvedAt: string | null;
+  // F14: the acknowledging justification text (read-time join in the backend).
+  // Present (string | null) for ACKNOWLEDGED flags, absent for OPEN ones.
+  justification?: string | null;
 }
 
 // THE shared case-wide discrepancy query (F6/F11). It is the single source the

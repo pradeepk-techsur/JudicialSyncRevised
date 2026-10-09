@@ -4,10 +4,52 @@ import { prisma } from '@/lib/prisma';
 import { POST } from '@/app/api/discrepancies/[id]/acknowledge/route';
 import { GET as getExhibitDiscrepancies } from '@/app/api/exhibits/[id]/discrepancies/route';
 import { recordStatusChange } from '@/services/status';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Route-handler tests for POST /api/discrepancies/:id/acknowledge and a sealed
 // masking check on GET /api/exhibits/:id/discrepancies. Self-contained fixtures,
 // real Postgres from docker-compose.yml.
+
+// Test-only bypass for the ADMITTED-transition step alone (see
+// discrepancies.test.ts for the rationale). F12's live gate forbids reaching
+// ADMITTED with no custodian for every real caller; both fixtures below are
+// "admitted, custody-less" by design (so there's a flag to acknowledge / mask),
+// so they build that precondition directly and re-evaluate.
+async function forceAdmitBypassingGate(
+  exhibitId: string,
+  caseId: string,
+  actorUserId: string,
+): Promise<void> {
+  const agg = await prisma.exhibitEvent.aggregate({
+    where: { exhibitId },
+    _max: { sequenceNo: true },
+  });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId,
+      caseId,
+      eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OFFERED', toStatus: 'ADMITTED' },
+      actorUserId,
+      sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: {
+      exhibitId,
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+    update: {
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+  });
+  await evaluateDiscrepancies(exhibitId);
+}
 
 async function seedFixture() {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -35,7 +77,7 @@ async function seedFixture() {
   });
   await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'MARKED', actorUserId: deputy.id });
   await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'OFFERED', actorUserId: deputy.id });
-  await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
+  await forceAdmitBypassingGate(exhibit.id, kase.id, deputy.id);
 
   // Sealed exhibit with its own OPEN flag (for the exhibit-discrepancies sealed test).
   const sealed = await prisma.exhibit.create({
@@ -49,7 +91,7 @@ async function seedFixture() {
   });
   await recordStatusChange({ exhibitId: sealed.id, toStatus: 'MARKED', actorUserId: deputy.id });
   await recordStatusChange({ exhibitId: sealed.id, toStatus: 'OFFERED', actorUserId: deputy.id });
-  await recordStatusChange({ exhibitId: sealed.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
+  await forceAdmitBypassingGate(sealed.id, kase.id, deputy.id);
 
   const flag = await prisma.discrepancyFlag.findFirstOrThrow({
     where: { exhibitId: exhibit.id, status: 'OPEN' },

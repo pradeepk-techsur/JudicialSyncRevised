@@ -23,5 +23,16 @@ export default defineConfig({
     // Serialize file execution so the shared-database fixture is never contended.
     // (Tests within a file already run sequentially.)
     fileParallelism: false,
+    // Phase 7 (F15 item 6): the seed loader now inserts a small real delay
+    // (~1.2s) between exhibits so most events land in visibly different displayed
+    // minutes. A full runSeed() therefore takes ~11s, and the determinism test
+    // runs it twice (~22s). Raise the per-test timeout above vitest's 5s default
+    // so these legitimately-slow, seed-dependent integration tests do not time
+    // out. (Container boot is unaffected — this is a test-runner setting only.)
+    testTimeout: 60000,
+    // Several suites call runSeed() in a beforeAll/beforeEach hook; with the F15
+    // staggering delay a single seed is ~11s, above vitest's 10s default hook
+    // timeout. Raise it in step with testTimeout above.
+    hookTimeout: 60000,
   },
 });

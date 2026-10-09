@@ -37,12 +37,18 @@ export function AcknowledgeInline({
 
   return (
     <div className={styles.container} data-testid="acknowledge-inline">
+      {/* F14: always-visible permanence disclosure, shown BEFORE the action is
+          confirmed — never a hover/tooltip. One copy, shared by both the Exhibit
+          Detail banner and the Jury Package Workspace (both mount this component). */}
+      <p className={styles.disclosure} data-testid="acknowledge-disclosure">
+        Acknowledging will be recorded as a permanent action under your name and role.
+      </p>
       {/* Carbon TextArea forwards rest props (data-testid, maxLength, value,
           disabled) onto its inner <textarea>, so the testid lands on the element
           the Wave 3 specs target. */}
       <TextArea
         id="acknowledge-justification"
-        labelText="Justification (required)"
+        labelText="Justification (recorded permanently)"
         data-testid="acknowledge-textarea"
         rows={2}
         maxLength={MAX_JUSTIFICATION}

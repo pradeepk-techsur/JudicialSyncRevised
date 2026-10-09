@@ -1,7 +1,7 @@
 import type { ExhibitCurrentState, ExhibitEvent, ExhibitStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { ConflictError, UnprocessableError } from '@/lib/errors';
+import { AdmissionBlockedError, ConflictError, UnprocessableError } from '@/lib/errors';
 import { advisoryLockKey } from '@/lib/advisoryLock';
 import { recordEvent } from '@/services/events';
 import { evaluateDiscrepancies } from '@/services/discrepancies';
@@ -81,6 +81,38 @@ export async function recordStatusChange(args: {
             'INVALID_STATUS_TRANSITION',
             `Cannot transition from ${fromStatus} to OBJECTED: no unresolved objection exists for this exhibit`,
           );
+        }
+      }
+
+      // 5b. F12 — Admission Integrity Gate. Runs ONLY for toStatus === 'ADMITTED',
+      //     AFTER the fromStatus-match check (unchanged F1 behavior takes priority),
+      //     BEFORE recordEvent() — so a blocked admission writes NOTHING, not even a
+      //     partial projection update. The two projection reads run on the SAME `tx`
+      //     client already holding this exhibit's advisory lock, so they are
+      //     serialized against concurrent custody/ruling transactions (no race
+      //     between the gate's read and the ledger write). No force-admit parameter
+      //     or alternate code path bypasses this; every caller (UI routes, the seed
+      //     loader) goes through recordStatusChange, so every caller is subject to it.
+      if (toStatus === 'ADMITTED') {
+        const [unresolvedObjectionCount, custody] = await Promise.all([
+          tx.objectionCurrentState.count({ where: { exhibitId, status: 'UNRESOLVED' } }),
+          tx.custodyCurrentState.findUnique({ where: { exhibitId }, select: { exhibitId: true } }),
+        ]);
+        const reasons: Array<{ code: 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN'; message: string }> = [];
+        if (unresolvedObjectionCount > 0) {
+          reasons.push({
+            code: 'UNRESOLVED_OBJECTION',
+            message: 'This exhibit has an unresolved objection',
+          });
+        }
+        if (!custody) {
+          reasons.push({
+            code: 'NO_CUSTODIAN',
+            message: 'This exhibit has no custodian of record',
+          });
+        }
+        if (reasons.length > 0) {
+          throw new AdmissionBlockedError(reasons);
         }
       }
 

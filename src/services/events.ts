@@ -24,10 +24,11 @@ export async function recordEvent(
     eventType: EventType;
     payload: unknown;
     actorUserId: string;
+    recordedAt?: Date; // seed-only override; live callers omit this and get new Date()
   },
   client?: PrismaLike,
 ): Promise<ExhibitEvent> {
-  const { exhibitId, eventType, payload, actorUserId } = args;
+  const { exhibitId, eventType, payload, actorUserId, recordedAt } = args;
 
   // 1. Validate the payload shape against the schema for this eventType BEFORE
   //    opening the transaction — a malformed ledger row never reaches the DB.
@@ -79,7 +80,7 @@ export async function recordEvent(
         payload: validatedPayload as object,
         actorUserId,
         sequenceNo,
-        recordedAt: new Date(),
+        recordedAt: recordedAt ?? new Date(),
       },
     });
   };

@@ -63,6 +63,7 @@ export function JuryPackageDraft({
   caseFlags,
   dataUpdatedAt,
   onFinalize,
+  onExclude,
   onAcknowledge,
   finalizePending,
   finalizeError,
@@ -73,12 +74,14 @@ export function JuryPackageDraft({
   caseFlags: CaseDiscrepancyFlag[];
   dataUpdatedAt: number;
   onFinalize: (id: string) => void;
+  onExclude: (exhibitId: string) => void;
   onAcknowledge: (flagId: string, justification: string) => Promise<void> | void;
   finalizePending?: boolean;
   finalizeError?: unknown;
   acknowledgePending?: boolean;
 }) {
   const role = useRoleStore((s) => s.role);
+  const users = useRoleStore((s) => s.users);
   const canFinalize = FINALIZE_ROLES.includes(role);
   const canAcknowledge = ACK_ROLES.includes(role);
 
@@ -94,6 +97,14 @@ export function JuryPackageDraft({
     [exhibits],
   );
   const hasOpen = blocking.length > 0;
+
+  // F13: a sealed/ex-parte row renders as a CRITICAL blocker and must prevent
+  // finalization until it is removed (same hard-block posture as an open
+  // discrepancy). A sealed row is never CLEAN/FLAGGED, so the hasOpen gate above
+  // does not cover it — add an explicit hasCritical condition.
+  const criticalRows = useMemo(() => exhibits.filter((r) => r.isSealed), [exhibits]);
+  const hasCritical = criticalRows.length > 0;
+  const disableFinalize = hasOpen || hasCritical || finalizePending;
 
   // "N of M exhibits have open discrepancies".
   const summary = `${blocking.length} of ${exhibits.length} exhibits have open discrepancies`;
@@ -166,7 +177,9 @@ export function JuryPackageDraft({
         <TableBody>
           {exhibits.map((row) => {
             const rowOpenFlags = row.flags.filter((f) => f.status === 'OPEN');
-            const isBlocking = rowOpenFlags.length > 0;
+            // F13: a sealed/ex-parte row is a CRITICAL blocker — it hard-blocks
+            // finalize exactly like an open discrepancy, so mark it data-blocking.
+            const isBlocking = rowOpenFlags.length > 0 || row.isSealed;
             return (
               <TableRow
                 key={row.exhibitId}
@@ -179,56 +192,116 @@ export function JuryPackageDraft({
                   <StatusBadge status={row.currentStatus} />
                 </TableCell>
                 <TableCell>
-                  {row.flags.length > 0 ? (
-                    <DiscrepancyBadge flags={row.flags} />
+                  {row.isSealed ? (
+                    // F13: sealed/ex-parte rows NEVER render Clean/Flagged — they
+                    // render a distinct, higher-severity CRITICAL treatment with
+                    // the UX-Mockup's exact copy and no Fix/Acknowledge affordance.
+                    <div
+                      className={styles.criticalCell}
+                      data-testid="jury-critical-row"
+                      data-exhibit-label={row.exhibitLabel}
+                    >
+                      <span className={styles.criticalBadge}>
+                        ⛔ CRITICAL · ex parte material — must be removed
+                      </span>
+                    </div>
                   ) : (
-                    <span className={styles.clean}>Clean</span>
+                    <>
+                      {row.flags.length > 0 ? (
+                        <DiscrepancyBadge flags={row.flags} />
+                      ) : (
+                        <span className={styles.clean}>Clean</span>
+                      )}
+                      {/* F14: for each ACKNOWLEDGED flag on this row, render the full
+                          record (actor, role, timestamp, justification) inline, always
+                          visible — resolved from the already-held caseFlags + roster
+                          (no new fetch), same pattern as resolveFlagId. */}
+                      {row.flags
+                        .filter((f) => f.status !== 'OPEN')
+                        .map((f) => {
+                          const fullRecord = caseFlags.find(
+                            (cf) => cf.exhibitId === row.exhibitId && cf.ruleCode === f.ruleCode,
+                          );
+                          if (!fullRecord?.acknowledgedAt) return null;
+                          const ackUser = fullRecord.acknowledgedBy
+                            ? users.find((u) => u.id === fullRecord.acknowledgedBy)
+                            : undefined;
+                          return (
+                            <p
+                              key={f.ruleCode}
+                              className={styles.ackRecord}
+                              data-testid="discrepancy-ack-record"
+                            >
+                              Acknowledged by {ackUser?.name ?? 'Unknown'} ({ackUser?.role ?? '—'})
+                              · {new Date(fullRecord.acknowledgedAt).toLocaleString()}:{' '}
+                              {fullRecord.justification ?? ''}
+                            </p>
+                          );
+                        })}
+                    </>
                   )}
                 </TableCell>
                 {canAcknowledge && (
                   <TableCell>
-                    {rowOpenFlags.length > 0 && (
-                      <div className={styles.actionCell}>
-                        <div className={styles.actionRow}>
-                          <Link
-                            href={`/exhibit/${row.exhibitId}`}
-                            className={styles.fixLink}
-                            data-testid="jury-fix-link"
-                          >
-                            Fix →
-                          </Link>
-                          {rowOpenFlags.map((f) => (
-                            <button
-                              key={f.ruleCode}
-                              type="button"
-                              data-testid="jury-acknowledge-trigger"
-                              className={styles.ackTrigger}
-                              onClick={() =>
-                                setAckTarget({ exhibitId: row.exhibitId, ruleCode: f.ruleCode })
-                              }
+                    {/* F13: CRITICAL row → role-gated Remove-from-Package action
+                        (DEPUTY/CLERK/ADMIN, the SAME set as finalize — NOT the
+                        acknowledge set, so a JUDGE sees the blocker with no
+                        action control). */}
+                    {row.isSealed ? (
+                      canFinalize && (
+                        <button
+                          type="button"
+                          data-testid="jury-remove-from-package"
+                          className={styles.removeTrigger}
+                          onClick={() => onExclude(row.exhibitId)}
+                        >
+                          Remove from Package
+                        </button>
+                      )
+                    ) : (
+                      rowOpenFlags.length > 0 && (
+                        <div className={styles.actionCell}>
+                          <div className={styles.actionRow}>
+                            <Link
+                              href={`/exhibit/${row.exhibitId}`}
+                              className={styles.fixLink}
+                              data-testid="jury-fix-link"
                             >
-                              Acknowledge
-                            </button>
-                          ))}
+                              Fix →
+                            </Link>
+                            {rowOpenFlags.map((f) => (
+                              <button
+                                key={f.ruleCode}
+                                type="button"
+                                data-testid="jury-acknowledge-trigger"
+                                className={styles.ackTrigger}
+                                onClick={() =>
+                                  setAckTarget({ exhibitId: row.exhibitId, ruleCode: f.ruleCode })
+                                }
+                              >
+                                Acknowledge
+                              </button>
+                            ))}
+                          </div>
+                          {ackTarget?.exhibitId === row.exhibitId && (
+                            <AcknowledgeInline
+                              pending={acknowledgePending}
+                              error={ackError}
+                              onConfirm={(justification) =>
+                                handleAckConfirm(
+                                  ackTarget.exhibitId,
+                                  ackTarget.ruleCode,
+                                  justification,
+                                )
+                              }
+                              onCancel={() => {
+                                setAckTarget(null);
+                                setAckError(null);
+                              }}
+                            />
+                          )}
                         </div>
-                        {ackTarget?.exhibitId === row.exhibitId && (
-                          <AcknowledgeInline
-                            pending={acknowledgePending}
-                            error={ackError}
-                            onConfirm={(justification) =>
-                              handleAckConfirm(
-                                ackTarget.exhibitId,
-                                ackTarget.ruleCode,
-                                justification,
-                              )
-                            }
-                            onCancel={() => {
-                              setAckTarget(null);
-                              setAckError(null);
-                            }}
-                          />
-                        )}
-                      </div>
+                      )
                     )}
                   </TableCell>
                 )}
@@ -245,7 +318,7 @@ export function JuryPackageDraft({
               kind="primary"
               type="button"
               data-testid="jury-finalize"
-              disabled={hasOpen || finalizePending}
+              disabled={disableFinalize}
               onClick={() => onFinalize(juryPackage.id)}
             >
               {finalizePending ? (
@@ -257,6 +330,11 @@ export function JuryPackageDraft({
                 'Finalize jury package'
               )}
             </Button>
+            {hasCritical && (
+              <p className={styles.finalizeCaption} data-testid="jury-critical-caption">
+                {criticalRows.length} sealed/ex parte exhibit present — blocked.
+              </p>
+            )}
             {hasOpen && (
               <p className={styles.finalizeCaption} data-testid="jury-finalize-caption">
                 Resolve or acknowledge all open discrepancies to finalize.

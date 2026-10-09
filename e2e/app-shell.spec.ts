@@ -67,4 +67,34 @@ test.describe('App shell', () => {
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
   });
+
+  test('header discrepancy-count indicator is absent when the open count is zero (default seed)', async ({ page }) => {
+    await page.goto('/case');
+    // Plan 07-02's seed produces zero exhibits with an OPEN discrepancy flag —
+    // the indicator must be completely absent, not rendered-and-hidden.
+    await expect(page.getByTestId('header-discrepancy-indicator')).toHaveCount(0);
+  });
+
+  test('header discrepancy-count indicator renders with an accessible label and navigates on click when the count is nonzero', async ({ page }) => {
+    // Acknowledging a discrepancy does not clear the OPEN count on its own —
+    // there is no organic OPEN flag in the default seed post-F12 (plan 07-02).
+    // Mock the discrepancies endpoint to force a nonzero count for this UI-only
+    // assertion, mirroring the mocking pattern already used elsewhere in this
+    // suite (e.g. jury-package.spec.ts's role-gating test).
+    await page.route('**/api/cases/**/discrepancies', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 'flag-1', caseId: 'case-1', exhibitId: 'ex-1', ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN', detectedAt: new Date().toISOString(), details: {}, acknowledgedAt: null, acknowledgedBy: null, resolvedAt: null },
+        ]),
+      });
+    });
+    await page.goto('/case');
+    const indicator = page.getByTestId('header-discrepancy-indicator');
+    await expect(indicator).toBeVisible();
+    await expect(indicator).toHaveAccessibleName('1 open discrepancies');
+    await indicator.click();
+    await expect(page).toHaveURL(/\/command-center/);
+  });
 });

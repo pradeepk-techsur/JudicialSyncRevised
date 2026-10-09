@@ -79,6 +79,24 @@ export class RoleNotPermittedError extends AppError {
 }
 
 /**
+ * 422 — ADMISSION_BLOCKED. Thrown by recordStatusChange (F12) when a caller
+ * attempts to transition an exhibit to ADMITTED while it has >=1 UNRESOLVED
+ * objection and/or no CustodyCurrentState row. `reasons` lists EVERY applicable
+ * blocking condition, never just the first found — the route layer surfaces
+ * this verbatim via errorResponse's existing `details` channel.
+ */
+export class AdmissionBlockedError extends AppError {
+  constructor(reasons: Array<{ code: 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN'; message: string }>) {
+    super(
+      'ADMISSION_BLOCKED',
+      `Cannot admit: ${reasons.length} blocking condition(s) present`,
+      422,
+      { reasons },
+    );
+  }
+}
+
+/**
  * 503 — the LLM provider is unreachable, timed out, or no API key is configured.
  * This is strictly an ERROR/TRANSPORT outcome — it MUST surface on the HTTP 503
  * channel and be rendered as the distinct "temporarily unavailable" system

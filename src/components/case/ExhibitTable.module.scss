@@ -11,9 +11,27 @@
   color: $text-secondary;
 }
 
-// Clickable row affordance (was: cursor-pointer).
+// Clickable row affordance (was: cursor-pointer). The ENTIRE row is the hit
+// area (Y0-patterns.md "Fully Clickable List Row") — the <tr> carries the
+// onClick, so a click on any cell (content or padding whitespace) bubbles up
+// and navigates.
 .row {
   cursor: pointer;
+
+  // Hover affordance across the whole row (Carbon applies its own row-hover
+  // background, but assert it explicitly so the clickable surface reads as
+  // interactive on every screen).
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  // Visible keyboard focus indicator. The row is tabIndex={0} (see
+  // ExhibitTable.tsx), so keyboard users land here; make the focus ring
+  // unmistakable even if Carbon's table styles suppress the default outline.
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
+  }
 }
 
 // Truncated description cell (was: max-w-xs truncate).

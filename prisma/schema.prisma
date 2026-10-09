@@ -68,6 +68,7 @@ enum EventType {
   RULING_RECORDED
   CUSTODY_TRANSFER
   DISCREPANCY_ACKNOWLEDGED
+  JURY_PACKAGE_EXHIBIT_EXCLUDED
 
   @@map("event_type")
 }
@@ -92,6 +93,13 @@ enum JuryExhibitDiscrepancyStatus {
   FLAGGED
 
   @@map("jury_exhibit_discrepancy_status")
+}
+
+enum JuryPackageExhibitStatus {
+  INCLUDED
+  EXCLUDED
+
+  @@map("jury_package_exhibit_status")
 }
 
 model Case {
@@ -123,6 +131,7 @@ model User {
   custodyAssignments    CustodyCurrentState[]   @relation("CurrentCustodian")
   acknowledgedFlags     DiscrepancyFlag[]       @relation("DiscrepancyAcknowledger")
   finalizedJuryPackages JuryPackage[]           @relation("JuryPackageFinalizer")
+  excludedJuryPackageExhibits JuryPackageExhibit[] @relation("JuryPackageExhibitExcluder")
   conversations         AssistantConversation[]
 
   @@index([caseId, role])
@@ -285,12 +294,18 @@ model JuryPackageExhibit {
   juryPackageId     String                       @map("jury_package_id")
   exhibitId         String                       @map("exhibit_id")
   discrepancyStatus JuryExhibitDiscrepancyStatus @map("discrepancy_status")
+  status            JuryPackageExhibitStatus     @default(INCLUDED) @map("status")
+  excludedAt        DateTime?                    @map("excluded_at")
+  excludedBy        String?                      @map("excluded_by")
+  exclusionReason   String?                      @map("exclusion_reason")
   addedAt           DateTime                     @default(now()) @map("added_at")
 
-  juryPackage JuryPackage @relation(fields: [juryPackageId], references: [id])
-  exhibit     Exhibit     @relation(fields: [exhibitId], references: [id])
+  juryPackage    JuryPackage @relation(fields: [juryPackageId], references: [id])
+  exhibit        Exhibit     @relation(fields: [exhibitId], references: [id])
+  excludedByUser User?       @relation("JuryPackageExhibitExcluder", fields: [excludedBy], references: [id])
 
   @@unique([juryPackageId, exhibitId], map: "uq_jury_package_exhibit")
+  @@index([juryPackageId, status], map: "idx_jury_package_exhibits_package_status")
   @@map("jury_package_exhibits")
 }
 

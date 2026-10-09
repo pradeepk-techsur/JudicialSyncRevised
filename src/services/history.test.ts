@@ -50,23 +50,21 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
     expect(history).not.toBeNull();
     if (!history) return;
 
-    // Header fields: ADMITTED, with a custodian name resolved (P-3 has a chain).
-    expect(history.currentStatus).toBe('ADMITTED');
-    expect(history.currentCustodianName).toBeTruthy();
+    // Header fields: post-F12, P-3's admission is blocked, so it stops at
+    // OBJECTED with no custody chain (no custodian of record).
+    expect(history.currentStatus).toBe('OBJECTED');
+    expect(history.currentCustodianName).toBeNull();
 
     // Timeline must be COMPLETE (every event, no truncation) and in sequence
-    // order. P-3: STATUS_CHANGE(MARKED), STATUS_CHANGE(OFFERED),
-    // OBJECTION_RAISED, STATUS_CHANGE(OBJECTED), STATUS_CHANGE(ADMITTED),
-    // CUSTODY_TRANSFER x2.
+    // order. Post-F12 P-3: STATUS_CHANGE(MARKED), STATUS_CHANGE(OFFERED),
+    // OBJECTION_RAISED, STATUS_CHANGE(OBJECTED) — 4 events, zero custody
+    // transfers (admission-blocked fixture).
     const types = history.timeline.map((t) => t.eventType);
     expect(types).toEqual([
       'STATUS_CHANGE',
       'STATUS_CHANGE',
       'OBJECTION_RAISED',
       'STATUS_CHANGE',
-      'STATUS_CHANGE',
-      'CUSTODY_TRANSFER',
-      'CUSTODY_TRANSFER',
     ]);
 
     // The OBJECTION_RAISED event must appear AFTER the OFFERED status change and
@@ -113,8 +111,13 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
       expect(entry.actorName).not.toMatch(UUID_RE);
     }
 
-    // Custody summaries resolve the from/to custodian to NAMES, not UUIDs.
-    const custodyEntries = history.timeline.filter(
+    // Custody summaries (on any exhibit that HAS them) resolve the from/to
+    // custodian to NAMES, not UUIDs. Post-F12 P-3 has no custody transfers, so
+    // assert the prose/UUID contract against a seeded exhibit that does: P-4
+    // (cleanly admitted with a full custody chain).
+    const p4History = await getExhibitHistory(await exhibitIdByLabel('P-4'), 'JUDGE');
+    expect(p4History).not.toBeNull();
+    const custodyEntries = (p4History?.timeline ?? []).filter(
       (t) => t.eventType === 'CUSTODY_TRANSFER',
     );
     expect(custodyEntries.length).toBeGreaterThan(0);
@@ -125,38 +128,36 @@ describe('getExhibitHistory (F10) against the real seeded case', () => {
     }
   });
 
-  it('populates discrepancyFlags from the live engine: flagged exhibits carry them, clean ones are []', async () => {
-    // Phase 3 (F6) lights up getExhibitHistory.discrepancyFlags from the live
-    // engine. The seeded demo plants exactly the two flagged conditions:
-    //   P-2 — ADMITTED with no custodian  → ADMITTED_NO_CUSTODIAN
-    //   P-3 — ADMITTED with an unresolved objection → UNRESOLVED_OBJECTION_JURY_ELIGIBLE
-    // P-4 is cleanly ADMITTED with a full custody chain and no open objection → [].
+  it('discrepancyFlags is always [] post-F12 — no seeded exhibit can carry an open flag (structural guarantee)', async () => {
+    // F12's admission gate makes it structurally impossible for a fresh seed
+    // exhibit to reach ADMITTED while either F6 precondition holds (no custodian
+    // / open objection), so neither rule can fire on seed data. P-2 is now
+    // OFFERED and P-3 is OBJECTED — both yield []. P-4 (cleanly admitted) is []
+    // as an additional confirming data point. F6's rule-engine logic itself is
+    // still fully covered by discrepancies.test.ts's white-box fixtures (which
+    // construct the precondition directly).
     const p2 = await getExhibitHistory(await exhibitIdByLabel('P-2'), 'JUDGE');
     expect(p2).not.toBeNull();
-    expect(p2!.discrepancyFlags.map((f) => f.ruleCode)).toContain('ADMITTED_NO_CUSTODIAN');
-    const p2Flag = p2!.discrepancyFlags.find((f) => f.ruleCode === 'ADMITTED_NO_CUSTODIAN');
-    expect(p2Flag!.status).toBe('OPEN');
-    expect(p2Flag!.label).toBe('No custodian on record');
+    expect(p2!.discrepancyFlags).toEqual([]);
 
     const p3 = await getExhibitHistory(await exhibitIdByLabel('P-3'), 'JUDGE');
     expect(p3).not.toBeNull();
-    expect(p3!.discrepancyFlags.map((f) => f.ruleCode)).toContain(
-      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
-    );
+    expect(p3!.discrepancyFlags).toEqual([]);
 
     const p4 = await getExhibitHistory(await exhibitIdByLabel('P-4'), 'JUDGE');
     expect(p4).not.toBeNull();
     expect(p4!.discrepancyFlags).toEqual([]);
   });
 
-  it('reconstructs the full history for the custody-gap exhibit (P-2) with no custodian name', async () => {
+  it('reconstructs the full history for the admission-blocked exhibit (P-2) with no custodian name', async () => {
     const exhibitId = await exhibitIdByLabel('P-2');
     const history = await getExhibitHistory(exhibitId, 'JUDGE');
     expect(history).not.toBeNull();
     if (!history) return;
 
-    // P-2 is ADMITTED but has ZERO custody transfers — the gap is valid.
-    expect(history.currentStatus).toBe('ADMITTED');
+    // P-2 is OFFERED (never admitted — F12 blocks it) and has ZERO custody
+    // transfers.
+    expect(history.currentStatus).toBe('OFFERED');
     expect(history.currentCustodianName).toBeNull();
     expect(
       history.timeline.filter((t) => t.eventType === 'CUSTODY_TRANSFER'),

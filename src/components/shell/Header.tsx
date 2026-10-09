@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Header as CarbonHeader,
   HeaderName,
@@ -11,10 +12,15 @@ import {
 } from '@carbon/react';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAssistantStore } from '@/stores/assistantStore';
+import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 
 export function Header() {
   const { caseNumber, users, activeUserId, setActiveUser, hydrate } = useRoleStore();
   const togglePanel = useAssistantStore((s) => s.togglePanel);
+  // Case-wide OPEN-discrepancy count from the SAME shared hook the sidebar count
+  // pill (JuryPackageNavItem) uses — no second discrepancy query is introduced.
+  const { openCount } = useDiscrepancyCount();
+  const router = useRouter();
 
   useEffect(() => {
     if (caseNumber) return; // already hydrated
@@ -41,6 +47,29 @@ export function Header() {
         {caseNumber ? `Case: ${caseNumber}` : 'Loading case…'}
       </span>
       <HeaderGlobalBar>
+        {/* Labeled discrepancy-count indicator (UX-Mockup §App Shell layout:
+            `[Case: ...]  [⚠ 1]  [Role: ... ▾] [Ask ✦]`). Sourced from the SHARED
+            useDiscrepancyCount query, it shows the case-wide count of OPEN
+            discrepancy flags paired with a visible aria-label ("N open
+            discrepancies") readable without a hover, and navigates to the Command
+            Center's Discrepancies panel on click. When the count is zero the
+            element is COMPLETELY ABSENT from the DOM (not rendered-and-hidden) —
+            never a bare, unexplained "0" — which is the common case against the
+            fresh default seed (Labeled Header Indicator pattern's "or not rendered
+            at all" half). Identical on every screen since it lives in the one
+            shared Header. */}
+        {openCount > 0 && (
+          <Button
+            kind="ghost"
+            type="button"
+            onClick={() => router.push('/command-center#discrepancies')}
+            data-testid="header-discrepancy-indicator"
+            aria-label={`${openCount} open discrepancies`}
+            title={`${openCount} open discrepancies`}
+          >
+            ⚠ {openCount}
+          </Button>
+        )}
         {/* Role switcher — Carbon's `Select` wraps a REAL native <select> with a
             REAL <label htmlFor>, so Playwright's option-count / option-text /
             option:checked assertions against a native <select> keep working. The
