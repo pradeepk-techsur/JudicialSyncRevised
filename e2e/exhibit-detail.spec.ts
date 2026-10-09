@@ -529,78 +529,204 @@ test.describe('Exhibit Detail View', () => {
     page,
     request,
   }) => {
-    // P-4 is a clean admitted exhibit → INCLUDED, all four conditions met.
-    const p4 = await getExhibitRow(request, 'P-4');
-    await page.goto(`/exhibit/${p4.exhibitId}`);
-    const p4Card = page.getByTestId('exhibit-jury-checklist-card');
-    await expect(p4Card).toBeVisible();
-    await expect(p4Card.getByTestId('jury-checklist-item')).toHaveCount(4);
-    await expect(p4Card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
+    // Driven with a mocked history GET (the suite's established technique) across
+    // the three eligibility buckets. A LIVE assertion would be doubly
+    // non-deterministic: the shared demo seed is continuously re-seeded by
+    // sibling Phase-8 plans, AND `eligibility` is only INCLUDED/BLOCKED when a
+    // JuryPackage has actually been computed (a fresh seed builds none, so every
+    // exhibit is NOT_ELIGIBLE). This test asserts the CARD's rendering contract
+    // for each verdict + the per-condition ✓/✗ flags, which is 08-13's scope;
+    // 08-07/08-08 already prove the precedence rule itself against isolated
+    // fixtures. A real exhibit id is used so the route match + page resolve.
+    const caseId = await getCaseId(request);
+    const { exhibitId } = await getExhibitRow(request, 'P-4');
+
+    const checklistBody = (
+      eligibility: string,
+      conds: {
+        admitted: boolean;
+        objectionsResolved: boolean;
+        custodianOnRecord: boolean;
+        classificationTrial: boolean;
+      },
+    ) => ({
+      exhibit: {
+        id: exhibitId,
+        caseId,
+        exhibitLabel: 'P-4',
+        description: 'Jury-checklist e2e exhibit',
+        offeringParty: 'PROSECUTION',
+        associatedWitness: null,
+        isSealed: false,
+      },
+      currentStatus: conds.admitted ? 'ADMITTED' : 'OFFERED',
+      currentCustodianName: null,
+      discrepancyFlags: [],
+      timeline: [],
+      objections: [],
+      custodyCard: { current: null, pendingTransfer: null, history: [] },
+      juryPackageChecklist: { ...conds, eligibility },
+    });
+
+    // INCLUDED: all four conditions met.
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          checklistBody('INCLUDED', {
+            admitted: true,
+            objectionsResolved: true,
+            custodianOnRecord: true,
+            classificationTrial: true,
+          }),
+        ),
+      });
+    });
+    await page.goto(`/exhibit/${exhibitId}`);
+    const card = page.getByTestId('exhibit-jury-checklist-card');
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId('jury-checklist-item')).toHaveCount(4);
+    await expect(card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
       'data-eligibility',
       'INCLUDED',
     );
-    await expect(p4Card.getByTestId('jury-checklist-open-link')).toBeVisible();
+    // All four items met.
+    for (const item of await card.getByTestId('jury-checklist-item').all()) {
+      await expect(item).toHaveAttribute('data-met', 'true');
+    }
+    await expect(card.getByTestId('jury-checklist-open-link')).toBeVisible();
 
-    // P-2 (OFFERED, never admitted) → NOT_ELIGIBLE, "Admitted" unmet.
-    const p2 = await getExhibitRow(request, 'P-2');
-    await page.goto(`/exhibit/${p2.exhibitId}`);
-    const p2Card = page.getByTestId('exhibit-jury-checklist-card');
-    await expect(p2Card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
+    // NOT_ELIGIBLE: not admitted → "Admitted" item unmet.
+    await page.unroute('**/api/exhibits/**/history');
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          checklistBody('NOT_ELIGIBLE', {
+            admitted: false,
+            objectionsResolved: true,
+            custodianOnRecord: false,
+            classificationTrial: true,
+          }),
+        ),
+      });
+    });
+    await page.reload();
+    await expect(card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
       'data-eligibility',
       'NOT_ELIGIBLE',
     );
-    const admittedItem = p2Card
-      .getByTestId('jury-checklist-item')
-      .filter({ hasText: 'Admitted' });
+    const admittedItem = card.getByTestId('jury-checklist-item').filter({ hasText: 'Admitted' });
     await expect(admittedItem).toHaveAttribute('data-met', 'false');
 
-    // P-7 (legacy-admitted with an unresolved objection) → BLOCKED.
-    const p7 = await getExhibitRow(request, 'P-7');
-    await page.goto(`/exhibit/${p7.exhibitId}`);
-    const p7Card = page.getByTestId('exhibit-jury-checklist-card');
-    await expect(p7Card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
+    // BLOCKED: admitted but an unresolved objection → "No unresolved objections" unmet.
+    await page.unroute('**/api/exhibits/**/history');
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          checklistBody('BLOCKED', {
+            admitted: true,
+            objectionsResolved: false,
+            custodianOnRecord: true,
+            classificationTrial: true,
+          }),
+        ),
+      });
+    });
+    await page.reload();
+    await expect(card.getByTestId('jury-eligibility-badge')).toHaveAttribute(
       'data-eligibility',
       'BLOCKED',
     );
+    const objItem = card
+      .getByTestId('jury-checklist-item')
+      .filter({ hasText: 'No unresolved objections' });
+    await expect(objItem).toHaveAttribute('data-met', 'false');
   });
 
   test('Timeline filter pills narrow client-side; the ?event deep-link highlight is unaffected', async ({
     page,
     request,
   }) => {
-    // P-4's timeline mixes STATUS_CHANGE and CUSTODY_TRANSFER events, so the
-    // Custody filter genuinely narrows the set.
+    // Driven with a mocked history carrying a mixed timeline (status + custody +
+    // objection events) so the filter narrowing is deterministic regardless of
+    // the shared seed's churn. The Timeline component, its real client-side
+    // useMemo filter, and the real ?event highlight path are all exercised for
+    // real — only the underlying data is pinned.
+    const caseId = await getCaseId(request);
     const { exhibitId } = await getExhibitRow(request, 'P-4');
+
+    const timeline = [
+      { eventId: 'evt-1', eventType: 'STATUS_CHANGE', summary: 'Status changed from (none) to MARKED', actorName: 'Dep. Ramos', recordedAt: new Date().toISOString() },
+      { eventId: 'evt-2', eventType: 'STATUS_CHANGE', summary: 'Status changed from MARKED to OFFERED', actorName: 'Dep. Ramos', recordedAt: new Date().toISOString() },
+      { eventId: 'evt-3', eventType: 'CUSTODY_TRANSFER', summary: 'Custody transferred from (none) to Clerk', actorName: 'Clerk', recordedAt: new Date().toISOString() },
+      { eventId: 'evt-4', eventType: 'CUSTODY_TRANSFER', summary: 'Custody transferred from Clerk to Deputy', actorName: 'Deputy', recordedAt: new Date().toISOString() },
+      { eventId: 'evt-5', eventType: 'OBJECTION_RAISED', summary: 'Objection raised by DEFENSE — Hearsay', actorName: 'Attorney', recordedAt: new Date().toISOString() },
+    ];
+
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          exhibit: {
+            id: exhibitId,
+            caseId,
+            exhibitLabel: 'P-4',
+            description: 'Timeline-filter e2e exhibit',
+            offeringParty: 'PROSECUTION',
+            associatedWitness: null,
+            isSealed: false,
+          },
+          currentStatus: 'OFFERED',
+          currentCustodianName: 'Deputy',
+          discrepancyFlags: [],
+          timeline,
+          objections: [],
+          custodyCard: { current: null, pendingTransfer: null, history: [] },
+          juryPackageChecklist: {
+            admitted: false,
+            objectionsResolved: true,
+            custodianOnRecord: true,
+            classificationTrial: true,
+            eligibility: 'NOT_ELIGIBLE',
+          },
+        }),
+      });
+    });
+
     await page.goto(`/exhibit/${exhibitId}`);
-
     const entries = page.locator('[aria-label="Exhibit history timeline"] li');
-    const allCount = await entries.count();
-    expect(allCount).toBeGreaterThan(2);
+    await expect(entries).toHaveCount(5);
 
-    // Click "Custody" → only custody-transfer rows remain (2 for P-4), fewer than
-    // the full set, and every visible row is a custody transfer.
+    // Click "Custody" → only the 2 custody-transfer rows remain.
     await page.getByTestId('timeline-filter-custody').click();
     await expect(entries).toHaveCount(2);
     for (let i = 0; i < 2; i++) {
       await expect(entries.nth(i)).toContainText('Custody transferred');
     }
 
-    // Back to "All" restores the full set — the entries themselves never changed.
-    await page.getByTestId('timeline-filter-all').click();
-    await expect(entries).toHaveCount(allCount);
+    // "Objections" → only the 1 objection row.
+    await page.getByTestId('timeline-filter-objections').click();
+    await expect(entries).toHaveCount(1);
+    await expect(entries.first()).toContainText('Objection raised');
 
-    // The pre-existing citation deep-link highlight contract still holds: land on
-    // the detail screen with ?event=<first eventId> and that row is highlighted.
-    const historyRes = await request.get(`/api/exhibits/${exhibitId}/history`, {
-      headers: { 'X-User-Role': 'JUDGE' },
-    });
-    const history = await historyRes.json();
-    const firstEventId: string = history.timeline[0].eventId;
-    await page.goto(`/exhibit/${exhibitId}?event=${firstEventId}`);
-    await expect(page.locator(`#event-${firstEventId}`)).toHaveAttribute(
-      'data-highlighted',
-      'true',
-    );
+    // Back to "All" restores the full set, unchanged.
+    await page.getByTestId('timeline-filter-all').click();
+    await expect(entries).toHaveCount(5);
+
+    // The citation deep-link highlight contract still holds: ?event=<id> lands and
+    // highlights that row (the filter pills never touched the anchor/highlight logic).
+    await page.goto(`/exhibit/${exhibitId}?event=evt-3`);
+    await expect(page.locator('#event-evt-3')).toHaveAttribute('data-highlighted', 'true');
   });
 });
 
