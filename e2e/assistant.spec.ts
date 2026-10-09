@@ -332,6 +332,46 @@ test.describe('Pivota Assistant', () => {
     await expect(bubble).toContainText("I don't have that information.");
   });
 
+  // F15 item 2 (US-15.2 AC#3 / ROADMAP Success Criterion 5 / FRD F15 §Validation):
+  // the assistant's example prompts must only ever reference exhibit labels that
+  // actually exist in the current case's seeded exhibits. This is the LITERAL
+  // required shape — an automated test that fetches the REAL seeded exhibit list
+  // and fails if ANY rendered chip mentions a label outside it. A grep for the two
+  // retired "Exhibit 14"/"Exhibit 7" strings, or the chip-COUNT-only assertion, do
+  // NOT satisfy this: this catches a future edit reintroducing ANY nonexistent
+  // label, and catches the `?? 'P-4'` fallback literals drifting from the seed.
+  test('every example prompt references an exhibitLabel that actually exists in the seeded case (US-15.2 AC#3)', async ({
+    page,
+    request,
+  }) => {
+    // Fetch the REAL seeded exhibit list — the authoritative set any example
+    // prompt's exhibit reference must belong to.
+    const caseId = await getCaseId(request);
+    const res = await request.get(`/api/cases/${caseId}/exhibits`, {
+      headers: { 'X-User-Role': 'JUDGE' },
+    });
+    const rows: Array<{ exhibitLabel: string }> = await res.json();
+    const realLabels = new Set(rows.map((r) => r.exhibitLabel));
+
+    await page.goto('/case');
+    await page.getByTestId('ask-assistant').click();
+    const chips = page.getByTestId('example-chip');
+    await expect(chips).toHaveCount(5);
+    const texts = await chips.allTextContents();
+
+    // Extract every P-/D-/S-<digits> token mentioned across all 5 chips and
+    // assert EVERY one belongs to the real seeded set. This fails if
+    // ExampleChips.tsx's hardcoded fallback literals (e.g. `?? 'P-4'`) ever
+    // drift from what the seed actually produces, or if a future edit
+    // reintroduces a hardcoded non-existent label — not just today's "Exhibit
+    // 14"/"Exhibit 7" strings specifically.
+    const mentioned = texts.join(' ').match(/\b[PDS]-\d+\b/g) ?? [];
+    expect(mentioned.length).toBeGreaterThan(0); // sanity: at least one exhibit-specific prompt resolved to a label
+    for (const label of mentioned) {
+      expect(realLabels.has(label)).toBe(true);
+    }
+  });
+
   test('/assistant renders the shared thread and the sidebar link works', async ({ page }) => {
     await page.goto('/case');
     await page.getByRole('link', { name: 'Assistant' }).click();

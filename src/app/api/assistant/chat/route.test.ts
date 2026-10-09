@@ -40,13 +40,20 @@ import { POST, isDeclineText } from '@/app/api/assistant/chat/route';
 // present, so this never touches the no-key gate path.
 const LLM_TEST_TIMEOUT = 30_000;
 
-// The 5 named demo questions (ROADMAP / CONTEXT.md).
+// The 5 named demo questions (ROADMAP / CONTEXT.md). F15 fix (07-04): the three
+// exhibit-specific questions now reference REAL seeded labels (P-4: ADMITTED,
+// clean, custody chain ending at the clerk; P-3: ADMITTED carrying an unresolved
+// objection, with a custody chain) instead of the retired "Exhibit 14"/"Exhibit 7"
+// numbers that match no seeded exhibit. P-3's custody question deliberately targets
+// an exhibit that HAS a custodian (so a grounded answer is possible); P-4 is used
+// for the jury-package + custody probes since it is the always-clean ADMITTED
+// reference.
 const DEMO_QUESTIONS = [
   'what exhibits were admitted yesterday',
   'what objections remain unresolved',
-  'is Exhibit 14 in the jury package',
-  'who currently has custody of Exhibit 7',
-  'what happened to Exhibit 14',
+  'is P-4 in the jury package',
+  'who currently has custody of P-4',
+  'what happened to P-3',
 ] as const;
 
 function buildChatRequest(opts: {
@@ -212,7 +219,7 @@ describe('POST /api/assistant/chat', () => {
       it('an unavailable assistant is an ERROR envelope, NEVER a 200 Decline', async () => {
         const response = await POST(
           buildChatRequest({
-            message: 'who currently has custody of Exhibit 7',
+            message: 'who currently has custody of P-4',
             caseId,
             userId,
             role: 'DEPUTY',
@@ -337,11 +344,15 @@ describe('POST /api/assistant/chat', () => {
         }
       }, LLM_TEST_TIMEOUT);
 
-      it('no-over-correction guard: a genuinely grounded answer ("who currently has custody of Exhibit 7") still carries >=1 citation', async () => {
+      it('no-over-correction guard: a genuinely grounded answer ("who currently has custody of P-4") still carries >=1 citation', async () => {
         // Guards against a regression where isDeclineText false-positives on
         // grounded text and empties out citations that should be present — the
         // gate must only zero out citations for an ACTUAL textual decline.
-        const assistant = await ask('who currently has custody of Exhibit 7', 'JUDGE');
+        // P-4 is the always-clean ADMITTED exhibit with a real custody chain
+        // (ending at the clerk per plan 07-02's seed), so a grounded answer with
+        // >=1 citation is genuinely reachable — unlike the retired "Exhibit 7",
+        // which matched no seeded exhibit and would force an unconditional decline.
+        const assistant = await ask('who currently has custody of P-4', 'JUDGE');
         expect(assistant.content.trim().length).toBeGreaterThan(0);
 
         if (!isDeclineText(assistant.content)) {
