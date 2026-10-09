@@ -1,7 +1,8 @@
-// Exhibit Detail header block styles. Phase 6 swaps the former Tailwind
-// `rounded border p-4` wrapper for a Carbon `Tile`; this module supplies the
-// Carbon-token spacing/typography for the heading and the status/custodian meta
-// row that was `flex flex-wrap items-center gap-4 text-sm`.
+// Exhibit Detail header block styles. Phase 8 redesigns the header per
+// Screenshot 2: a title row placing the shared ExhibitTag chip + title + status
+// pill inline, a subtitle line (party/witness/custodian), and a right-aligned
+// header-action row ("Transfer custody" + "Ask Pivota about {label}"). Carbon
+// tokens supply all spacing/typography — no Tailwind.
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
@@ -10,17 +11,32 @@
   margin-bottom: $spacing-06;
 }
 
-.heading {
-  @include type-style('heading-03');
-  margin-bottom: $spacing-03;
-  color: $text-primary;
-}
-
-.metaRow {
+// The chip + title + status pill, inline on one row (Screenshot 2 top).
+.titleRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: $spacing-05;
-  @include type-style('body-compact-01');
+  gap: $spacing-04;
+  margin-bottom: $spacing-03;
+}
+
+.heading {
+  @include type-style('heading-03');
   color: $text-primary;
+  margin: 0;
+}
+
+// Party · Witness {name} · Custodian {name} — one plain subtitle line.
+.subtitle {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+  margin-bottom: $spacing-05;
+}
+
+// Right-aligned header actions (Transfer custody / Ask Pivota about {label}).
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: $spacing-03;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Role } from '@prisma/client';
+import type { ObjectionCurrentState, Role } from '@prisma/client';
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAcknowledgeDiscrepancy, JuryPackageError } from '@/hooks/useAcknowledgeDiscrepancy';
@@ -21,9 +21,16 @@ const ACK_ROLES: Role[] = ['DEPUTY', 'CLERK', 'JUDGE', 'ADMIN'];
 export function DiscrepancyBanner({
   exhibitId,
   flags,
+  objections = [],
 }: {
   exhibitId: string;
   flags: DiscrepancyFlagSummary[];
+  // Phase 8 (F10/F24): the UNRESOLVED ObjectionCurrentState rows for this exhibit
+  // (from history.objections), so the alert-banner's "Record ruling" button can
+  // target the SPECIFIC objectionId (F24 §Process — never a bare exhibitId with
+  // ambiguous thread selection). Optional/defaulted so callers that don't yet
+  // pass it (and the existing F14 e2e mock, which omits it) stay compatible.
+  objections?: ObjectionCurrentState[];
 }) {
   const role = useRoleStore((s) => s.role);
   const users = useRoleStore((s) => s.users);
