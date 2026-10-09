@@ -548,3 +548,51 @@ Route (app)
 [2m   Duration [22m 229.97s[2m (transform 242ms, setup 0ms, collect 1.57s, tests 226.09s, environment 2ms, prepare 829ms)[22m
 ```
 
+
+## Backend pre-push gate
+
+- Status: passed
+- Result marker + failing output tail:
+```
+__GATE__ build_exit=0 test_exit=0 build_cmd=[npm run build] test_cmd=[npm test] head=0402eb5cfc273380213951635672ac244962e805 test_files=41 skip_marks=4 shadow_files=0
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22msealed DEPUTY probe Declines indistinguishably from not-found (criterion 4) [33m 3154[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22memits the data-citations frame on the live stream (writer-merge-then-write timing) — W3 [33m 3404[2mms[22m[39m
+ [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 21924[2mms[22m[39m
+ [32m✓[39m src/app/api/case/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 21899[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/tools.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 10997[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 11012[2mms[22m[39m
+ [32m✓[39m src/services/assistant.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 10984[2mms[22m[39m
+ [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 10970[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 10980[2mms[22m[39m
+ [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 303[2mms[22m[39m
+ [32m✓[39m src/app/api/discrepancies/[id]/acknowledge/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 183[2mms[22m[39m
+ [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 173[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 177[2mms[22m[39m
+ [32m✓[39m src/services/admissionGate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 130[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/exhibits/[exhibitId]/exclude/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 113[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 85[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 87[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 83[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 77[2mms[22m[39m
+ [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 73[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 65[2mms[22m[39m
+ [32m✓[39m src/services/activity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/activity/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m34 passed[39m[22m[90m (34)[39m
+[2m      Tests [22m [1m[32m215 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (218)[39m
+[2m   Start at [22m 02:26:59
+[2m   Duration [22m 229.28s[2m (transform 242ms, setup 0ms, collect 1.57s, tests 225.39s, environment 2ms, prepare 828ms)[22m
+
+```
