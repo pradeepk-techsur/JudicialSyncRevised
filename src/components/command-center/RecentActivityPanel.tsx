@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Tile, SkeletonText, ActionableNotification } from '@carbon/react';
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { EventType } from '@prisma/client';
 import type { ActivityResponse } from '@/hooks/useRecentActivity';
+import { ExhibitTag } from '@/components/shared/ExhibitTag';
 import styles from './RecentActivityPanel.module.scss';
 
 // F8 Command Center — Recent Activity panel. The full-width TOP panel (UX
@@ -34,6 +36,50 @@ function formatTime(iso: string): string {
   });
 }
 
+// Client-side filter pills (UX Screen-00 + Y0-patterns): narrow the ALREADY-
+// loaded feed by eventType — NO new query. `all` passes everything through
+// (null = no narrowing). A pill maps to the EventType(s) that back it.
+type FilterKey = 'all' | 'status' | 'custody' | 'objections' | 'rulings';
+
+const FILTER_PILLS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'status', label: 'Status' },
+  { key: 'custody', label: 'Custody' },
+  { key: 'objections', label: 'Objections' },
+  { key: 'rulings', label: 'Rulings' },
+];
+
+const FILTER_TO_EVENT_TYPES: Record<FilterKey, EventType[] | null> = {
+  all: null,
+  status: ['STATUS_CHANGE'],
+  custody: ['CUSTODY_TRANSFER'],
+  objections: ['OBJECTION_RAISED'],
+  rulings: ['RULING_RECORDED'],
+};
+
+// Date-group header label: "TODAY · OCT 8, 2026" / "YESTERDAY · OCT 7, 2026" /
+// a plain uppercase date for older days (UX Screen-00). Computed from each row's
+// recordedAt vs now; the feed is already sorted newest-first, so we only need to
+// detect when the calendar day changes walking the list.
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function dateGroupLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+
+  const dateText = d
+    .toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+    .toUpperCase();
+
+  if (dayKey(d) === dayKey(now)) return `TODAY · ${dateText}`;
+  if (dayKey(d) === dayKey(yesterday)) return `YESTERDAY · ${dateText}`;
+  return dateText;
+}
+
 export function RecentActivityPanel({
   query,
 }: {
@@ -43,6 +89,15 @@ export function RecentActivityPanel({
   // 08-10: the activity query now returns `{ recentActivity, statusCounts }` —
   // the feed reads the recentActivity array.
   const entries = data?.recentActivity ?? [];
+
+  // Client-side filter pills — narrow the already-loaded `entries` by eventType
+  // via a derived useMemo (CONTEXT's discretion note: client-side, NO new
+  // query). `All` is active by default.
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const filteredEntries = useMemo(() => {
+    const types = FILTER_TO_EVENT_TYPES[activeFilter];
+    return types === null ? entries : entries.filter((e) => types.includes(e.eventType));
+  }, [entries, activeFilter]);
 
   // New-row fade-in (CONTEXT locked default, Command-Center-only this phase):
   // track the eventIds seen on the previous render; any eventId not in that set
@@ -119,6 +174,29 @@ export function RecentActivityPanel({
         <span className={styles.count}>({entries.length} today)</span>
       </h2>
 
+      {/* Filter pills — client-side narrowing of the already-loaded feed, All
+          active by default. Rendered even while loading/empty so the control is
+          stable; the server is never re-queried on a pill click. */}
+      <div
+        className={styles.filterPills}
+        data-testid="activity-filter-pills"
+        role="group"
+        aria-label="Filter activity by type"
+      >
+        {FILTER_PILLS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            data-testid={`activity-filter-pill-${key}`}
+            aria-pressed={activeFilter === key}
+            className={`${styles.pill} ${activeFilter === key ? styles.pillActive : ''}`}
+            onClick={() => setActiveFilter(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {isLoading && (
         <div aria-hidden="true">
           <SkeletonText paragraph lineCount={4} width="100%" />
@@ -142,33 +220,53 @@ export function RecentActivityPanel({
         <p className={styles.empty}>No activity recorded yet today.</p>
       )}
 
-      {!isLoading && !isError && entries.length > 0 && (
+      {!isLoading && !isError && entries.length > 0 && filteredEntries.length === 0 && (
+        <p className={styles.empty}>No matching activity for this filter.</p>
+      )}
+
+      {!isLoading && !isError && filteredEntries.length > 0 && (
         <ul data-testid="recent-activity-list" className={styles.list}>
-          {entries.map((e) => (
-            <li
-              key={e.eventId}
-              className={`${styles.row} ${highlighted.has(e.eventId) ? styles.highlighted : ''}`}
-            >
-              <Link
-                href={`/exhibit/${e.exhibitId}?event=${e.eventId}`}
-                data-testid="recent-activity-row"
-                className={styles.link}
-              >
-                <span className={styles.bullet} aria-hidden="true">
-                  ●
-                </span>
-                {/* Prefix each row with its exhibit label so even a raw
-                    STATUS_CHANGE row is attributed to an exhibit (UX-Mockup:
-                    "Exhibit 3 — MARKED → OFFERED, …"). Two separate spans kept
-                    (summary + time) since layout/styling depend on the structure;
-                    the label is prepended into the summary span only. */}
-                <span className={styles.summary}>
-                  {e.exhibitLabel} — {e.summary}
-                </span>
-                <span className={styles.time}>{formatTime(e.recordedAt)}</span>
-              </Link>
-            </li>
-          ))}
+          {filteredEntries.map((e, i) => {
+            // Insert a date-group header whenever the calendar day changes
+            // walking the already-sorted (newest-first) filtered list — no
+            // re-sort, the order is already correct.
+            const prev = filteredEntries[i - 1];
+            const showHeader =
+              i === 0 || dayKey(new Date(prev.recordedAt)) !== dayKey(new Date(e.recordedAt));
+            return (
+              <li key={e.eventId} className={styles.rowWrapper}>
+                {showHeader && (
+                  <div
+                    data-testid="activity-date-group-header"
+                    className={styles.dateGroupHeader}
+                  >
+                    {dateGroupLabel(e.recordedAt)}
+                  </div>
+                )}
+                <div
+                  className={`${styles.row} ${highlighted.has(e.eventId) ? styles.highlighted : ''}`}
+                >
+                  <Link
+                    href={`/exhibit/${e.exhibitId}?event=${e.eventId}`}
+                    data-testid="recent-activity-row"
+                    className={styles.link}
+                  >
+                    <span className={styles.bullet} aria-hidden="true">
+                      ●
+                    </span>
+                    {/* Render the exhibit label via the shared ExhibitTag chip
+                        (08-03) — the one remaining plain-text exhibit label on
+                        the Command Center, now standardized. Two spans kept
+                        (summary + time) since layout depends on the structure. */}
+                    <span className={styles.summary}>
+                      <ExhibitTag label={e.exhibitLabel} /> {e.summary}
+                    </span>
+                    <span className={styles.time}>{formatTime(e.recordedAt)}</span>
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Tile>

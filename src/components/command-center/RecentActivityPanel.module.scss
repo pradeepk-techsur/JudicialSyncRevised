@@ -2,6 +2,7 @@
 // replacements for the former Tailwind utility classes. The new-row fade-in
 // highlight (behavior unchanged — see RecentActivityPanel.tsx) now uses Carbon's
 // warning-support token instead of Tailwind `bg-amber-50`.
+@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
@@ -19,6 +20,38 @@
   color: $text-secondary;
 }
 
+// Client-side filter-pill row (UX Screen-00).
+.filterPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-bottom: $spacing-05;
+}
+
+.pill {
+  @include type-style('label-01');
+  padding: $spacing-02 $spacing-04;
+  border: 1px solid colors.$gray-30;
+  border-radius: 1rem;
+  background: colors.$white;
+  color: $text-secondary;
+  cursor: pointer;
+
+  &:hover {
+    background: $layer-hover-01;
+  }
+}
+
+.pillActive {
+  background: $background-inverse;
+  border-color: $background-inverse;
+  color: $text-inverse;
+
+  &:hover {
+    background: $background-inverse;
+  }
+}
+
 .list {
   max-height: 24rem;
   overflow-y: auto;
@@ -27,16 +60,27 @@
   padding: 0;
 }
 
+// Each list item wraps an optional date-group header + the row.
+.rowWrapper {
+  list-style: none;
+}
+
+// Date-group header ("TODAY · OCT 8, 2026") above each contiguous same-day run.
+.dateGroupHeader {
+  @include type-style('label-01');
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: $text-secondary;
+  padding: $spacing-04 $spacing-02 $spacing-02;
+  text-transform: uppercase;
+}
+
 .row {
   // Transient new-row highlight target. The default (transparent) state and the
   // highlighted state are both applied here; the transition gives the ~400ms
   // fade matching Phase 4's Timeline deep-link highlight.
   transition: background-color 500ms ease;
   border-top: 1px solid $border-subtle;
-
-  &:first-child {
-    border-top: none;
-  }
 }
 
 .highlighted {
