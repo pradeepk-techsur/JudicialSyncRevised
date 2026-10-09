@@ -179,7 +179,7 @@ Plans:
 **Requirements**: TBD — derived from reference screenshots (Trial Command Center, Exhibit Detail, Jury Package Workspace, Case Workspace); not yet reflected in REQUIREMENTS.md pending `update_spec_docs`
 **Depends on:** Phase 7.1 (the custody handoff, classification, and multi-case primitives 7.1 introduces are surfaced by this phase's new Command Center widgets and Exhibit Detail rail — this phase should not plan ahead of it)
 **Context:** Filed as a phase-sized change assessment from a chat UI review against 4 reference screenshots (2026-10-09). Confirmed during investigation: `recordRuling` (objections.ts) and `recordCustodyTransfer` (custody.ts) are backend-only today — no UI component invokes either anywhere in the codebase. The Command Center redesign's inline action buttons ("Record ruling," "Assign custodian," "Review and remove") also reverse Phase 5's locked success criterion that the screen is "strictly passive/read-only monitoring" — this phase supersedes that constraint by design, not by accident.
-**Plans:** 15 plans (4 waves)
+**Plans:** 16 plans (5 waves)
 
 Plans:
 - [ ] 08-01-PLAN.md — F11 schema migration (finalizationRequestedAt/By) + requestFinalization service/route, finalize clears the request
@@ -197,6 +197,7 @@ Plans:
 - [ ] 08-13-PLAN.md — Exhibit Detail Part B: right rail (Objection/Custody/Jury-checklist cards) + Timeline filters
 - [ ] 08-14-PLAN.md — Jury Package Workspace redesign: Blockers/Clean cards + progress bar + Request-finalization
 - [ ] 08-15-PLAN.md — Command Center Part B: Needs-Your-Attention feed (inline write actions) + Jury Package summary widget
+- [ ] 08-16-PLAN.md — Gap closure (UAT test 2): fix sidebar/header overlap + remove segmented status-distribution bar (keep count legend)
 
 ## Progress
 
