@@ -1,0 +1,21 @@
+{
+  "duration_secs": 12448.0,
+  "token_usage": {
+    "input": 256,
+    "output": 57599,
+    "total": 20935587,
+    "cache_read": 19892996,
+    "cache_write": 984736,
+    "cost": 7.016941199999999
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/08-ui-redesign-and-write-action-coverage/08-UAT.md",
+    ".planning/phases/08-ui-redesign-and-write-action-coverage/08-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 4,
+  "created_at": "2026-10-09T15:17:11.340595+00:00",
+  "completed_at": "2026-10-09T18:44:40.006264028+00:00"
+}
