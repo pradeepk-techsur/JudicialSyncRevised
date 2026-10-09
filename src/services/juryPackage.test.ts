@@ -281,6 +281,56 @@ describe('jury package service', () => {
     expect(result.juryPackage.status).toBe('FINALIZED');
   });
 
+  it('finalize HARD-BLOCKS a retained sealed INCLUDED member even with zero open discrepancies (B1, F13)', async () => {
+    // B1 (server-authority gap): the sealed-exclusion block is enforced in the UI
+    // (JuryPackageDraft disables Finalize on an isSealed row). This asserts the
+    // SERVER also rejects finalize for a retained LEGACY sealed-but-ADMITTED
+    // INCLUDED row that carries NO open discrepancy — the exact state the OPEN-only
+    // gate used to pass. A direct finalize (bypassing the disabled UI button) must
+    // fail with a DISTINCT code so the route can surface "remove ex parte material
+    // first".
+    const { caseId, deputyId } = fx;
+    const cleanId = await makeExhibit(caseId, `CLEAN-${fx.suffix}`);
+    await admitClean(cleanId, deputyId);
+    const sealedId = await makeExhibit(caseId, `SEALED-LEGACY-${fx.suffix}`, { isSealed: true });
+    // admitClean records custody, so this sealed+ADMITTED exhibit carries NO
+    // ADMITTED_NO_CUSTODIAN flag → zero OPEN discrepancies on the member.
+    await admitClean(sealedId, deputyId);
+
+    const { juryPackage } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
+
+    // Simulate a legacy row predating F13: insert the sealed INCLUDED member
+    // directly (the post-F13 initiate/reconcile path can no longer create it).
+    await prisma.juryPackageExhibit.create({
+      data: { juryPackageId: juryPackage.id, exhibitId: sealedId, discrepancyStatus: 'CLEAN' },
+    });
+
+    // Sanity: the sealed member has zero OPEN discrepancies, so the OLD OPEN-only
+    // gate would have passed it.
+    await evaluateDiscrepancies(sealedId);
+    const openFlags = await prisma.discrepancyFlag.count({
+      where: { exhibitId: sealedId, status: 'OPEN' },
+    });
+    expect(openFlags).toBe(0);
+
+    // The server must STILL reject finalize, with the distinct sealed code.
+    try {
+      await finalizeJuryPackage(juryPackage.id, deputyId);
+      throw new Error('expected finalize to throw on a retained sealed INCLUDED member');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConflictError);
+      expect((err as ConflictError).code).toBe('JURY_PACKAGE_SEALED_EXHIBIT_PRESENT');
+      const details = (err as ConflictError).details as {
+        sealedExhibits: { exhibitId: string; exhibitLabel: string }[];
+      };
+      expect(details.sealedExhibits.some((s) => s.exhibitId === sealedId)).toBe(true);
+    }
+
+    // The package remains a DRAFT — nothing was finalized.
+    const stillDraft = await prisma.juryPackage.findUnique({ where: { id: juryPackage.id } });
+    expect(stillDraft?.status).toBe('DRAFT');
+  });
+
   it('finalize blocks with named blockers on OPEN, succeeds after acknowledgment, 409s on re-finalize', async () => {
     const { caseId, deputyId } = fx;
     const flagged = await makeExhibit(caseId, `F-${fx.suffix}`);

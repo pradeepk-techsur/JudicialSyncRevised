@@ -425,8 +425,14 @@ export async function getJuryPackage(
  * Finalize with a hard gate re-evaluated FRESH over MEMBERSHIP (all
  * JuryPackageExhibit rows — INCLUDING sealed exhibits the acting user cannot
  * see), never a role-filtered view and never the cached discrepancy_status
- * column (T-03-07). An exhibit BLOCKS iff it has ≥1 OPEN flag; ACKNOWLEDGED and
- * RESOLVED satisfy the gate. A 409 names the blocking exhibits via `details`.
+ * column (T-03-07). Two independent server-authority gates run over membership:
+ *   1. SEALED/EX PARTE (F13): any INCLUDED member whose exhibit `isSealed` is a
+ *      HARD blocker regardless of discrepancy state → 409
+ *      JURY_PACKAGE_SEALED_EXHIBIT_PRESENT (so a retained legacy sealed row with
+ *      no OPEN flag can never be finalized; the UI shows the same block).
+ *   2. DISCREPANCY: an exhibit BLOCKS iff it has ≥1 OPEN flag; ACKNOWLEDGED and
+ *      RESOLVED satisfy the gate → 409 JURY_PACKAGE_DISCREPANCIES_OPEN.
+ * Each 409 names the blocking exhibits via `details`.
  */
 export async function finalizeJuryPackage(
   juryPackageId: string,
@@ -458,9 +464,29 @@ export async function finalizeJuryPackage(
       where: { juryPackageId, status: 'INCLUDED' },
       select: {
         exhibitId: true,
-        exhibit: { select: { exhibitLabel: true } },
+        exhibit: { select: { exhibitLabel: true, isSealed: true } },
       },
     });
+
+    // F13 SERVER-AUTHORITY GATE: any INCLUDED member whose exhibit is sealed/ex
+    // parte is a HARD blocker, independent of discrepancy flags. A retained
+    // LEGACY sealed-but-ADMITTED row (reconcileDraftMembership keeps it, never
+    // silently deletes it) carries custody and no unresolved objection, so it has
+    // NO OPEN discrepancy flag — the OPEN-only gate would wrongly pass it. The UI
+    // disables Finalize on such rows; this makes the server enforce the same
+    // posture so a direct POST cannot finalize a package still containing ex parte
+    // material. Distinct code so the route surfaces "remove ex parte material
+    // first" (plan 07-07: a sealed row is never finalizable).
+    const sealedExhibits = members
+      .filter((m) => m.exhibit.isSealed)
+      .map((m) => ({ exhibitId: m.exhibitId, exhibitLabel: m.exhibit.exhibitLabel }));
+    if (sealedExhibits.length > 0) {
+      throw new ConflictError(
+        'JURY_PACKAGE_SEALED_EXHIBIT_PRESENT',
+        `Cannot finalize: ${sealedExhibits.length} sealed/ex parte exhibit(s) must be removed before finalizing — remove ex parte material first`,
+        { sealedExhibits },
+      );
+    }
 
     const blockingExhibits: { exhibitId: string; exhibitLabel: string; ruleCodes: string[] }[] = [];
 

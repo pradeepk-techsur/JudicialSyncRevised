@@ -5,11 +5,14 @@ import { errorResponse } from '@/lib/apiError';
 
 // POST /api/jury-package/:id/finalize — finalize a DRAFT jury package (F5). The
 // hard gate is re-evaluated FRESH over MEMBERSHIP inside finalizeJuryPackage
-// (including sealed exhibits the acting user cannot see). On an unresolved OPEN
-// discrepancy it throws ConflictError('JURY_PACKAGE_DISCREPANCIES_OPEN', ...,
-// { blockingExhibits }); errorResponse surfaces that list in
-// `error.details.blockingExhibits` so the client can name the blockers (ROADMAP
-// criterion 3). JURY_PACKAGE_ALREADY_FINALIZED 409 / ROLE_NOT_PERMITTED 403 /
+// (including sealed exhibits the acting user cannot see), enforcing two
+// server-authority blocks: (F13) a retained sealed/ex parte INCLUDED member →
+// ConflictError('JURY_PACKAGE_SEALED_EXHIBIT_PRESENT', ..., { sealedExhibits })
+// so the client can surface "remove ex parte material first"; and an unresolved
+// OPEN discrepancy → ConflictError('JURY_PACKAGE_DISCREPANCIES_OPEN', ...,
+// { blockingExhibits }). errorResponse surfaces each list under `error.details`
+// so the client can name the blockers (ROADMAP criterion 3).
+// JURY_PACKAGE_ALREADY_FINALIZED 409 / ROLE_NOT_PERMITTED 403 /
 // JURY_PACKAGE_NOT_FOUND 404 all map via errorResponse.
 export async function POST(
   request: NextRequest,
