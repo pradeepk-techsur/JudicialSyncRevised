@@ -46,20 +46,34 @@ describe('GET /api/cases/:id/exhibits/search', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.map((r: { exhibitLabel: string }) => r.exhibitLabel)).toEqual(['P-3']);
-    expect(body[0]).toMatchObject({ currentStatus: 'ADMITTED' });
-    // P-3 is ADMITTED while carrying an unresolved objection, so Phase 3's engine
-    // flags it — the row surfaces real discrepancy flags (no longer the []
-    // placeholder) in the composite ExhibitListRow shape.
-    expect(
-      body[0].discrepancyFlags.map((f: { ruleCode: string }) => f.ruleCode),
-    ).toContain('UNRESOLVED_OBJECTION_JURY_ELIGIBLE');
+    // Post-F12, P-3's admission is blocked, so it stops at OBJECTED and carries
+    // no discrepancy flag (the admission gate makes either F6 precondition
+    // unreachable on an ADMITTED exhibit). The composite ExhibitListRow shape is
+    // still returned (never the raw `id`).
+    expect(body[0]).toMatchObject({ currentStatus: 'OBJECTED' });
+    expect(body[0].discrepancyFlags).toEqual([]);
     expect(body[0]).not.toHaveProperty('id');
   });
 
-  it('AND-combines filters: witness=Finch & status=ADMITTED still matches P-3', async () => {
-    const res = await searchRoute(demoCaseId, { witness: 'Finch', status: 'ADMITTED' }, 'JUDGE');
-    expect(res.status).toBe(200);
-    const body = await res.json();
+  it('AND-combines filters: witness=Finch & status=OBJECTED matches P-3 (ADMITTED now matches nothing post-F12)', async () => {
+    // P-3 is OBJECTED (admission blocked), so the ADMITTED combination matches
+    // nothing while the OBJECTED combination still narrows to exactly P-3 —
+    // keeping the AND-narrowing behavior covered.
+    const admittedRes = await searchRoute(
+      demoCaseId,
+      { witness: 'Finch', status: 'ADMITTED' },
+      'JUDGE',
+    );
+    expect(admittedRes.status).toBe(200);
+    expect(await admittedRes.json()).toHaveLength(0);
+
+    const objectedRes = await searchRoute(
+      demoCaseId,
+      { witness: 'Finch', status: 'OBJECTED' },
+      'JUDGE',
+    );
+    expect(objectedRes.status).toBe(200);
+    const body = await objectedRes.json();
     expect(body.map((r: { exhibitLabel: string }) => r.exhibitLabel)).toEqual(['P-3']);
   });
 
