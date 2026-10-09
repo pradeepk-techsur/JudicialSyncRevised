@@ -137,3 +137,12 @@ export class CommandCenterLoadError extends AppError {
     );
   }
 }
+
+/** 500 — any underlying service query failure while composing the Needs-Your-
+ * Attention feed (FRD F08 §Error States). Mirrors CommandCenterLoadError's
+ * shape; the /attention-feed route surfaces it on any non-client failure. */
+export class AttentionFeedLoadError extends AppError {
+  constructor() {
+    super('ATTENTION_FEED_LOAD_FAILED', 'Unable to load the attention feed — please retry', 500);
+  }
+}
