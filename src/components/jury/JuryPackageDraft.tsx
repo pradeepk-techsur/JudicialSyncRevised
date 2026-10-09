@@ -79,6 +79,7 @@ export function JuryPackageDraft({
   acknowledgePending?: boolean;
 }) {
   const role = useRoleStore((s) => s.role);
+  const users = useRoleStore((s) => s.users);
   const canFinalize = FINALIZE_ROLES.includes(role);
   const canAcknowledge = ACK_ROLES.includes(role);
 
@@ -184,6 +185,32 @@ export function JuryPackageDraft({
                   ) : (
                     <span className={styles.clean}>Clean</span>
                   )}
+                  {/* F14: for each ACKNOWLEDGED flag on this row, render the full
+                      record (actor, role, timestamp, justification) inline, always
+                      visible — resolved from the already-held caseFlags + roster
+                      (no new fetch), same pattern as resolveFlagId. */}
+                  {row.flags
+                    .filter((f) => f.status !== 'OPEN')
+                    .map((f) => {
+                      const fullRecord = caseFlags.find(
+                        (cf) => cf.exhibitId === row.exhibitId && cf.ruleCode === f.ruleCode,
+                      );
+                      if (!fullRecord?.acknowledgedAt) return null;
+                      const ackUser = fullRecord.acknowledgedBy
+                        ? users.find((u) => u.id === fullRecord.acknowledgedBy)
+                        : undefined;
+                      return (
+                        <p
+                          key={f.ruleCode}
+                          className={styles.ackRecord}
+                          data-testid="discrepancy-ack-record"
+                        >
+                          Acknowledged by {ackUser?.name ?? 'Unknown'} ({ackUser?.role ?? '—'}) ·{' '}
+                          {new Date(fullRecord.acknowledgedAt).toLocaleString()}:{' '}
+                          {fullRecord.justification ?? ''}
+                        </p>
+                      );
+                    })}
                 </TableCell>
                 {canAcknowledge && (
                   <TableCell>

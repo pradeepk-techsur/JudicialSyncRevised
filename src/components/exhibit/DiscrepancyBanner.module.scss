@@ -50,6 +50,14 @@
   color: colors.$yellow-50; // ≈ amber-600/70 muted
 }
 
+// F14: the full acknowledgment record line (name, role, timestamp, justification),
+// always visible beneath an ACKNOWLEDGED flag — muted, matching .flagAcked.
+.ackRecord {
+  margin-top: $spacing-02;
+  @include type-style('label-01');
+  color: colors.$yellow-50; // ≈ amber-600/70 muted, same as .flagAcked
+}
+
 .trigger {
   flex-shrink: 0;
   @include type-style('label-01');

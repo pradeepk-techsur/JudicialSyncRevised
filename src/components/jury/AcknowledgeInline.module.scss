@@ -19,6 +19,14 @@
   background-color: colors.$yellow-10; // ≈ amber-50
 }
 
+// F14 always-visible permanence disclosure above the textarea — small, muted
+// text matching the file's existing label/warning token conventions.
+.disclosure {
+  margin-bottom: $spacing-02;
+  @include type-style('label-01');
+  color: colors.$yellow-70; // ≈ amber-800 warning text, consistent with .counter
+}
+
 // Counter ↔ buttons row (was: mt-1 flex items-center justify-between).
 .controlRow {
   margin-top: $spacing-02;

@@ -109,87 +109,265 @@ test.describe('Jury Package Workspace', () => {
     await expect(page.getByTestId('jury-finalize-restricted')).toBeVisible();
   });
 
+  test('F14: Jury Package Workspace shows the permanence disclosure + relabeled field before, and the full record after', async ({
+    page,
+    request,
+  }) => {
+    // UI-only transparency test (mirrors the exhibit-detail F14 test). Mock a
+    // DRAFT with one OPEN-flagged row and the case-wide discrepancy list, flipping
+    // both to ACKNOWLEDGED once the acknowledge POST fires, so we can assert the
+    // disclosure/relabel before and the full record after on THIS screen.
+    const caseRes = await request.get('/api/case');
+    const { case: kase, users } = await caseRes.json();
+    const deputy = users.find((u: { role: string }) => u.role === 'DEPUTY');
+    expect(deputy).toBeTruthy();
+
+    const EXHIBIT_ID = 'ex-f14';
+    const RULE = 'ADMITTED_NO_CUSTODIAN';
+    const FLAG_ID = 'flag-f14-jury';
+    const JUSTIFICATION = 'Reviewed and acceptable for jury handoff.';
+    let acked = false;
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          juryPackage: {
+            id: 'pkg-f14',
+            caseId: kase.id,
+            status: 'DRAFT',
+            createdAt: new Date().toISOString(),
+            finalizedAt: null,
+            finalizedBy: null,
+          },
+          exhibits: [
+            {
+              exhibitId: EXHIBIT_ID,
+              exhibitLabel: 'P-9',
+              currentStatus: 'ADMITTED',
+              discrepancyStatus: acked ? 'CLEAN' : 'FLAGGED',
+              flags: [
+                {
+                  ruleCode: RULE,
+                  status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+                  label: 'Admitted without a custodian on record',
+                },
+              ],
+              addedAt: new Date().toISOString(),
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route('**/api/cases/**/discrepancies', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: FLAG_ID,
+            caseId: kase.id,
+            exhibitId: EXHIBIT_ID,
+            ruleCode: RULE,
+            status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+            detectedAt: new Date().toISOString(),
+            details: {},
+            acknowledgedAt: acked ? new Date().toISOString() : null,
+            acknowledgedBy: acked ? deputy.id : null,
+            resolvedAt: null,
+            justification: acked ? JUSTIFICATION : undefined,
+          },
+        ]),
+      });
+    });
+
+    await page.route('**/api/discrepancies/*/acknowledge', async (route) => {
+      acked = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchToDeputy(page);
+    await expect(page.getByTestId('jury-package-draft')).toBeVisible();
+
+    // Open the inline acknowledge control for the OPEN flag.
+    await page.getByTestId('jury-acknowledge-trigger').first().click();
+
+    // BEFORE confirming: disclosure + relabeled field visible.
+    await expect(page.getByTestId('acknowledge-disclosure')).toBeVisible();
+    await expect(page.getByTestId('acknowledge-disclosure')).toContainText(
+      'recorded as a permanent action under your name and role',
+    );
+    await expect(page.getByLabel(/Justification \(recorded permanently\)/)).toBeVisible();
+
+    // Submit.
+    const textarea = page.getByTestId('acknowledge-textarea').first();
+    await textarea.fill(JUSTIFICATION);
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
+      ),
+      page.getByTestId('acknowledge-confirm').first().click(),
+    ]);
+
+    // AFTER: the full record renders inline — acting user's name + justification.
+    const record = page.getByTestId('discrepancy-ack-record');
+    await expect(record).toBeVisible({ timeout: 10000 });
+    await expect(record).toContainText(deputy.name);
+    await expect(record).toContainText(JUSTIFICATION);
+  });
+
   test('full flow: initiate → hard-disabled gate → acknowledge → gate re-enables → finalize → export', async ({
     page,
+    request,
   }) => {
+    // [Rule 1 - Bug] This flow used to be driven against the live seed, which
+    // booted with admitted exhibits carrying OPEN discrepancies (P-2 custody gap,
+    // P-3 unresolved objection). Plan 07-02 made the seed F12-gate-compliant:
+    // NO seeded exhibit can any longer be ADMITTED while custody-less or with an
+    // open objection, so no seeded exhibit carries an OPEN discrepancy flag and
+    // the gate can no longer be demonstrated against live data. Drive the whole
+    // flow with page.route mocks instead (the same technique the ATTORNEY
+    // role-gating test above already uses) so the UI contract — hard-disabled
+    // gate → inline acknowledge → gate re-enables → finalize → export — is tested
+    // deterministically and independent of seed state.
+    const caseRes = await request.get('/api/case');
+    const { case: kase, users } = await caseRes.json();
+    const deputy = users.find((u: { role: string }) => u.role === 'DEPUTY');
+
+    const EXHIBIT_ID = 'ex-fullflow';
+    const RULE = 'ADMITTED_NO_CUSTODIAN';
+    const FLAG_ID = 'flag-fullflow';
+
+    // Mock state progresses: 'draft-open' → 'draft-acked' → 'finalized'.
+    let phase: 'draft-open' | 'draft-acked' | 'finalized' = 'draft-open';
+
+    const draftBody = () => ({
+      juryPackage: {
+        id: 'pkg-fullflow',
+        caseId: kase.id,
+        status: phase === 'finalized' ? 'FINALIZED' : 'DRAFT',
+        createdAt: new Date().toISOString(),
+        finalizedAt: phase === 'finalized' ? new Date().toISOString() : null,
+        finalizedBy: phase === 'finalized' ? deputy.id : null,
+      },
+      exhibits: [
+        {
+          exhibitId: EXHIBIT_ID,
+          exhibitLabel: 'P-9',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: phase === 'draft-open' ? 'FLAGGED' : 'CLEAN',
+          flags: [
+            {
+              ruleCode: RULE,
+              status: phase === 'draft-open' ? 'OPEN' : 'ACKNOWLEDGED',
+              label: 'Admitted without a custodian on record',
+            },
+          ],
+          addedAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(draftBody()),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.route('**/api/cases/**/discrepancies', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: FLAG_ID,
+            caseId: kase.id,
+            exhibitId: EXHIBIT_ID,
+            ruleCode: RULE,
+            status: phase === 'draft-open' ? 'OPEN' : 'ACKNOWLEDGED',
+            detectedAt: new Date().toISOString(),
+            details: {},
+            acknowledgedAt: phase === 'draft-open' ? null : new Date().toISOString(),
+            acknowledgedBy: phase === 'draft-open' ? null : deputy.id,
+            resolvedAt: null,
+            justification:
+              phase === 'draft-open' ? undefined : 'Reviewed and acceptable for jury handoff.',
+          },
+        ]),
+      });
+    });
+
+    await page.route('**/api/discrepancies/*/acknowledge', async (route) => {
+      phase = 'draft-acked';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.route('**/api/jury-package/*/finalize', async (route) => {
+      phase = 'finalized';
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ juryPackage: draftBody().juryPackage }),
+      });
+    });
+
     await page.goto('/jury-package');
     await switchToDeputy(page);
 
-    // The screen is now in one of: empty (initiate), draft, or finalized (a prior
-    // run). Converge to a DRAFT we can drive.
-    const empty = page.getByTestId('jury-package-empty');
-    const finalized = page.getByTestId('jury-package-finalized');
     const draft = page.getByTestId('jury-package-draft');
-
-    // Wait for one of the three states to settle.
-    await expect(empty.or(finalized).or(draft)).toBeVisible();
-
-    if (await finalized.isVisible()) {
-      // A prior run already finalized the shared package. Start a fresh draft.
-      await page.getByTestId('jury-start-new-draft').click();
-      await expect(draft).toBeVisible();
-    } else if (await empty.isVisible()) {
-      await page.getByTestId('jury-initiate').click();
-      await expect(draft).toBeVisible();
-    }
+    const finalized = page.getByTestId('jury-package-finalized');
+    await expect(draft).toBeVisible();
 
     // Draft list shows admitted exhibits with a summary line.
     await expect(page.getByTestId('jury-summary')).toBeVisible();
 
-    // Acknowledge every OPEN flag until the gate re-enables. Each acknowledge
-    // mutates real server state and the row restyles from live data.
     const finalizeBtn = page.getByTestId('jury-finalize');
 
-    // If there are blocking rows, the finalize button must be hard-disabled.
+    // The one OPEN-flagged row hard-disables the Finalize button.
     const blockingRows = page.locator('[data-testid="jury-exhibit-row"][data-blocking="true"]');
-    const initialBlocking = await blockingRows.count();
-    if (initialBlocking > 0) {
-      await expect(finalizeBtn).toBeDisabled();
-      await expect(page.getByTestId('jury-finalize-caption')).toBeVisible();
-    }
+    await expect(blockingRows).toHaveCount(1);
+    await expect(finalizeBtn).toBeDisabled();
+    await expect(page.getByTestId('jury-finalize-caption')).toBeVisible();
 
-    // Acknowledge the first flag's inline form once up front to exercise the
-    // counter + empty-disabled-Confirm behaviour explicitly (the gate-clearing
-    // loop below is more mechanical).
-    {
-      await page.getByTestId('jury-acknowledge-trigger').first().click();
-      const textarea = page.getByTestId('acknowledge-textarea').first();
-      await expect(textarea).toBeVisible();
-      const confirm = page.getByTestId('acknowledge-confirm').first();
-      await expect(confirm).toBeDisabled(); // disabled while empty
-      await textarea.fill('Reviewed and acceptable for jury handoff.');
-      await expect(page.getByTestId('acknowledge-counter').first()).toContainText('/500');
-      await expect(confirm).toBeEnabled();
-      await Promise.all([
-        page.waitForResponse(
-          (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
-        ),
-        confirm.click(),
-      ]);
-      await expect(page.getByTestId('acknowledge-textarea')).toHaveCount(0, { timeout: 10000 });
-    }
+    // Acknowledge the OPEN flag, exercising the counter + empty-disabled-Confirm.
+    await page.getByTestId('jury-acknowledge-trigger').first().click();
+    const textarea = page.getByTestId('acknowledge-textarea').first();
+    await expect(textarea).toBeVisible();
+    const confirm = page.getByTestId('acknowledge-confirm').first();
+    await expect(confirm).toBeDisabled(); // disabled while empty
+    await textarea.fill('Reviewed and acceptable for jury handoff.');
+    await expect(page.getByTestId('acknowledge-counter').first()).toContainText('/500');
+    await expect(confirm).toBeEnabled();
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
+      ),
+      confirm.click(),
+    ]);
 
-    // Clear any remaining OPEN flags until the gate re-enables. Re-resolve each
-    // iteration (4s live polling re-renders the list) and stop as soon as the
-    // Finalize button is enabled — i.e. the last OPEN flag has been acknowledged.
-    await expect(async () => {
-      if (await finalizeBtn.isEnabled()) return; // gate cleared → done
-      const triggers = page.getByTestId('jury-acknowledge-trigger');
-      await expect(triggers.first()).toBeVisible({ timeout: 2000 });
-      await triggers.first().click({ timeout: 2000 });
-      const textarea = page.getByTestId('acknowledge-textarea').first();
-      await textarea.fill('Reviewed and acceptable for jury handoff.', { timeout: 2000 });
-      await Promise.all([
-        page.waitForResponse(
-          (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
-        ),
-        page.getByTestId('acknowledge-confirm').first().click({ timeout: 2000 }),
-      ]);
-      await expect(finalizeBtn).toBeEnabled({ timeout: 3000 });
-    }).toPass({ timeout: 30000 });
-
-    // Gate re-enabled after the last OPEN flag is acknowledged.
-    await expect(finalizeBtn).toBeEnabled();
+    // Gate re-enables once the last OPEN flag is acknowledged (live refetch).
+    await expect(finalizeBtn).toBeEnabled({ timeout: 10000 });
 
     // Finalize → flips in place to the FINALIZED read-only view.
     await finalizeBtn.click();
