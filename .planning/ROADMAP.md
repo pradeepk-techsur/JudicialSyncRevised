@@ -179,10 +179,24 @@ Plans:
 **Requirements**: TBD — derived from reference screenshots (Trial Command Center, Exhibit Detail, Jury Package Workspace, Case Workspace); not yet reflected in REQUIREMENTS.md pending `update_spec_docs`
 **Depends on:** Phase 7.1 (the custody handoff, classification, and multi-case primitives 7.1 introduces are surfaced by this phase's new Command Center widgets and Exhibit Detail rail — this phase should not plan ahead of it)
 **Context:** Filed as a phase-sized change assessment from a chat UI review against 4 reference screenshots (2026-10-09). Confirmed during investigation: `recordRuling` (objections.ts) and `recordCustodyTransfer` (custody.ts) are backend-only today — no UI component invokes either anywhere in the codebase. The Command Center redesign's inline action buttons ("Record ruling," "Assign custodian," "Review and remove") also reverse Phase 5's locked success criterion that the screen is "strictly passive/read-only monitoring" — this phase supersedes that constraint by design, not by accident.
-**Plans:** 0 plans
+**Plans:** 15 plans (4 waves)
 
 Plans:
-- [ ] TBD (run /pivota_spec-plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md — F11 schema migration (finalizationRequestedAt/By) + requestFinalization service/route, finalize clears the request
+- [ ] 08-02-PLAN.md — F24 custody role gate (recordCustodyTransfer DEPUTY/CLERK/ADMIN) + pre-existing fixture repairs
+- [ ] 08-03-PLAN.md — Shared visual primitives: ExhibitTag, SeverityPill, TwoColorProgressBar, Card chrome, ActionButtonRow
+- [ ] 08-04-PLAN.md — Dark-navy shell redesign: Sidebar + Header (remove case-number/discrepancy badge, "Ask Pivota")
+- [ ] 08-05-PLAN.md — Seed fixtures P-6/P-7 + legacyAdmitForDemo seed-only helper + grep-confinement proof
+- [ ] 08-06-PLAN.md — Command Center backend: getCustodyByCustodian, getAttentionFeed, getStatusCounts
+- [ ] 08-07-PLAN.md — Case Workspace backend: juryPackageEligibility + hasUnresolvedObjection + isSealed
+- [ ] 08-08-PLAN.md — Exhibit Detail backend: objections[]/custodyCard/juryPackageChecklist on getExhibitHistory
+- [ ] 08-09-PLAN.md — Shared write-action UI: RecordRulingForm + TransferCustodyForm + mutation hooks
+- [ ] 08-10-PLAN.md — Command Center Part A: statusCounts wiring, stat cards, distribution bar, custody-at-a-glance, activity filters, screen header
+- [ ] 08-11-PLAN.md — Case Workspace redesign: ExhibitTag/SeverityPill, eligibility column, quick filters
+- [ ] 08-12-PLAN.md — Exhibit Detail Part A: header redesign + alert banner + Transfer-custody action
+- [ ] 08-13-PLAN.md — Exhibit Detail Part B: right rail (Objection/Custody/Jury-checklist cards) + Timeline filters
+- [ ] 08-14-PLAN.md — Jury Package Workspace redesign: Blockers/Clean cards + progress bar + Request-finalization
+- [ ] 08-15-PLAN.md — Command Center Part B: Needs-Your-Attention feed (inline write actions) + Jury Package summary widget
 
 ## Progress
 
@@ -199,4 +213,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 �
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
-| 8. UI Redesign and Write-Action Coverage | 0/TBD | Not planned | — |
+| 8. UI Redesign and Write-Action Coverage | 0/15 | Planned | — |
