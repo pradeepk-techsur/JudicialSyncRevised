@@ -138,13 +138,27 @@ Plans:
 
 ### Phase 7: Fix admission integrity and UI usability issues
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** An exhibit can never be recorded as ADMITTED while it still has an unresolved objection or no custodian of record (checked as a hard pre-write gate, not a post-hoc flag); a sealed/ex-parte exhibit can never appear in or be exported as part of a jury package, and any legacy occurrence can be explicitly, auditably remediated; every discrepancy acknowledgment's already-existing permanent audit record (actor, role, timestamp, justification) is fully visible wherever the flag is shown; and five specific Case Workspace / Assistant / Header / Activity-Feed usability defects are fixed — all while preserving the append-only ledger, the derived-projection invariant, and the service-layer-is-the-sole-entry-point architecture Phases 1-6 established.
+**Requirements**: F12, F13, F14, F15 (project_specs/FRD-JudicialSync.md and project_specs/PRD-JudicialSync.md are the source of truth for this phase — not yet reflected in REQUIREMENTS.md, a known gap in the add-phase tooling pass)
 **Depends on:** Phase 6
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Attempting to transition any exhibit to ADMITTED while it has >=1 unresolved objection or no custodian of record is rejected with 422 ADMISSION_BLOCKED, listing every applicable reason, before any ledger write — for every caller, including the seed loader, with no bypass of any kind.
+  2. A sealed (isSealed=true) exhibit can never become a member of a jury package via the normal computation path; any legacy/regression row found in that state renders a distinct CRITICAL warning on the Jury Package Workspace and can be explicitly removed (status EXCLUDED, row retained — never deleted) by an authorized role.
+  3. Wherever an OPEN discrepancy flag is rendered to a role permitted to acknowledge it, an always-visible disclosure explains the action is permanently recorded under the user's name and role before it is confirmed; once ACKNOWLEDGED, every screen rendering that flag shows the full audit record (actor, role, timestamp, justification) without a secondary click.
+  4. Every Case Workspace exhibit row is clickable across its full area (not just a nested element), with a visible hover affordance and keyboard (Enter/Space) activation.
+  5. The assistant's example prompts always reference an exhibitLabel that actually exists in the seeded case, verified by an automated test.
+  6. The app header shows a labeled discrepancy-count indicator (aria-label="N open discrepancies") or nothing at all — never an unexplained numeral — identically on every screen.
+  7. Every Recent Activity row shows both date and time (never time-only) and the exhibit label it concerns, never a bare unattributed summary.
+**Plans:** 7 plans (3 waves)
 
 Plans:
-- [ ] TBD (run /pivota_spec-plan-phase 7 to break down)
+- [ ] 07-01-PLAN.md — F12 Admission Integrity Gate: hard pre-write gate in recordStatusChange (status.ts, errors.ts) + dedicated test suite
+- [ ] 07-02-PLAN.md — F12 regression compliance: seed loader rewrite (gate-compliant, redefined edge cases, staggered timestamps) + every pre-existing test fixture broken by the gate
+- [ ] 07-03-PLAN.md — F13 schema migration (JuryPackageExhibitStatus, exclusion columns) + sealed-exhibit candidate-query exclusion + reconcile correction
+- [ ] 07-04-PLAN.md — F15: Case Workspace row clickability fix + assistant example prompts sourced from real seeded exhibits
+- [ ] 07-05-PLAN.md — F15: labeled header discrepancy-count indicator + activity feed date+time/exhibit-label fix
+- [ ] 07-06-PLAN.md — F14 discrepancy acknowledgment transparency: read-time justification join + always-visible disclosure + full audit record rendering
+- [ ] 07-07-PLAN.md — F13 exclude workflow: excludeJuryPackageExhibit service/route + Jury Package Workspace CRITICAL row + Remove-from-Package UI
 
 ## Progress
 
@@ -159,4 +173,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
-| 7. Fix admission integrity and UI usability issues | 0/TBD | Not planned | — |
+| 7. Fix admission integrity and UI usability issues | 0/7 | Planned | — |
