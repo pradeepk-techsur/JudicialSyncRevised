@@ -2,15 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-10-08T03:15:46.150Z"
-last_activity: "2026-10-08 — Phase 6 complete"
+status: verifying
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-10-09T01:10:00.154Z"
+last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 6
-  total_plans: 36
-  completed_plans: 36
-  percent: 100
+  total_plans: 43
+  completed_plans: 37
+  percent: 83
 ---
 
 # Project State
@@ -20,11 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-06)
 
 **Core value:** During live proceedings, any authorized courtroom user can ask a natural-language question about an exhibit and get an immediate, accurate, well-supported answer.
-**Current focus:** Phase 6 (Carbon Design System UI Upgrade) COMPLETE — all 9 plans landed; IBM Carbon is the sole UI foundation. Milestone v1.0 complete (all 6 phases, 36 plans).
+**Current focus:** Phase 7 (Fix admission integrity & UI usability issues) IN PROGRESS. 07-01 (F12 admission integrity gate) complete. Milestone v1.0 (phases 1-6, 36 plans) remains complete.
 
 ## Current Position
 
-Phase: 6 of 6 (Carbon Design System UI Upgrade) — COMPLETE (all 9 plans: 06-01..06-09 done). MILESTONE v1.0 COMPLETE.
+Phase: 7 of 7 (Fix admission integrity and UI usability issues) — IN PROGRESS (wave 1). 07-01 complete.
+Status: 07-01 (F12 Admission Integrity Gate, Wave 1) complete — recordStatusChange now hard-rejects any ADMITTED transition while the exhibit has >=1 UNRESOLVED objection and/or no CustodyCurrentState row, with 422 ADMISSION_BLOCKED whose details.reasons[] lists EVERY applicable reason (never just the first). The gate runs INSIDE the existing status $transaction, after the fromStatus-match check and BEFORE recordEvent() — a blocked admission writes nothing (no event, no projection update) — via two projection reads (objection count + custody lookup) on the SAME tx client already holding the per-exhibit advisory lock (T-07-01 no read-then-write race). No bypass parameter of any kind (T-07-02). Task 1: AdmissionBlockedError added to errors.ts (surfaced verbatim by the generic errorResponse details channel — zero route change); gate inserted in status.ts. Task 2: new admissionGate.test.ts (7 tests: NO_CUSTODIAN alone w/ no-write+status-unchanged assertions, UNRESOLVED_OBJECTION alone, both reasons order-independent, normal admission, resolve-then-admit, EXCLUDED/WITHDRAWN-unaffected) + fixed the route terminal-exhibit test (establish custody before ADMIT) + new route-level 422 ADMISSION_BLOCKED test. Verification: 07-01-owned files tsc-clean; admissionGate.test.ts + status/route.test.ts 15/15 green; bypass grep clean. 0 deviations, 2 atomic commits (a00843d, 98ffb1f). KNOWN: the two status.test.ts tests that admit without custody now correctly throw ADMISSION_BLOCKED — fixture repair is plan 07-02's scope (its files_modified lists status.test.ts), NOT fixed here per 07-01's verification step 2; logged to deferred-items.md.
+
+Prior status: 06-09 (FINAL Phase 6 cleanup) complete — deleted the entire Tailwind/shadcn pipeline and removed its dependencies; Carbon is the sole UI foundation. Milestone v1.0 complete (all 6 phases, 36 plans).
 Status: 06-09 (FINAL cleanup, Wave 4) complete — deleted the entire Tailwind/shadcn pipeline and removed its dependencies after grep-verifying (against the current repo, not just the planning-time audit) that every old-stack import was confined to the files being deleted. Task 1: removed 5 dead shadcn ui/* primitives (badge/button/input/select/table), src/lib/utils.ts (cn re-export, 0 callers), src/app/globals.css (dead since 06-01 repointed layout.tsx to globals.scss), components.json (shadcn CLI config). Task 2: removed 8 unused deps from package.json (tailwindcss, @tailwindcss/postcss, shadcn, tw-animate-css, class-variance-authority, cn, @base-ui/react, lucide-react) + deleted postcss.config.mjs; npm install pruned 305 transitive packages, @carbon/react still resolved. Kept postcss (not in removal list; Next.js default PostCSS takes over). Left shadcn-naming COMMENTS in ExhibitTable/SearchFilterBar (documentation of the Carbon TableHead/TableHeader inversion, not functional deps). Task 3 (phase acceptance gate): npx tsc --noEmit clean; next build EXIT=0 (Carbon Sass compiles with zero Tailwind/PostCSS-Tailwind involvement); vitest 195 passed / 3 skipped / 0 failed (zero functional/service-layer regression — diff touched presentation/config only, services/API/Prisma byte-identical); FULL playwright suite 36/36 green across all 7 spec files (no selector-only edits needed). 0 deviations, no out-of-scope unblocks. 2 atomic commits (ff105e1, 8f50854).
 
 Prior status: 06-06 (Jury Package Workspace screen F11) complete — JuryPackageEmpty/JuryPackageDraft/JuryPackageFinalized migrated Tailwind→Carbon; jury-package/page.tsx three-way conditional left unchanged (routing/data logic). Empty → Carbon-token dashed container + Button + InlineNotification kind=error (NO_ELIGIBLE_EXHIBITS stays plain informational text, not a red error). Draft → Carbon static Table primitives + Button with LITERAL disabled={hasOpen||finalizePending} (US-11.2 hard-disabled gate = native <button disabled>, not aria-disabled/CSS-only) + InlineNotification kind=error for the 409 stale-blockers banner; "Finalizing…" spinner a small CSS-animated span inside the Button children; the three-attribute row contract (data-testid=jury-exhibit-row + data-exhibit-label + data-blocking on the SAME TableRow) and the isolated 1s-tick FreshnessIndicator preserved. Finalized → InlineNotification kind=success banner + Carbon Table + Button (primary Export/Print, secondary Start New Draft); jury-print-root/no-print GLOBAL print classes (06-01) + window.print() handler preserved verbatim (T-06-16); former Tailwind `hidden print:block` header reimplemented as a CSS Module .printOnly @media print rule (decouples from Tailwind ahead of 06-09 removal). Consumes Wave-2 StatusBadge/DiscrepancyBadge/AcknowledgeInline unchanged (most shared-component-dependent screen). Full e2e/jury-package.spec.ts 3/3 green (empty state, view-only role gating, full initiate→gate→acknowledge→re-enable→finalize→export flow); tsc + next build EXIT=0 on merged HEAD; 0 deviations, NO out-of-scope unblocks needed this run. 3 atomic commits (5e1ba6d, 9b5210a, c1353d6). This completes the last Wave-3 screen → 06-09 cleanup may now remove the Tailwind/shadcn pipeline.
@@ -99,6 +103,7 @@ Progress: [████████░░] 83%
 | Phase 06-carbon-design-system-ui-upgrade P06 | 4 min | 3 tasks | 6 files |
 | Phase 06-carbon-design-system-ui-upgrade P05 | 9 min | 3 tasks | 11 files |
 | Phase 06-carbon-design-system-ui-upgrade P09 | 3 min | 3 tasks | 11 files |
+| Phase 07 P01 | 5 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -219,6 +224,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-08T02:27:41.723Z
-Stopped at: Completed 06-09-PLAN.md (Phase 6 + milestone complete)
+Last session: 2026-10-09T01:10:00.151Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
