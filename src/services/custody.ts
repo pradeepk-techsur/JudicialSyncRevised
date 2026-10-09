@@ -1,7 +1,13 @@
 import type { CustodyCurrentState, ExhibitEvent } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { AppError, ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+  RoleNotPermittedError,
+  ValidationError,
+} from '@/lib/errors';
 import { advisoryLockKey } from '@/lib/advisoryLock';
 import { recordEvent } from '@/services/events';
 import { evaluateDiscrepancies } from '@/services/discrepancies';
@@ -43,6 +49,11 @@ export class NoOpTransferError extends AppError {
   }
 }
 
+// Roles permitted to record a custody transfer / assign a custodian (F24,
+// Phase 8). Matches F20's matrix row for custody actions, applied directly to
+// the single legacy endpoint since this phase has no propose/confirm split.
+const CUSTODY_WRITE_ROLES = new Set(['DEPUTY', 'CLERK', 'ADMIN']);
+
 export async function recordCustodyTransfer(args: {
   exhibitId: string;
   fromCustodianUserId: string | null;
@@ -78,6 +89,24 @@ export async function recordCustodyTransfer(args: {
   });
   if (!toUser || !toUser.isActive) {
     throw new InvalidCustodianError();
+  }
+
+  // Server-side role gate (F24, Phase 8) — resolved from the ACTUAL User.role
+  // column, never a client claim, mirroring objections.ts's recordRuling
+  // pattern exactly. Reuses the general-purpose RoleNotPermittedError (not a
+  // private ruling-specific subclass) per the locked CONTEXT decision. This is
+  // the FIRST role enforcement custody.ts has ever had — previously ungated.
+  // Placed AFTER the INVALID_CUSTODIAN check so the three existing tests that
+  // pass a nonexistent/inactive user as BOTH toCustodianUserId AND actorUserId
+  // still see InvalidCustodianError fire first (ordering is load-bearing).
+  const actor = await prisma.user.findUnique({
+    where: { id: actorUserId },
+    select: { role: true },
+  });
+  if (!actor || !CUSTODY_WRITE_ROLES.has(actor.role)) {
+    throw new RoleNotPermittedError(
+      'Only a courtroom deputy, clerk, or admin may propose a custody transfer',
+    );
   }
 
   const claimedFrom = fromCustodianUserId ?? null;
