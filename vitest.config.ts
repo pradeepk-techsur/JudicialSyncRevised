@@ -30,5 +30,9 @@ export default defineConfig({
     // so these legitimately-slow, seed-dependent integration tests do not time
     // out. (Container boot is unaffected — this is a test-runner setting only.)
     testTimeout: 60000,
+    // Several suites call runSeed() in a beforeAll/beforeEach hook; with the F15
+    // staggering delay a single seed is ~11s, above vitest's 10s default hook
+    // timeout. Raise it in step with testTimeout above.
+    hookTimeout: 60000,
   },
 });

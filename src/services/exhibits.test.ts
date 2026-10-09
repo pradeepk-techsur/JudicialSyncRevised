@@ -259,12 +259,26 @@ describe('searchExhibits (F4)', () => {
     expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
   });
 
-  it('AND-combination: witness=Finch & status=ADMITTED still matches P-3', async () => {
+  it('AND-combination: witness=Finch & status=ADMITTED matches nothing (P-3 no longer reaches ADMITTED post-F12)', async () => {
+    // Post-F12, P-3 is OBJECTED (admission blocked), not ADMITTED, so this
+    // combination matches zero results.
     const results = await searchExhibits({
       caseId: demoCaseId,
       requestingUserRole: 'JUDGE',
       witness: 'Finch',
       status: 'ADMITTED',
+    });
+    expect(results).toHaveLength(0);
+  });
+
+  it('AND-combination: witness=Finch & status=OBJECTED matches P-3 (narrowing still works)', async () => {
+    // The AND-narrowing behavior itself still has live coverage: P-3's current
+    // status is OBJECTED, so the combined filter resolves to exactly P-3.
+    const results = await searchExhibits({
+      caseId: demoCaseId,
+      requestingUserRole: 'JUDGE',
+      witness: 'Finch',
+      status: 'OBJECTED',
     });
     expect(results.map((r) => r.exhibitLabel)).toEqual(['P-3']);
   });
@@ -288,15 +302,14 @@ describe('searchExhibits (F4)', () => {
     expect(p3).toMatchObject({
       exhibitLabel: 'P-3',
       associatedWitness: 'Dr. Amara Finch',
-      currentStatus: 'ADMITTED',
+      currentStatus: 'OBJECTED',
     });
-    // P-3 is ADMITTED while carrying an unresolved objection, so Phase 3's engine
-    // flags it — discrepancyFlags is non-empty (no longer the [] placeholder).
-    expect(p3.discrepancyFlags.map((f) => f.ruleCode)).toContain(
-      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
-    );
-    // P-3's custody chain ends at the clerk (seed) — custodian name is resolved.
-    expect(p3.currentCustodianName).toBeTruthy();
+    // Post-F12, P-3 is OBJECTED (admission blocked), not ADMITTED, so no F6 rule
+    // fires — discrepancyFlags is [].
+    expect(p3.discrepancyFlags).toEqual([]);
+    // P-3 now has zero custody transfers (admission-blocked fixture) — no
+    // custodian of record.
+    expect(p3.currentCustodianName).toBeNull();
   });
 
   it('results are ordered by exhibitLabel ascending', async () => {
@@ -310,33 +323,16 @@ describe('searchExhibits (F4)', () => {
     expect(labels.length).toBeGreaterThan(1);
   });
 
-  it('surfaces real discrepancy flags on a flagged exhibit and [] on a clean one (Phase 3)', async () => {
-    // getExhibits over the seeded demo case: P-3 is ADMITTED with an UNRESOLVED
-    // objection (UNRESOLVED_OBJECTION_JURY_ELIGIBLE fires); P-2 is ADMITTED with
-    // no custodian (ADMITTED_NO_CUSTODIAN fires); P-4 is cleanly ADMITTED with a
-    // full custody chain and no open objection (no flag).
+  it('no seeded exhibit carries an open discrepancy flag post-F12 (structural guarantee)', async () => {
+    // F12's admission gate makes the precondition for either F6 rule
+    // (ADMITTED_NO_CUSTODIAN / UNRESOLVED_OBJECTION_JURY_ELIGIBLE) unreachable
+    // for fresh seed data: no exhibit can reach ADMITTED while it has no
+    // custodian or an open objection, so neither rule can fire on the seed.
+    // F6's rule-engine LOGIC itself is still fully covered by
+    // src/services/discrepancies.test.ts's white-box fixtures (which construct
+    // the precondition directly rather than relying on seed data).
     const rows = await getExhibits(demoCaseId, 'JUDGE');
-    const byLabel = new Map(rows.map((r) => [r.exhibitLabel, r]));
-
-    const p3 = byLabel.get('P-3');
-    expect(p3).toBeDefined();
-    expect(p3!.discrepancyFlags.length).toBeGreaterThanOrEqual(1);
-    expect(p3!.discrepancyFlags.map((f) => f.ruleCode)).toContain(
-      'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
-    );
-    const p3Flag = p3!.discrepancyFlags.find(
-      (f) => f.ruleCode === 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
-    );
-    expect(p3Flag!.status).toBe('OPEN');
-    expect(p3Flag!.label).toBe('Unresolved objection');
-
-    const p2 = byLabel.get('P-2');
-    expect(p2).toBeDefined();
-    expect(p2!.discrepancyFlags.map((f) => f.ruleCode)).toContain('ADMITTED_NO_CUSTODIAN');
-
-    const p4 = byLabel.get('P-4');
-    expect(p4).toBeDefined();
-    expect(p4!.discrepancyFlags).toEqual([]);
+    expect(rows.every((r) => r.discrepancyFlags.length === 0)).toBe(true);
   });
 
   it('excludes a sealed exhibit from results for an unauthorized role even on a matching keyword', async () => {

@@ -144,27 +144,29 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
     const judge = users.JUDGE;
 
     // F15 item 6 — stagger most planted events so the Command Center's date+time
-    // fix is actually verifiable (without this, events land within the same
-    // wall-clock minute of seed execution and would still look identical even
-    // after the display fix). Anchored to the REAL moment the seed runs (never a
-    // fixed historical date, so the demo always shows "recent" activity):
+    // fix is actually verifiable (without this, every event lands within the same
+    // wall-clock second of seed execution and would look identical even after the
+    // display fix). Anchored to the REAL moment the seed runs (never a fixed
+    // historical date, so the demo always shows "recent" activity):
+    //   - A short real delay is inserted BETWEEN exhibits (not between the calls
+    //     within one exhibit's history) so each exhibit's events land in a
+    //     visibly different real-time window from its neighbors.
     //   - CUSTODY_TRANSFER / OBJECTION_RAISED / RULING_RECORDED events get an
-    //     EXPLICIT recordedAt offset forward from the seed's start time, via the
-    //     recordedAt passthrough added in Part A above (custody.ts/objections.ts).
-    //   - STATUS_CHANGE events go through recordStatusChange (src/services/
-    //     status.ts), which this plan deliberately does NOT modify (owned by
-    //     plan 07-01, same wave — see the file-ownership note in the plan). They
-    //     get their natural recordEvent-default timestamp; a short real delay is
-    //     inserted BETWEEN exhibits (not between every call within one exhibit's
-    //     history) so most exhibits' status histories still land in visibly
-    //     different minutes, without needing status.ts to accept an override.
-    const SEED_START = Date.now();
-    let seedOffsetMinutes = 0;
-    const nextRecordedAt = (): Date => {
-      const t = new Date(SEED_START + seedOffsetMinutes * 60_000);
-      seedOffsetMinutes += 6;
-      return t;
-    };
+    //     EXPLICIT recordedAt via the recordedAt passthrough added in Part A
+    //     (custody.ts/objections.ts). It resolves to real-now AT THE CALL SITE,
+    //     so an interleaved event (e.g. an objection raised between OFFERED and
+    //     OBJECTED) always sits chronologically BETWEEN the two surrounding
+    //     STATUS_CHANGE events, preserving the per-exhibit non-decreasing
+    //     timeline contract (history.test.ts). It does NOT jump the timestamp
+    //     minutes ahead of the real-now STATUS_CHANGE events, which would break
+    //     that ordering — STATUS_CHANGE goes through recordStatusChange
+    //     (src/services/status.ts), which this plan deliberately does NOT modify
+    //     (owned by plan 07-01, same wave), so those events keep their natural
+    //     real-now timestamp and the explicit ones must stay consistent with it.
+    //     The recordedAt plumbing itself remains in place so a future change that
+    //     lets status.ts accept an override can stagger the whole timeline into
+    //     distinct minutes without further seed work.
+    const nextRecordedAt = (): Date => new Date();
     const sleep = (ms: number): Promise<void> =>
       new Promise((resolve) => setTimeout(resolve, ms));
 
