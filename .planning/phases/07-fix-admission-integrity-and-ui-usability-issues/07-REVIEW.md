@@ -1,95 +1,90 @@
 ---
 phase: 7
 status: issues_found
-blockers: 1
-warnings: 2
-files_reviewed: 24
+blockers: 0
+warnings: 1
+files_reviewed: 5
 files_reviewed_list:
-  - prisma/migrations/20261009010505_add_jury_package_exhibit_exclusion/migration.sql
-  - prisma/schema.prisma
-  - src/app/api/cases/[id]/discrepancies/route.ts
-  - src/app/api/cases/[id]/jury-package/route.ts
-  - src/app/api/jury-package/[id]/exhibits/[exhibitId]/exclude/route.ts
-  - src/app/api/jury-package/[id]/finalize/route.ts
-  - src/app/jury-package/page.tsx
-  - src/components/assistant/ExampleChips.tsx
-  - src/components/case/ExhibitTable.tsx
-  - src/components/command-center/DiscrepanciesPanel.tsx
-  - src/components/command-center/RecentActivityPanel.tsx
-  - src/components/exhibit/DiscrepancyBanner.tsx
-  - src/components/jury/AcknowledgeInline.tsx
-  - src/components/jury/JuryPackageDraft.tsx
-  - src/components/shell/Header.tsx
-  - src/data/seed.ts
-  - src/hooks/useDiscrepancyCount.ts
-  - src/hooks/useJuryPackage.ts
-  - src/lib/errors.ts
-  - src/lib/types.ts
-  - src/lib/validation/eventPayloads.ts
-  - src/services/custody.ts
-  - src/services/discrepancies.ts
-  - src/services/events.ts
   - src/services/juryPackage.ts
-  - src/services/objections.ts
-  - src/services/status.ts
-reviewed_at: 2026-10-09T02:10:57Z
-iteration: 1
+  - src/services/juryPackage.test.ts
+  - src/app/api/jury-package/[id]/finalize/route.ts
+  - src/app/api/jury-package/[id]/finalize/route.test.ts
+  - src/components/jury/JuryPackageDraft.tsx
+reviewed_at: 2026-10-09T02:15:42Z
+iteration: 2
 ---
 
 # Phase 7 Code Review
 
+Re-review scope (iteration 2): verify the fixer's B1 resolution (commit 8745a07)
+and look for fix-introduced regressions. Reviewed the three fixer-touched files
+(`src/services/juryPackage.ts`, `src/services/juryPackage.test.ts`,
+`src/app/api/jury-package/[id]/finalize/route.ts`) plus the two direct consumers
+of the new error path (the finalize route test and `JuryPackageDraft.tsx`, the
+sole UI consumer of `finalizeError`). Prior W1 (seed sleeps) and W2 (enum
+`ADD VALUE`) were disputed/left-unchanged in iteration 1, live in files the fixer
+did not touch, and are out of this iteration's scope.
+
+## B1 verification — FIXED (confirmed, not merely claimed)
+
+Read `finalizeJuryPackage` (juryPackage.ts:437-525) line by line against the
+iteration-1 fix direction:
+
+- **Sealed data joined:** the membership `findMany` now selects
+  `exhibit.isSealed` (line 467). ✓
+- **Hard block runs BEFORE the discrepancy loop:** the sealed filter + throw is
+  lines 480-489; the OPEN-flag loop starts at line 493. A retained sealed member
+  can never reach the discrepancy loop, so the OPEN-only gate can never wrongly
+  pass it. ✓
+- **Correct error:** `ConflictError('JURY_PACKAGE_SEALED_EXHIBIT_PRESENT', …,
+  { sealedExhibits })` — distinct code, maps to HTTP 409 via `ConflictError`
+  (errors.ts:44-48), `details.sealedExhibits` carries `{exhibitId, exhibitLabel}`
+  per blocker. ✓
+- **Scope is exactly INCLUDED members:** the `findMany` filters
+  `status: 'INCLUDED'` (line 464), so an EXCLUDED (already-remediated) row is
+  never treated as a sealed blocker — consistent with F13 point 7. ✓
+- **No regression to the OK path:** the "a sealed exhibit is never a member via
+  normal initiate" invariant (computeJuryCandidates `isSealed: false`) is
+  untouched; the existing test `F13: a sealed exhibit is NOT a member, so its
+  OPEN discrepancy does not block finalize` (test.ts:256-282) still finalizes
+  successfully because that sealed exhibit is genuinely not a member row — the
+  new gate only fires on retained/legacy INCLUDED sealed rows. ✓
+- **Service test added and genuinely exercises the gap:** test.ts:284-332 admits
+  the sealed exhibit *with custody* (`admitClean`) so it carries ZERO open
+  discrepancies, asserts `openFlags === 0` (the exact state the old OPEN-only gate
+  would have passed), then asserts finalize throws `ConflictError` with code
+  `JURY_PACKAGE_SEALED_EXHIBIT_PRESENT`, `details.sealedExhibits` naming the row,
+  and that the package stays `DRAFT`. This is a correct, non-tautological
+  regression guard. ✓
+- `tsc --noEmit` clean (re-run this iteration, EXIT=0). ✓
+
+The server-authority integrity hole B1 named is closed. The data-corruption risk
+(a finalized, immutable package permanently containing ex parte material reachable
+via a direct POST) is eliminated.
+
 ## BLOCKERs
 
-### B1: `finalizeJuryPackage` does not block a retained sealed/ex-parte row server-side — the sealed-exclusion hard-block is enforced ONLY in the UI
-- **File:** src/services/juryPackage.ts:453-496 (finalize gate); contrast src/components/jury/JuryPackageDraft.tsx:105-107 (UI-only `hasCritical` block)
-- **Category:** security / bug (server-authority gap)
-- **Evidence:**
-  Phase 7's explicit, highest-severity goal (07-07-PLAN §Objective line 69, UX-Mockup line 97) is that a sealed/ex-parte row "never again count[s] as included, **finalizable**, or assistant-visible," and that "The Finalize control stays disabled while any such row is present, same as for an open discrepancy."
-
-  The client enforces this: `JuryPackageDraft` computes `criticalRows = exhibits.filter(r => r.isSealed)` and `disableFinalize = hasOpen || hasCritical || finalizePending` (lines 105-107), so the button is disabled.
-
-  But `finalizeJuryPackage` — the server authority — only queries `status: 'INCLUDED'` rows and blocks *solely* on OPEN discrepancy flags:
-  ```ts
-  const members = await tx.juryPackageExhibit.findMany({
-    where: { juryPackageId, status: 'INCLUDED' }, ...
-  });
-  for (const m of members) {
-    await evaluateDiscrepancies(m.exhibitId, tx);
-    const active = await tx.discrepancyFlag.findMany({
-      where: { exhibitId: m.exhibitId, status: 'OPEN' }, ...
-    });
-    if (active.length > 0) blockingExhibits.push(...);
-  }
-  ```
-  There is **no `isSealed` check**. A retained legacy sealed-but-ADMITTED row is deliberately kept as an `INCLUDED` member (reconcileDraftMembership, lines 263-289, and the service's own doc-comment lines 35-39). Such a row that has custody and no unresolved objection carries NO OPEN discrepancy flag, so the finalize gate passes it.
-
-  Concrete failing input: the state is directly reachable and is exactly what the exclude route test constructs — `src/app/api/jury-package/[id]/exhibits/[exhibitId]/exclude/route.test.ts:66-98` creates a sealed+ADMITTED exhibit and a `juryPackageExhibit` row with `status: 'INCLUDED'` in a DRAFT package. In that state, a direct `POST /api/jury-package/:id/finalize` (bypassing the disabled UI button — the server is the authority, the button is a hint) finalizes a package that permanently contains an ex parte sealed exhibit. The `finalizeJuryPackage` service has no sealed guard, so nothing on the server rejects it.
-
-  This is the precise originating defect Phase 7 exists to close ("a sealed exhibit could previously be admitted into a package and shown like any other," juryPackage.ts:29-30): structurally new sealed members are now impossible, but a *retained legacy* sealed member remains server-side-finalizable until a human happens to click Remove — the server never enforces the "not finalizable" half of the goal.
-- **Fix direction:** In `finalizeJuryPackage`'s membership loop, also treat any INCLUDED member whose exhibit `isSealed === true` as a hard blocker (join `exhibit.isSealed` into the `findMany` select and push it onto `blockingExhibits`, ideally with a distinct code/reason so the route surfaces "remove ex parte material first"), so finalize fails server-side with the same posture the UI shows. Add a service-layer test asserting a package with a retained sealed INCLUDED row cannot be finalized even with zero open discrepancies.
-- **Resolution:** fixed (8745a07) — `finalizeJuryPackage` now selects `exhibit.isSealed` and hard-blocks any INCLUDED sealed member BEFORE the discrepancy loop, throwing `ConflictError('JURY_PACKAGE_SEALED_EXHIBIT_PRESENT', ..., { sealedExhibits })` (distinct code/reason "remove ex parte material first"), independent of OPEN flags. Added service-layer test asserting a retained sealed INCLUDED row with zero open discrepancies cannot be finalized and the package stays DRAFT. Route doc-comment updated to document the two-gate posture. Verified: `tsc --noEmit` clean; juryPackage (12) + finalize route (3) suites green; `next build` EXIT=0.
+None.
 
 ## WARNINGs
 
-### W1: Seed loader adds ~11s of real `setTimeout` sleeps to every seed/boot run
-- **File:** src/data/seed.ts:169-170 (`sleep` helper) + nine `await sleep(1200)` call sites (lines ~204, 221, 240, 262, 291, 311, 345, 373, 395)
-- **Evidence:** To make the Command Center date+time fix visually verifiable, the seed now inserts a real 1.2s delay between each exhibit's history (~9 × 1200ms ≈ 10.8s added to seed wall-time). This is deliberate and documented (lines 146-168), and the gate shows the seed test taking ~10.9-21.9s. It is not a correctness bug, but it materially slows every `npm run seed` / Docker boot / test that seeds, and the stated staggering benefit is undercut by the comment's own admission (lines 161-167) that STATUS_CHANGE events still all land at real-now because `status.ts` was intentionally not given a `recordedAt` override — so within a single exhibit the events are NOT staggered, only between exhibits. The cost (fixed multi-second boot delay) is paid in full while the staggering is partial. Flagging for a judgment call on whether the real-time sleeps are worth the boot-time cost vs. passing explicit staggered `recordedAt` values with no sleep.
-- **Resolution:** disputed (not a correctness bug; sleeps are deliberate and documented at seed.ts:146-168). The suggested no-sleep alternative — explicit staggered `recordedAt` — cannot fully replace the sleeps here: STATUS_CHANGE events go through `status.ts`, which this wave's plan deliberately does not modify (cross-plan ownership, 07-01), so they keep real-now timestamps; the explicit overrides must stay consistent with that natural ordering (history.test.ts per-exhibit non-decreasing contract). Reducing boot time is a demo/tooling tradeoff with a cross-plan constraint, outside the scope of this fix pass. Left unchanged by judgment.
+### W1: The new `JURY_PACKAGE_SEALED_EXHIBIT_PRESENT` 409 is never surfaced in the UI — a finalize-capable role that cannot see the sealed row clicks Finalize and gets silent no-op feedback
+- **File:** src/components/jury/JuryPackageDraft.tsx:113-117 (and 152-166); interacts with src/services/juryPackage.ts:149-160 (`toView` sealed role filter) and the new throw at juryPackage.ts:483-489
+- **Category:** bug (UX / error-surfacing gap exposed by the B1 fix)
+- **Evidence:**
+  Sealed visibility (`SEALED_VISIBLE_ROLES`, visibility.ts) is JUDGE / CHAMBERS_STAFF / ADMIN. Finalize roles (`FINALIZE_ROLES`, JuryPackageDraft.tsx:32) are DEPUTY / CLERK / ADMIN. The overlap that can *see* a sealed row is only ADMIN; **DEPUTY and CLERK can finalize but cannot see sealed rows.**
 
-### W2: `ALTER TYPE ... ADD VALUE` on the `event_type` enum is the first such migration in the repo
-- **File:** prisma/migrations/20261009010505_add_jury_package_exhibit_exclusion/migration.sql:5
-- **Evidence:** `ALTER TYPE "event_type" ADD VALUE 'JURY_PACKAGE_EXHIBIT_EXCLUDED';` is the only `ADD VALUE` in prisma/migrations (all prior enum work used `CREATE TYPE`). On PostgreSQL < 12, `ADD VALUE` cannot run inside a transaction block, and a newly-added enum value cannot be used in the same transaction that adds it. The migration here only adds the value (it is used by application code at runtime, not in the same migration), and the phase build+test gate passed with this migration applied, so this is NOT currently broken. Noted only so that if the deployment target is ever an older Postgres or Prisma is configured to wrap migrations differently, this is the line to watch. No action needed if the target remains the gate's Postgres version.
-- **Resolution:** disputed (no action required per the finding itself — migration applied cleanly, target Postgres is 16, build+test gate passed). Left unchanged.
+  For a DEPUTY/CLERK viewing a DRAFT that contains a retained legacy sealed INCLUDED member (exactly the B1 state), `toView` drops that row (juryPackage.ts:158-160: `isSealed && !canViewSealed(role)`), so their `exhibits` array has no sealed row → `criticalRows` is empty (JuryPackageDraft.tsx:105) → `hasCritical === false` → `disableFinalize` is false. **The Finalize button is enabled.** They click it; the server (correctly, per the B1 fix) returns `JURY_PACKAGE_SEALED_EXHIBIT_PRESENT` 409 — nothing is finalized, so **there is no integrity failure**. But `staleBlockers` (JuryPackageDraft.tsx:113-117) only renders a banner when `finalizeError.code === 'JURY_PACKAGE_DISCREPANCIES_OPEN'`; for the new sealed code it evaluates to `null`, so no `InlineNotification` is shown. `finalizeError` has no other consumer (grep: it is read only here). Net effect: the button spins, re-enables on the `onSettled` refetch, and the user sees no explanation and has no visible row to Remove — a silent dead-end.
+
+  This is strictly a degraded-UX path, not a data defect: the server gate the fix added is the authority and it holds. It is a WARNING rather than a BLOCKER because the integrity outcome is correct (no ex parte material is ever finalized); only the feedback is missing, and only for the DEPUTY/CLERK-cannot-see-sealed combination (ADMIN sees the row, so `hasCritical` disables the button and routes them to Remove; a JUDGE cannot finalize at all).
+
+  Uncertainty noted: whether this reaches a real user depends on a retained/legacy sealed INCLUDED row actually existing in a case a DEPUTY/CLERK opens. Such rows are precisely the scenario F13/B1 exist to handle, so the path is reachable, but it is an edge state rather than the common flow.
+- **Fix direction:** Extend the `JuryPackageDraft` finalize-error handling to also recognize `JURY_PACKAGE_SEALED_EXHIBIT_PRESENT` and render an explanatory banner (e.g. "This package still contains sealed/ex parte material that must be removed before finalizing; ask a judge or administrator to remove it"), since a DEPUTY/CLERK cannot see or Remove the row themselves. This is purely additive UI; no server change needed.
 
 ## Cross-file seams checked
-- `POST /api/jury-package/:id/exhibits/:exhibitId/exclude` (route) ↔ `excludeJuryPackageExhibit` (service): arg shape (juryPackageId/exhibitId/actorUserId/reason/note) matches — OK
-- `useJuryPackage().exclude` mutation ↔ exclude route payload `{ actorUserId, reason }` ↔ page.tsx `onExclude({ juryPackageId, exhibitId, reason: 'SEALED_EXPARTE' })`: three-layer shape agrees — OK
-- `JuryPackageExhibitView` (service, +isSealed/+status) ↔ `useJuryPackage` re-export ↔ `JuryPackageDraft` consumption (`row.isSealed`): in sync — OK
-- `JURY_PACKAGE_EXHIBIT_EXCLUDED` payload schema (eventPayloads.ts enum+note) ↔ `excludeJuryPackageExhibit` recordEvent payload `{ juryPackageId, exhibitId, reason, note }`: aligned (07-03 placeholder free-text reason correctly tightened to enum) — OK
-- migration enum `jury_package_exhibit_status {INCLUDED,EXCLUDED}` + new columns ↔ service reads/writes `status`/`excludedAt`/`excludedBy`/`exclusionReason`: in sync — OK
-- `recordedAt` override: events.ts param ↔ custody.ts / objections.ts passthrough ↔ seed.ts call sites: threaded consistently; `status.ts` deliberately NOT given the override (seed accounts for this) — OK
-- ExampleChips `exhibits.find(e => e.currentStatus === 'ADMITTED' | e.currentCustodianName)` ↔ `ExhibitListRow` (types.ts:9-18 has both fields): seam valid, no silent-undefined — OK
-- RecentActivityPanel `e.exhibitLabel` ↔ `RecentActivityEntry` (activity.ts:34 has exhibitLabel): OK
-- Header + JuryPackageDraft + DiscrepancyBanner all read `useDiscrepancyCount` / `CaseDiscrepancyFlag` (+justification): shape consistent, DTO omits `justification` for OPEN (undefined → dropped by JSON) — OK
-- F12 admission gate (status.ts:96-117) ↔ `AdmissionBlockedError` (errors.ts:88-97, details.reasons[]) ↔ seed fixtures P-2/P-3 (never attempt ADMITTED) ↔ assertSeedIntegrity (checks OFFERED/OBJECTED-no-custody instead of old ADMITTED checks): coherent — OK
-- Jury finalize UI gate: `disableFinalize = hasOpen || hasCritical` (UI) vs. server `finalizeJuryPackage` (OPEN-only) — MISMATCH → see B1
+- `finalizeJuryPackage` sealed gate (juryPackage.ts:480-489) ↔ `ConflictError` (errors.ts:44-48 → HTTP 409, `details` passthrough) ↔ finalize route `errorResponse` (route.ts:56): sealed 409 + `details.sealedExhibits` propagate correctly — OK
+- `finalizeJuryPackage` membership `findMany` `status:'INCLUDED'` ↔ F13 EXCLUDED-row semantics (excludeJuryPackageExhibit sets EXCLUDED): an already-excluded sealed row is NOT re-flagged by the new gate — OK
+- New service test (test.ts:284-332) ↔ actual throw shape (code + `details.sealedExhibits[].exhibitId`): assertions match the thrown object exactly — OK
+- Existing finalize route tests (route.test.ts:137-180): unchanged behavior for the OPEN-discrepancy path; the fix did not alter the `JURY_PACKAGE_DISCREPANCIES_OPEN` ordering or payload — OK
+- `finalizeError` (page.tsx:75 → JuryPackageDraft.tsx:80) ↔ UI rendering: ONLY handles `JURY_PACKAGE_DISCREPANCIES_OPEN`; new `JURY_PACKAGE_SEALED_EXHIBIT_PRESENT` code is parsed but never displayed — MISMATCH → see W1
+- UI `hasCritical`/`disableFinalize` (JuryPackageDraft.tsx:105-107) ↔ server sealed gate: aligned for sealed-visible roles (ADMIN); diverges for DEPUTY/CLERK who cannot see the row (server still blocks correctly, UI just can't pre-disable or explain) → see W1
