@@ -76,8 +76,9 @@ export async function recordObjection(args: {
   objectingParty: 'PLAINTIFF' | 'PROSECUTION' | 'DEFENSE';
   grounds: string;
   actorUserId: string;
+  recordedAt?: Date; // seed-only override; live callers omit this and get new Date()
 }): Promise<{ event: ExhibitEvent; objectionState: ObjectionCurrentState }> {
-  const { exhibitId, objectingParty, grounds, actorUserId } = args;
+  const { exhibitId, objectingParty, grounds, actorUserId, recordedAt } = args;
 
   // 1. grounds must be non-empty (F02 §Validation).
   if (!grounds || grounds.trim().length === 0) {
@@ -127,6 +128,7 @@ export async function recordObjection(args: {
         eventType: 'OBJECTION_RAISED',
         payload: { objectionId, objectingParty, grounds },
         actorUserId,
+        recordedAt,
       },
       tx,
     );
@@ -156,8 +158,9 @@ export async function recordRuling(args: {
   objectionId: string;
   disposition: 'SUSTAINED' | 'OVERRULED' | 'RESERVED';
   actorUserId: string;
+  recordedAt?: Date; // seed-only override; live callers omit this and get new Date()
 }): Promise<{ event: ExhibitEvent; objectionState: ObjectionCurrentState }> {
-  const { objectionId, disposition, actorUserId } = args;
+  const { objectionId, disposition, actorUserId, recordedAt } = args;
 
   // Resolve the thread's exhibitId first so we can serialize all ruling writers
   // for that exhibit on the same per-exhibit advisory lock the status/custody
@@ -213,6 +216,7 @@ export async function recordRuling(args: {
         eventType: 'RULING_RECORDED',
         payload: { objectionId, disposition },
         actorUserId,
+        recordedAt,
       },
       tx,
     );

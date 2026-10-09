@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
+import { AdmissionBlockedError } from '@/lib/errors';
 import { getUnresolvedObjections } from '@/services/objections';
+import { recordStatusChange } from '@/services/status';
 import { runSeed } from '@/data/seed';
 
 // Integration tests for the F0a deterministic seed loader, run against the real
@@ -16,36 +18,45 @@ import { runSeed } from '@/data/seed';
 
 const SEED_CASE_NUMBER = '2026-CR-0142';
 
-/** Compute the three edge-case counts for the seeded case. */
+/**
+ * Compute the three edge-case counts for the seeded case, in the F12-era shape:
+ * an unresolved-objection count, an `offeredBlockable` count (OFFERED exhibits
+ * with no custody — single-reason admission-blockable, P-2), and an
+ * `objectedWithUnresolvedBlockable` count (OBJECTED exhibits with an unresolved
+ * objection — dual-reason admission-blockable, P-3). Mirrors the updated
+ * assertSeedIntegrity logic.
+ */
 async function edgeCaseCounts(caseId: string): Promise<{
   unresolvedObjections: number;
-  admittedNoCustody: number;
-  admittedWithUnresolved: number;
+  offeredBlockable: number;
+  objectedWithUnresolvedBlockable: number;
 }> {
   const unresolved = await getUnresolvedObjections(caseId);
-
-  const admitted = await prisma.exhibitCurrentState.findMany({
-    where: { currentStatus: 'ADMITTED', exhibit: { caseId } },
-    select: { exhibitId: true },
-  });
-  const admittedIds = admitted.map((a) => a.exhibitId);
-
-  const custodyRows = await prisma.custodyCurrentState.findMany({
-    where: { exhibitId: { in: admittedIds } },
-    select: { exhibitId: true },
-  });
-  const haveCustody = new Set(custodyRows.map((c) => c.exhibitId));
-  const admittedNoCustody = admittedIds.filter((id) => !haveCustody.has(id)).length;
-
   const unresolvedByExhibit = new Set(unresolved.map((o) => o.exhibitId));
-  const admittedWithUnresolved = admittedIds.filter((id) =>
-    unresolvedByExhibit.has(id),
+
+  const offered = await prisma.exhibitCurrentState.findMany({
+    where: { currentStatus: 'OFFERED', exhibit: { caseId } },
+    select: { exhibitId: true },
+  });
+  const custodyForOffered = await prisma.custodyCurrentState.findMany({
+    where: { exhibitId: { in: offered.map((r) => r.exhibitId) } },
+    select: { exhibitId: true },
+  });
+  const haveCustodyOffered = new Set(custodyForOffered.map((c) => c.exhibitId));
+  const offeredBlockable = offered.filter((r) => !haveCustodyOffered.has(r.exhibitId)).length;
+
+  const objected = await prisma.exhibitCurrentState.findMany({
+    where: { currentStatus: 'OBJECTED', exhibit: { caseId } },
+    select: { exhibitId: true },
+  });
+  const objectedWithUnresolvedBlockable = objected.filter((r) =>
+    unresolvedByExhibit.has(r.exhibitId),
   ).length;
 
   return {
     unresolvedObjections: unresolved.length,
-    admittedNoCustody,
-    admittedWithUnresolved,
+    offeredBlockable,
+    objectedWithUnresolvedBlockable,
   };
 }
 
@@ -61,24 +72,61 @@ describe('seed loader (F0a)', () => {
 
     const counts = await edgeCaseCounts(caseId);
     expect(counts.unresolvedObjections).toBeGreaterThanOrEqual(1);
-    expect(counts.admittedNoCustody).toBeGreaterThanOrEqual(1);
-    expect(counts.admittedWithUnresolved).toBeGreaterThanOrEqual(1);
+    expect(counts.offeredBlockable).toBeGreaterThanOrEqual(1);
+    expect(counts.objectedWithUnresolvedBlockable).toBeGreaterThanOrEqual(1);
   });
 
-  it('fires both Phase 3 discrepancy rules out of the box (demo-blocking guarantee)', async () => {
+  it('blocks admission of the planted single-reason and dual-reason fixtures (F12 demo-blocking guarantee)', async () => {
     const { caseId } = await runSeed();
 
-    // The flags must arise purely from the live engine wired into the service
-    // write paths (03-01) — the seed never inserts them directly. After a run,
-    // both OPEN rule codes must be present, or the seeded demo could not
-    // demonstrate the finalize gate.
-    const openFlags = await prisma.discrepancyFlag.findMany({
-      where: { caseId, status: 'OPEN' },
-      select: { ruleCode: true },
+    // Resolve P-2 (single-reason: NO_CUSTODIAN) and P-3 (dual-reason:
+    // NO_CUSTODIAN + UNRESOLVED_OBJECTION) by label against the real seeded case.
+    const exhibits = await prisma.exhibit.findMany({
+      where: { caseId, exhibitLabel: { in: ['P-2', 'P-3'] } },
+      select: { id: true, exhibitLabel: true },
     });
-    const openRuleCodes = new Set(openFlags.map((f) => f.ruleCode));
-    expect(openRuleCodes.has('ADMITTED_NO_CUSTODIAN')).toBe(true);
-    expect(openRuleCodes.has('UNRESOLVED_OBJECTION_JURY_ELIGIBLE')).toBe(true);
+    const idByLabel = new Map(exhibits.map((e) => [e.exhibitLabel, e.id]));
+    const p2 = idByLabel.get('P-2');
+    const p3 = idByLabel.get('P-3');
+    expect(p2).toBeTruthy();
+    expect(p3).toBeTruthy();
+
+    const anyUser = await prisma.user.findFirst({
+      where: { caseId },
+      select: { id: true },
+    });
+    const actorUserId = anyUser!.id;
+
+    // P-2: attempting to admit is rejected with ADMISSION_BLOCKED listing exactly
+    // NO_CUSTODIAN.
+    let p2Err: unknown;
+    try {
+      await recordStatusChange({ exhibitId: p2!, toStatus: 'ADMITTED', actorUserId });
+    } catch (err) {
+      p2Err = err;
+    }
+    expect(p2Err).toBeInstanceOf(AdmissionBlockedError);
+    expect((p2Err as AdmissionBlockedError).code).toBe('ADMISSION_BLOCKED');
+    const p2Reasons = ((p2Err as AdmissionBlockedError).details as {
+      reasons: Array<{ code: string }>;
+    }).reasons.map((r) => r.code);
+    expect(p2Reasons).toContain('NO_CUSTODIAN');
+
+    // P-3: attempting to admit is rejected with BOTH NO_CUSTODIAN and
+    // UNRESOLVED_OBJECTION.
+    let p3Err: unknown;
+    try {
+      await recordStatusChange({ exhibitId: p3!, toStatus: 'ADMITTED', actorUserId });
+    } catch (err) {
+      p3Err = err;
+    }
+    expect(p3Err).toBeInstanceOf(AdmissionBlockedError);
+    expect((p3Err as AdmissionBlockedError).code).toBe('ADMISSION_BLOCKED');
+    const p3Reasons = ((p3Err as AdmissionBlockedError).details as {
+      reasons: Array<{ code: string }>;
+    }).reasons.map((r) => r.code);
+    expect(p3Reasons).toContain('NO_CUSTODIAN');
+    expect(p3Reasons).toContain('UNRESOLVED_OBJECTION');
   });
 
   it('plants exactly one sealed exhibit (S-1) as Phase 2 role-based-visibility fixture', async () => {
@@ -130,8 +178,8 @@ describe('seed loader (F0a)', () => {
     // All three edge cases still hold, with identical counts.
     expect(secondCounts).toEqual(firstCounts);
     expect(secondCounts.unresolvedObjections).toBeGreaterThanOrEqual(1);
-    expect(secondCounts.admittedNoCustody).toBeGreaterThanOrEqual(1);
-    expect(secondCounts.admittedWithUnresolved).toBeGreaterThanOrEqual(1);
+    expect(secondCounts.offeredBlockable).toBeGreaterThanOrEqual(1);
+    expect(secondCounts.objectedWithUnresolvedBlockable).toBeGreaterThanOrEqual(1);
 
     // No duplicate accumulation — exactly one Case row for the fixed caseNumber.
     const caseRows = await prisma.case.count({

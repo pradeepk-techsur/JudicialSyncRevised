@@ -49,8 +49,10 @@ export async function recordCustodyTransfer(args: {
   toCustodianUserId: string;
   reason?: string;
   actorUserId: string;
+  recordedAt?: Date; // seed-only override; live callers omit this and get new Date()
 }): Promise<{ event: ExhibitEvent; custodyState: CustodyCurrentState }> {
-  const { exhibitId, fromCustodianUserId, toCustodianUserId, reason, actorUserId } = args;
+  const { exhibitId, fromCustodianUserId, toCustodianUserId, reason, actorUserId, recordedAt } =
+    args;
 
   // The exhibit must exist before anything else — routes map this to 404.
   const exhibit = await prisma.exhibit.findUnique({
@@ -114,6 +116,7 @@ export async function recordCustodyTransfer(args: {
           eventType: 'CUSTODY_TRANSFER',
           payload: { fromCustodianUserId, toCustodianUserId, reason },
           actorUserId,
+          recordedAt,
         },
         tx,
       );
