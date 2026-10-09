@@ -2,10 +2,11 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** TechArch (Technical Architecture Document)
-**Version:** 1.1
+**Version:** 1.2
 **Status:** Draft
 **Generated:** 2026-10-06
-**Last Updated:** 2026-10-08 (Phase 7 — F12–F15: admission integrity gate, jury-package sealed exclusion + migration, discrepancy-acknowledgment read-model join, usability fixes confirmed presentation-layer-only)
+**Last Updated:** 2026-10-09 (Phase 7.1 — F16–F23, urgent inserted phase: exhibit classification taxonomy supersedes `isSealed` boolean, admission state-machine hardening confirmed documentation/test-only, custodian required atomically at intake, custody transfer converted to two-phase propose/confirm, full server-side RBAC permission matrix formally supersedes the prior "authorization out of scope" note for write actions, judge-facing pending-ruling queue, multi-case support, and versioned jury packages with real PDF export via the project's first new runtime dependency since stack lock-in)
+**Previously:** 2026-10-08 (Phase 7 — F12–F15: admission integrity gate, jury-package sealed exclusion + migration, discrepancy-acknowledgment read-model join, usability fixes confirmed presentation-layer-only)
 **Source Documents:** `PRD-JudicialSync.md`, `FRD-JudicialSync.md`
 **Grounded in:** `.planning/research/SUMMARY.md`, `.planning/research/ARCHITECTURE.md`
 
@@ -117,7 +118,8 @@ This is not a microservices system, not a CQRS-with-message-bus system, and not 
 | Role-based visibility enforced inside the service layer (not per-route or per-tool) | A single enforcement point guarantees UI and assistant can never diverge on who sees sealed exhibits | Sealed-exhibit reads return identical 404s regardless of caller (UI route vs. assistant tool) — existence is never leaked |
 | Polling (3–5s) for live multi-screen sync, not SSE/WebSocket | Sufficient at demo scale (<10 concurrent users, single case); avoids websocket infra for a one-time demo | `@tanstack/react-query` refetch interval + refetch-on-focus; SSE/WebSocket explicitly deferred unless a live demo script proves polling insufficient |
 | Single Postgres database (Neon), no read replicas/caching | Demo scale is dozens–hundreds of exhibits, single case, <10 users — no bottleneck expected | Discrepancy rules read projections (not the full ledger) for performance; ledger scanned in full only for history views |
-| No production auth; seeded users + role switcher | Explicitly out of scope per PROJECT.md — this is a sales demo, not a production system | `requestingUserRole` is derived from a client-side role-switcher component and passed with every request; no session/JWT/OAuth infrastructure exists |
+| No production auth; seeded users + role switcher | Explicitly out of scope per PROJECT.md — this is a sales demo, not a production system. **Narrowed by Phase 7.1 (F20):** this decision now governs *authentication* only — proving who a user is remains seeded-users-only, no OAuth/JWT. *Authorization* (what a known role may do) is, as of Phase 7.1, a fully enforced, in-scope capability covering every write action in the system — see `04-security.md` §5.2.2a for the superseding Permission Matrix. | `requestingUserRole` is derived from a client-side role-switcher component and passed with every request; no session/JWT/OAuth infrastructure exists. `actorUserId`'s role is independently resolved server-side from the `User` DB column for every write action (F20) — never trusted from the client. |
+| Case scope widened from single-case to explicit multi-case, server stateless either way | PRD/FRD F22 (Phase 7.1) reversed the v1 single-case assumption; no schema change was required since `caseId` foreign keys already existed on every relevant table | `caseId` is now carried explicitly on every request (Case Selector client state) exactly as `requestingUserRole` already is — the server has no "current case" session value in either version |
 
 ### 1.4 Deployment Topology
 
@@ -152,8 +154,9 @@ JudicialSync ships as a **single deployable artifact**: one Next.js 16 applicati
 Per PRD §4 and research findings, the following are deliberately **not** part of this architecture, and any future addition should be treated as a scope change requiring re-justification:
 
 - **Vector databases / embeddings** — data is structured and small, not a document corpus requiring semantic search.
-- **Full OAuth / production auth hardening** — out of scope for a demo; seeded users + role switcher instead.
+- **Full OAuth / production *authentication* hardening** — out of scope for a demo; seeded users + role switcher instead. (**Narrowed by Phase 7.1, F20:** this bullet now refers to authentication only — server-side *authorization* enforcement for every write action is in scope as of this phase; see `04-security.md` §5.2.2a.)
 - **LangChain-style agent frameworks** — unnecessary abstraction for a fixed, small (≤8) tool set.
 - **Microservices / service mesh** — single deployable monolith is correct at this scale.
-- **Message queues / background job runners** — all writes are synchronous request/response cycles; see `06-integrations.md`.
+- **Message queues / background job runners** — all writes are synchronous request/response cycles; see `06-integrations.md`. (F19's custody-handoff pending state is deliberately resolved only by an explicit, synchronous confirm/cancel call — not a background expiry job — consistent with this constraint.)
 - **SSE/WebSocket live sync** — polling is sufficient; deferred unless proven insufficient during demo rehearsal.
+- **Headless-browser PDF generation (Puppeteer/Playwright)** *(considered and rejected, Phase 7.1, F23)* — would require bundling/cold-starting a full Chromium binary per Vercel serverless invocation; `@react-pdf/renderer`'s pure-JS, component-based approach was selected instead — see `05-tech-stack.md` §6.4.

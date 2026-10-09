@@ -7,7 +7,9 @@ Per PROJECT.md §Out of Scope, JudicialSync targets **web/desktop screens only**
 - Full sidebar (labeled icons + text) always visible, pinned left.
 - Case Workspace and Jury Package Workspace render full multi-column tables with all fields visible without horizontal scroll.
 - The Pivota Assistant slide-over panel occupies roughly 30% of viewport width, docked right, with the underlying screen dimmed but still visible for context.
-- Exhibit Detail View renders the header block and timeline in a single generous-width column (timelines are inherently vertical; no benefit to a two-column layout here).
+- Exhibit Detail View renders the header block and timeline in a single generous-width column (timelines are inherently vertical; no benefit to a two-column layout here); the pending-custody banner (F19) spans the same column width as the status/custodian line it temporarily replaces, never introducing a second column.
+- The Pending-Ruling Queue (F21, judge-only) renders as a single generous-width column of rows, each row's three ruling-action buttons laid out horizontally inline — no drill-in required to act, consistent with it being a triage screen, not a browse screen.
+- The header's Case Selector (F22) opens as a simple dropdown anchored to its header slot — it does not reflow or widen the header bar at any desktop width.
 
 ### Tablet (768px–1024px) — Judge's Bench Device, High Priority
 
@@ -15,6 +17,7 @@ Per PROJECT.md §Out of Scope, JudicialSync targets **web/desktop screens only**
 - Case Workspace and Jury Package Workspace tables drop lower-priority columns first (description, source) while keeping status badge, custodian, and discrepancy indicator — the three fields a judge glancing mid-recess needs most (US-9.1 information hierarchy).
 - The Pivota Assistant slide-over expands to ~60% of viewport width at this breakpoint (text legibility matters more than preserving background-screen visibility on a smaller canvas) — reinforces that on the bench, asking a question is the primary action, not a secondary overlay.
 - Touch targets (row actions, citation pills, Finalize button) sized to a minimum 44×44px tap area, since a judge on a tablet may be using touch rather than a trackpad.
+- The Pending-Ruling Queue's three ruling-action buttons (Sustained/Overruled/Reserved) retain the same 44×44px minimum tap target at this breakpoint, since this screen exists specifically for the judge's bench-tablet use case (JRN-01.2 "Check the Pending-Ruling Queue") and is never expected to be used at desktop-only precision.
 
 ### Mobile (<768px) — Out of Scope, Graceful Degradation Only
 

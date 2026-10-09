@@ -106,6 +106,7 @@ Progress: [████████░░] 83%
 
 - Phase 6 added: Carbon Design System UI Upgrade - replace Tailwind/shadcn foundation and all screens with IBM Carbon Design System (carbondesignsystem.com) across every shipped phase
 - Phase 7 added: Fix admission integrity and UI usability issues - close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, make Case Workspace rows clickable, correct assistant example labels, remove the unlabeled header element, and fix activity-feed date/ordering/labeling; align affected screens with the reviewed target design
+- Phase 7.1 inserted after Phase 7: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export - adds a formal trial/chambers-ex-parte/sealed classification enforced at intake, tightens the state machine (judge ruling required before admission past an open objection, custodian required at marking), full server-side role enforcement per action, custody handoff receiver-confirmation, a pending-ruling queue with elapsed time, multi-case support with a case selector, and versioned jury packages with real PDF export (URGENT)
 
 ### Decisions
 

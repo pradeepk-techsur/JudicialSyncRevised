@@ -12,19 +12,32 @@ Every endpoint applies role-based visibility (`00-header.md` §Role-Based Visibi
 type Role = 'JUDGE' | 'CHAMBERS_STAFF' | 'DEPUTY' | 'CLERK' | 'ATTORNEY' | 'ADMIN';
 type OfferingParty = 'PLAINTIFF' | 'PROSECUTION' | 'DEFENSE';
 type ExhibitStatus = 'MARKED' | 'OFFERED' | 'OBJECTED' | 'ADMITTED' | 'EXCLUDED' | 'WITHDRAWN';
+type ExhibitClassification = 'TRIAL' | 'CHAMBERS_EX_PARTE' | 'SEALED'; // added Phase 7.1 (F16)
 type ObjectionStatus = 'UNRESOLVED' | 'SUSTAINED' | 'OVERRULED';
 type RulingDisposition = 'SUSTAINED' | 'OVERRULED' | 'RESERVED';
 type EventType =
   | 'STATUS_CHANGE'
   | 'OBJECTION_RAISED'
   | 'RULING_RECORDED'
-  | 'CUSTODY_TRANSFER'
+  | 'CUSTODY_TRANSFER' // legacy unilateral transfer; retained only for the F18 intake-bootstrap path as of Phase 7.1 (F19)
   | 'DISCREPANCY_ACKNOWLEDGED'
-  | 'JURY_PACKAGE_EXHIBIT_EXCLUDED'; // added Phase 7 (F13)
+  | 'JURY_PACKAGE_EXHIBIT_EXCLUDED' // added Phase 7 (F13)
+  | 'CUSTODY_TRANSFER_PROPOSED'   // added Phase 7.1 (F19)
+  | 'CUSTODY_TRANSFER_CONFIRMED'  // added Phase 7.1 (F19)
+  | 'CUSTODY_TRANSFER_CANCELLED'; // added Phase 7.1 (F19)
 type DiscrepancyStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
 type JuryPackageStatus = 'DRAFT' | 'FINALIZED';
 type JuryExhibitDiscrepancyStatus = 'CLEAN' | 'FLAGGED';
 type JuryPackageExhibitStatus = 'INCLUDED' | 'EXCLUDED'; // added Phase 7 (F13)
+
+interface Case {
+  // Added Phase 7.1 (F22)
+  id: string;
+  caseNumber: string;
+  title: string;
+  court: string;
+  createdAt: string;
+}
 
 interface Exhibit {
   id: string;
@@ -34,6 +47,12 @@ interface Exhibit {
   source: string | null;
   offeringParty: OfferingParty;
   associatedWitness: string | null;
+  // Added Phase 7.1 (F16): required at creation, immutable thereafter — no
+  // update endpoint exists. isSealed is retained below for backward
+  // compatibility with every existing read path but is now a write-once
+  // mirror set exactly once at creation as (classification !== 'TRIAL');
+  // a client-supplied isSealed value in POST /api/exhibits is ignored.
+  classification: ExhibitClassification;
   isSealed: boolean;
   createdAt: string; // ISO 8601
 }
@@ -73,6 +92,10 @@ interface CustodyCurrentState {
   currentCustodianUserId: string;
   since: string;
   lastEventId: string;
+  // Added Phase 7.1 (F19): non-null only while a CUSTODY_TRANSFER_PROPOSED
+  // event is awaiting its resolving CONFIRMED/CANCELLED event.
+  // currentCustodianUserId is never modified while this is non-null.
+  pendingTransfer: { toUserId: string; proposedAt: string; eventId: string } | null;
 }
 
 interface DiscrepancyFlag {
@@ -99,6 +122,21 @@ interface JuryPackage {
   createdAt: string;
   finalizedAt?: string;
   finalizedBy?: string;
+  // Added Phase 7.1 (F23): assigned ONLY at finalization
+  // (MAX(version) for this case's FINALIZED packages, + 1, or 1 if none
+  // exist); never reassigned afterward; null while DRAFT.
+  version: number | null;
+}
+
+// Added Phase 7.1 (F23).
+interface JuryPackageVersionSummary {
+  id: string;
+  version: number | null;
+  status: JuryPackageStatus;
+  finalizedAt?: string;
+  finalizedBy?: string;
+  exhibitCount: number;
+  isMostRecent: boolean; // computed at read time (MAX(version) per case), never stored
 }
 
 interface JuryPackageExhibit {
@@ -138,6 +176,27 @@ interface AdmissionBlockedError {
   };
 }
 
+// Added Phase 7.1 (F18) — returned only when a status-transition request is
+// the exhibit's first-ever STATUS_CHANGE event (toStatus = MARKED) with a
+// missing or invalid custodianUserId. See 04-security.md §5.2.2a and
+// 06-integrations.md §Intake Custody Gate.
+interface CustodianRequiredAtIntakeError {
+  error: {
+    code: 'CUSTODIAN_REQUIRED_AT_INTAKE';
+    message: string;
+  };
+}
+
+// Added Phase 7.1 (F20) — the uniform shape for every write action's
+// server-side role rejection. Message varies per action per the Permission
+// Matrix (04-security.md §5.2.2a); the code is always ROLE_NOT_PERMITTED.
+interface RoleNotPermittedError {
+  error: {
+    code: 'ROLE_NOT_PERMITTED';
+    message: string;
+  };
+}
+
 // Composite row shape returned by GET /api/cases/:id/exhibits and
 // GET /api/cases/:id/exhibits/search — avoids a second round-trip per row.
 interface ExhibitListRow {
@@ -152,11 +211,20 @@ interface ExhibitListRow {
 }
 ```
 
+### 4.1a Cases (F0, F22 — added Phase 7.1)
+
+| Method & Path | Description | Request Body / Query | Response | Errors |
+|---|---|---|---|---|
+| `GET /api/cases` *(added Phase 7.1, F22)* | Lists every case available to the current user | — | `200 Case[]` | — (no role restriction; case existence is not the sensitive boundary) |
+| `GET /api/cases/:id` *(amended Phase 7.1, F22: replaces the prior no-argument `GET /api/case`)* | Fetches a specific case plus its user roster (app bootstrap) | — | `200 { case: Case, users: User[] }` (identical shape to the prior `GET /api/case` response) | `CASE_NOT_FOUND` 404 |
+
+**Active-case model (F22):** the "active case" is a per-request, client-selected `caseId` — never a server-side session value — carried on every subsequent case-scoped request exactly as `requestingUserRole` already is. `services/cases.ts#getActiveCaseWithUsers` evolves from a no-argument, implicit-`DEMO_CASE_NUMBER` form to an explicit `getActiveCaseWithUsers(caseId)` (see `01-components.md` §2.2). On first load with no previously-selected `caseId`, the client defaults to the first case by `createdAt` ascending — preserving the prior single-case demo script's zero-interaction behavior.
+
 ### 4.2 Exhibits & History (F0, F9, F10)
 
 | Method & Path | Description | Request Body / Query | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits` | Create exhibit identity record | `{ caseId, exhibitLabel, description, source?, offeringParty, associatedWitness?, isSealed? }` | `201 Exhibit` | `EXHIBIT_LABEL_CONFLICT` 409, `VALIDATION_ERROR` 422 |
+| `POST /api/exhibits` | Create exhibit identity record | `{ caseId, exhibitLabel, description, source?, offeringParty, associatedWitness?, classification }` *(amended Phase 7.1, F16: `classification` is now required — `TRIAL` \| `CHAMBERS_EX_PARTE` \| `SEALED`; a client-supplied `isSealed` value, if present, is ignored — the server always derives it from `classification`)* | `201 Exhibit` (now includes `classification` and a classification-derived `isSealed`) | `EXHIBIT_LABEL_CONFLICT` 409, `VALIDATION_ERROR` 422, `CLASSIFICATION_REQUIRED` 422 *(added Phase 7.1, F16)*, `INVALID_CLASSIFICATION` 422 *(added Phase 7.1, F16)*, `ROLE_NOT_PERMITTED` 403 *(added Phase 7.1, F20: only `DEPUTY`, `CLERK`, `ADMIN`)* |
 | `GET /api/exhibits/:id` | Fetch single exhibit identity | — | `200 Exhibit` | `EXHIBIT_NOT_FOUND` 404 |
 | `GET /api/cases/:id/exhibits` | List all visible exhibits for a case | — (unfiltered; use search for filters) | `200 ExhibitListRow[]` | `CASE_NOT_FOUND` 404 |
 | `GET /api/exhibits/:id/history` | Full chronological event timeline | — | `200 ExhibitHistoryResponse` (below) | `EXHIBIT_NOT_FOUND` 404 (also returned for sealed/unauthorized) |
@@ -181,7 +249,7 @@ interface ExhibitHistoryResponse {
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes? }` | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState }` | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404, `ADMISSION_BLOCKED` 422 *(added Phase 7, F12 — returned as `AdmissionBlockedError` above; evaluated only when `toStatus = ADMITTED`, before any ledger write)* |
+| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes?, custodianUserId? }` *(amended Phase 7.1, F18: `custodianUserId` is required when, and only when, this is the exhibit's first-ever `STATUS_CHANGE` event, i.e. `toStatus = MARKED` with zero prior events — the status write and the resulting intake custody write are atomic, same transaction)* | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState, custodyState?: CustodyCurrentState }` *(amended Phase 7.1, F18: `custodyState` is additionally returned when this call was the exhibit's first-ever transition)* | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404, `ADMISSION_BLOCKED` 422 *(added Phase 7, F12 — returned as `AdmissionBlockedError` above; evaluated only when `toStatus = ADMITTED`, before any ledger write; hardened without new mechanism by Phase 7.1's F17 — see `06-integrations.md` §Admission Gate)*, `CUSTODIAN_REQUIRED_AT_INTAKE` 422 *(added Phase 7.1, F18 — returned as `CustodianRequiredAtIntakeError` above)*, `ROLE_NOT_PERMITTED` 403 *(added Phase 7.1, F20: `DEPUTY`, `CLERK`, `ADMIN` for every transition)* |
 | `GET /api/exhibits/:id/status` | Current derived status | — | `200 ExhibitCurrentState` | `EXHIBIT_NOT_FOUND` 404 |
 
 **Allowed transitions (state machine, enforced server-side):**
@@ -197,17 +265,20 @@ interface ExhibitHistoryResponse {
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits/:id/events/objection` | Raise an objection | `{ objectingParty, grounds, actorUserId }` | `201 { event: ExhibitEvent, objectionState: ObjectionCurrentState }` | `INVALID_OBJECTION_TARGET` 422, `EXHIBIT_NOT_FOUND` 404 |
-| `POST /api/objections/:id/ruling` | Record a ruling against an objection thread | `{ disposition: RulingDisposition, actorUserId }` | `201 { event: ExhibitEvent, objectionState: ObjectionCurrentState }` | `OBJECTION_NOT_FOUND` 404, `OBJECTION_ALREADY_RESOLVED` 409, `ROLE_NOT_PERMITTED` 403 (SUSTAINED/OVERRULED requires `JUDGE` role) |
-| `GET /api/cases/:id/objections?status=unresolved` | List objection threads, filterable | Query: `status?` | `200 ObjectionCurrentState[]` | `CASE_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/objection` | Raise an objection | `{ objectingParty, grounds, actorUserId }` | `201 { event: ExhibitEvent, objectionState: ObjectionCurrentState }` | `INVALID_OBJECTION_TARGET` 422, `EXHIBIT_NOT_FOUND` 404, `ROLE_NOT_PERMITTED` 403 *(added Phase 7.1, F20: `ATTORNEY`, `DEPUTY`, `CLERK`, `ADMIN` — the one write action an `ATTORNEY` role is permitted to perform)* |
+| `POST /api/objections/:id/ruling` | Record a ruling against an objection thread | `{ disposition: RulingDisposition, actorUserId }` | `201 { event: ExhibitEvent, objectionState: ObjectionCurrentState }` | `OBJECTION_NOT_FOUND` 404, `OBJECTION_ALREADY_RESOLVED` 409, `ROLE_NOT_PERMITTED` 403 (SUSTAINED/OVERRULED requires `JUDGE` role — unchanged by F20, now enforced via the shared `assertRole` helper) |
+| `GET /api/cases/:id/objections?status=unresolved` | List objection threads, filterable | Query: `status?` | `200 Array<ObjectionCurrentState & { exhibitLabel: string }>` *(amended Phase 7.1, F21: additive read-time join of `exhibitLabel` — no schema change; powers the new judge-facing Pending-Ruling Queue screen's client-side sort by elapsed `raisedAt`, no new endpoint)* | `CASE_NOT_FOUND` 404 |
 
-### 4.5 Custody (F3)
+### 4.5 Custody (F3; significantly amended Phase 7.1, F19 — two-phase propose/confirm model)
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits/:id/events/custody` | Record a custody transfer | `{ fromCustodianUserId?, toCustodianUserId, reason?, actorUserId }` | `201 { event: ExhibitEvent, custodyState: CustodyCurrentState }` | `CUSTODY_CHAIN_BROKEN` 409, `INVALID_CUSTODIAN` 422, `NO_OP_TRANSFER` 422, `EXHIBIT_NOT_FOUND` 404 |
-| `GET /api/exhibits/:id/custodian` | Current custodian only | — | `200 CustodyCurrentState` | `EXHIBIT_NOT_FOUND` 404 |
-| `GET /api/exhibits/:id/custody-history` | Full ordered chain-of-custody | — | `200 CustodyHistoryEntry[]` | `EXHIBIT_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/custody` | Record a custody transfer. *(Amended Phase 7.1, F19: retained ONLY for the F18 intake-bootstrap case — `fromCustodianUserId: null`. Any call with a non-null `fromCustodianUserId` is rejected; use the propose/confirm endpoints below for every transfer after the first.)* | `{ fromCustodianUserId?, toCustodianUserId, reason?, actorUserId }` | `201 { event: ExhibitEvent, custodyState: CustodyCurrentState }` | `CUSTODY_CHAIN_BROKEN` 409, `INVALID_CUSTODIAN` 422, `NO_OP_TRANSFER` 422, `EXHIBIT_NOT_FOUND` 404, `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION` 409 *(added Phase 7.1, F19: non-first transfer attempted via this unilateral path)* |
+| `POST /api/exhibits/:id/events/custody/propose` *(added Phase 7.1, F19)* | Initiates a two-phase custody transfer — does **not** change current custody | `{ fromCustodianUserId, toCustodianUserId, reason?, actorUserId }` | `201 { event: ExhibitEvent, custodyState: CustodyCurrentState }` (`custodyState.pendingTransfer` now set; `currentCustodianUserId` unchanged) | `CUSTODY_CHAIN_BROKEN` 409, `INVALID_CUSTODIAN` 422, `NO_OP_TRANSFER` 422, `CUSTODY_TRANSFER_ALREADY_PENDING` 409, `ROLE_NOT_PERMITTED` 403 (`DEPUTY`, `CLERK`, `ADMIN`), `EXHIBIT_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/custody/confirm` *(added Phase 7.1, F19)* | Completes a pending custody transfer — callable **only** by the named receiving custodian | `{ proposedEventId, actorUserId }` | `200 { event: ExhibitEvent, custodyState: CustodyCurrentState }` (`currentCustodianUserId` updated; `pendingTransfer` cleared to `null`) | `CUSTODY_CONFIRMATION_NOT_PENDING` 404, `CUSTODY_CONFIRM_WRONG_USER` 403 (identity match — independent of, and in addition to, the role check below), `ROLE_NOT_PERMITTED` 403 (`DEPUTY`, `CLERK`, `ADMIN`), `EXHIBIT_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/custody/cancel` *(added Phase 7.1, F19)* | Cancels a pending custody transfer — current custody is unaffected (it never changed) | `{ proposedEventId, reason?, actorUserId }` | `200 { event: ExhibitEvent, custodyState: CustodyCurrentState }` (`pendingTransfer` cleared) | `CUSTODY_CONFIRMATION_NOT_PENDING` 404, `ROLE_NOT_PERMITTED` 403 (original proposer, or `DEPUTY`/`CLERK`/`ADMIN`), `EXHIBIT_NOT_FOUND` 404 |
+| `GET /api/exhibits/:id/custodian` | Current custodian only | — | `200 CustodyCurrentState` *(amended Phase 7.1, F19: now additionally includes `pendingTransfer: { toUserId, proposedAt, eventId } \| null`, see §4.1)* | `EXHIBIT_NOT_FOUND` 404 |
+| `GET /api/exhibits/:id/custody-history` | Full ordered chain-of-custody | — | `200 CustodyHistoryEntry[]` *(amended Phase 7.1, F19: now includes `CUSTODY_TRANSFER_PROPOSED`/`CONFIRMED`/`CANCELLED` events, distinguished by `eventType`, so a cancelled/superseded proposal remains visible in history)* | `EXHIBIT_NOT_FOUND` 404 |
 
 ```typescript
 interface CustodyHistoryEntry {
@@ -216,8 +287,11 @@ interface CustodyHistoryEntry {
   timestamp: string;
   reason: string | null;
   eventId: string;
+  eventType: EventType; // added Phase 7.1 (F19) — distinguishes PROPOSED/CONFIRMED/CANCELLED/legacy entries
 }
 ```
+
+**Two-phase model summary (F19):** a proposal (`propose`) never changes `currentCustodianUserId` — only the named receiver's own `confirm` call does. A `cancel` reverts a pending state with no effect on current custody, since it was never changed in the first place. There is no time-based auto-expiry of a pending transfer (consistent with this architecture's queue-free, synchronous-only write model, `06-integrations.md`) — an indefinitely-pending transfer is resolved only by an explicit `confirm` or `cancel` call.
 
 ### 4.6 Search (F4)
 
@@ -242,12 +316,21 @@ interface SearchExhibitsCriteria {
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
 | `POST /api/cases/:id/jury-package` | Compute/refresh draft jury-eligible set | `{ actorUserId }` | `201 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `NO_ELIGIBLE_EXHIBITS` 422, `ROLE_NOT_PERMITTED` 403 |
-| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)* | `CASE_NOT_FOUND` 404 |
-| `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`) | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
+| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)* | `CASE_NOT_FOUND` 404 |
+| `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`, `version: number`) *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — never client-supplied)* | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
 
 `actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time. Only `status: 'INCLUDED'` rows participate in finalization *(amended Phase 7, F13)* — an `EXCLUDED` row can never block or be counted toward it.
 
-**Amended Phase 7 (F13):** the candidate computation behind `POST /api/cases/:id/jury-package` now also filters `exhibit.isSealed = false` at the query level, in addition to `currentStatus = 'ADMITTED'` — see `01-components.md` §2.2 and `02-data-model.md` §3.6 note. This is a behavior amendment to the existing endpoint, not a new route.
+**Amended Phase 7 (F13); amended again Phase 7.1 (F16):** the candidate computation behind `POST /api/cases/:id/jury-package` originally filtered `exhibit.isSealed = false` at the query level, in addition to `currentStatus = 'ADMITTED'`. **As of Phase 7.1, this filter reads `exhibit.classification = 'TRIAL'` instead** — see `01-components.md` §2.2 and `02-data-model.md` §3.6/§3.10. This remains a behavior amendment to the existing endpoint, not a new route.
+
+### 4.7b Jury Package Versions & Export (F23, added Phase 7.1)
+
+| Method & Path | Description | Request / Response | Errors |
+|---|---|---|---|
+| `GET /api/cases/:id/jury-package/versions` | Lists every `JuryPackage` for the case — every `FINALIZED` version plus the current `DRAFT`, if one exists | `200 JuryPackageVersionSummary[]` (see §4.1) | `CASE_NOT_FOUND` 404 |
+| `GET /api/jury-package/:id/export` | Generates and streams a PDF (via `@react-pdf/renderer`) of a specific `FINALIZED` package version's included exhibit set | Response: binary `application/pdf` stream, not JSON | `JURY_PACKAGE_EXPORT_NOT_FINALIZED` 422 (a `DRAFT` has no version to export — finalize first), `JURY_PACKAGE_VERSION_NOT_FOUND` 404, `PDF_GENERATION_FAILED` 500 |
+
+Because a `FINALIZED` package's `JuryPackageExhibit` rows are immutable, re-exporting the same version at any later date always produces an identical PDF (same exhibit set, same classification/status snapshot) — the export is deterministic per version, not re-computed against the exhibits' *current* live state. `EXCLUDED` rows are never rendered into the export, exactly as they are never rendered into the live `INCLUDED` list (F13). See `01-components.md` §2.2 (`services/juryPackage.ts#exportJuryPackagePdf`) and `05-tech-stack.md` §6.4 for the new `@react-pdf/renderer` dependency.
 
 ### 4.7a Jury Package Exclusion (F13, added Phase 7)
 
@@ -288,7 +371,7 @@ Command Center also composes `GET /api/cases/:id/objections?status=unresolved` (
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/assistant/chat` | Streaming tool-calling chat (Vercel AI SDK `streamText`) | `{ caseId, userId, message, conversationId? }` | Streamed text (SSE/chunked) + final structured payload incl. `citations[]` | `TOOL_ARGS_INVALID` (tool-level, surfaced to model), `ASSISTANT_UNAVAILABLE` 503 |
+| `POST /api/assistant/chat` | Streaming tool-calling chat (Vercel AI SDK `streamText`) | `{ caseId, userId, message, conversationId? }` *(`caseId` as of Phase 7.1, F22, is sourced from the client's explicit Case Selector state, not an implicit single-case constant — the field itself is unchanged, only its origin)* | Streamed text (SSE/chunked) + final structured payload incl. `citations[]` | `TOOL_ARGS_INVALID` (tool-level, surfaced to model), `ASSISTANT_UNAVAILABLE` 503 |
 | `GET /api/assistant/conversations/:id` | Retrieve persisted conversation + citations (audit/replay) | — | `200 ConversationDetail` | `CONVERSATION_NOT_FOUND` 404 |
 
 ```typescript
@@ -358,10 +441,14 @@ No endpoint performs cryptographic authentication (PROJECT.md explicitly scopes 
 
 ```typescript
 interface RequestContext {
-  caseId: string;            // single-case demo scope; effectively constant
+  // Amended Phase 7.1 (F22): caseId is now an explicit, client-selected
+  // value carried per-request (Case Selector state) — no longer an
+  // effectively-constant single-case assumption. The server remains
+  // stateless with respect to "which case is active."
+  caseId: string;
   requestingUserRole: Role;  // from the client-side role switcher (zustand store)
   actorUserId?: string;      // required only on write endpoints; the acting user's seeded User.id
 }
 ```
 
-`requestingUserRole` governs **read visibility** (sealed-exhibit exclusion); `actorUserId`'s resolved `Role` governs **write authorization** (e.g., only `JUDGE` may record `SUSTAINED`/`OVERRULED`; only `DEPUTY`/`CLERK`/`ADMIN` may finalize a jury package). Both checks are enforced in `services/visibility.ts` and the relevant domain service module — never re-implemented per route. See `04-security.md` for the full authorization model.
+`requestingUserRole` governs **read visibility** (sealed/classification-based exclusion, F16); `actorUserId`'s resolved `Role` governs **write authorization**. **As of Phase 7.1 (F20), write authorization is no longer limited to the three actions historically gated ad hoc (ruling disposition, jury finalization, discrepancy acknowledgment)** — every write action in the system (exhibit creation, every status transition, raising an objection, proposing/confirming custody transfer, excluding a jury-package exhibit) is now gated by the single shared `assertRole` helper against the full Permission Matrix. Both the visibility check and every authorization check are enforced in `services/visibility.ts` / `services/authorization.ts` and the relevant domain service module — never re-implemented per route. **See `04-security.md` §5.2.2a for the full, current authorization model — this supersedes the narrower write-authorization table this section previously implied.**

@@ -16,7 +16,8 @@ This stack is adopted directly from the PRD (§4 Technical Architecture) and cor
 | Validation | zod | 3.x | Validates API request bodies, tool-call arguments, and `ExhibitEvent.payload` discriminated-union shapes before any Prisma write |
 | UI components | IBM Carbon Design System (`@carbon/react`) | current | Consistent, accessible, enterprise-grade component layer across all screens (status badges, timelines, chat panel) — WCAG 2.1 AA conformant by default |
 | Server-state/caching | `@tanstack/react-query` | 5.x | Polling-based live sync (3–5s refetch interval + refetch-on-focus) across Command Center, Case Workspace, Exhibit Detail, Jury Package |
-| Client state | zustand | 4.x/5.x | Lightweight client state for the role switcher and chat-panel UI state |
+| Client state | zustand | 4.x/5.x | Lightweight client state for the role switcher, case selector (added Phase 7.1, F22), and chat-panel UI state |
+| PDF generation | `@react-pdf/renderer` *(added Phase 7.1, F23)* | current | Server-side, pure-JS jury-package PDF export — no headless-browser binary; see §6.4 for the full fit rationale |
 | Hosting | Vercel | — | Single deployable artifact hosting UI, API routes, and the assistant route together |
 
 ### 6.2 Data Model Pattern
@@ -48,6 +49,7 @@ This stack is adopted directly from the PRD (§4 Technical Architecture) and cor
 | `zustand` | Role-switcher state + lightweight UI state |
 | `@carbon/react`, `@carbon/styles`, `@carbon/icons-react` | Carbon component library, design tokens/SCSS theming, and icon set |
 | `@neondatabase/serverless` (optional, if using Neon's HTTP/WebSocket driver) | Serverless-friendly Postgres connectivity from Vercel's runtime, as an alternative/complement to a standard pooled TCP connection via Prisma |
+| `@react-pdf/renderer` *(added Phase 7.1, F23 — first new runtime dependency since initial stack lock-in)* | Server-side PDF generation for finalized jury package export (`services/juryPackage.ts#exportJuryPackagePdf`, `lib/pdf/JuryPackageDocument.tsx`). Selected because it generates PDFs from JSX/React-component definitions (`<Document>`/`<Page>`/`<View>`/`<Text>`) in pure JavaScript, with **no headless-browser binary** required — unlike a Puppeteer/Playwright-based HTML-to-PDF approach, which would require bundling and cold-starting a full Chromium binary per Vercel serverless invocation. Its component-based API also fits this React/Next.js codebase's idioms natively, rather than introducing an unrelated templating system. **Every other Phase 7.1 feature (F16–F22) introduces no new dependency** — this is flagged explicitly because it is the sole exception. |
 
 ### 6.5 Explicitly Avoided Dependencies
 

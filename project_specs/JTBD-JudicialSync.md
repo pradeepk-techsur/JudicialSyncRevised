@@ -5,6 +5,7 @@
 |-------|-------|
 | **Product Name** | JudicialSync |
 | **Date** | 2026-10-06 |
+| **Last Updated** | 2026-10-09 (added JTBD-02.5, JTBD-02.6 for Phase 7.1 F22/F23 — new jobs only; F16–F21 are hardening of existing jobs, no new entries) |
 | **Related Personas** | PERSONAS-JudicialSync.md |
 | **Related PRD** | PRD-JudicialSync.md |
 
@@ -22,6 +23,8 @@
 | JTBD-02.2 | PER-02 | When the bench or counsel asks who holds an exhibit, I want an instant custody answer, so I can respond without checking a paper log. | P0 |
 | JTBD-02.3 | PER-02 | When assembling the jury package, I want proof that no discrepant exhibit slipped through, so I can finalize it without manual cross-referencing against multiple sources. | P0 |
 | JTBD-02.4 | PER-02 | When testimony is moving fast, I want to locate any exhibit in seconds via structured search, so I can respond to requests from the bench or counsel without delay. | P1 |
+| JTBD-02.5 | PER-02 | When handling more than one active trial in the same session, I want to switch between cases from a single workspace, so I can move between cases without restarting or losing my place in either one. | P1 |
+| JTBD-02.6 | PER-02 | When a jury package is finalized (and possibly re-finalized later), I want a permanent, versioned, exportable record of exactly what was included at each finalization, so I can produce defensible proof of what the jury actually received if it's ever challenged. | P1 |
 | JTBD-03.1 | PER-03 | When I'm about to reference an exhibit in argument or cross-examination, I want its current status confirmed instantly, so I can act with confidence mid-argument. | P0 |
 | JTBD-03.2 | PER-03 | When deciding whether to press or drop a point, I want to know if an objection is still unresolved, so I can act without relying on fragmented personal notes. | P0 |
 | JTBD-03.3 | PER-03 | When challenging an exhibit's admissibility, I want the full chain-of-custody history on demand, so I can identify gaps without formally requesting it as evidence first. | P1 |
@@ -201,6 +204,48 @@ When testimony is moving quickly and the bench or counsel needs an answer now, I
 **Success Measure:** Deputy/clerk locates any requested exhibit in under 10 seconds during live testimony, in 100% of search attempts during the demo scenario.
 
 **Related Features:** F4, F9
+**Priority:** P1
+
+---
+
+### JTBD-02.5: Manage Multiple Active Cases Without Losing Context
+
+**Job Statement:**
+When handling exhibit logging and jury-package work across more than one active trial in the same session, I want to switch between cases from a single workspace, so I can move from one case to another without restarting the application or losing my place in either case.
+
+**Current Alternatives:**
+- Works against a hardcoded single demo case, with no way to represent or demonstrate a second active trial without a redeploy or data reset
+- Relies on separate browser sessions, tabs, or manual environment resets to approximate working a second case, with no guarantee that data stays correctly scoped to the right one
+
+**Hiring Criteria:**
+- A case selector lists every active case available to me and lets me switch the active case context for every screen and the assistant in one action
+- Switching cases updates every open screen and the assistant's working context consistently, with zero stale single-case data bleeding through
+- All queries, writes, and assistant answers are strictly scoped to the currently selected case — no cross-case data ever appears
+
+**Success Measure:** Deputy/clerk switches between two active cases and confirms zero cross-case data leakage (exhibits, custody, discrepancies) across every screen and the assistant, in 100% of switch attempts.
+
+**Related Features:** F22
+**Priority:** P1
+
+---
+
+### JTBD-02.6: Defensible Record of Exactly What the Jury Received
+
+**Job Statement:**
+When a jury package is finalized — and potentially re-finalized later after a late correction — I want a permanent, versioned, exportable record of exactly what was included at each finalization, so I can produce defensible proof of what the jury actually received if it's ever challenged after the fact.
+
+**Current Alternatives:**
+- Relies on a browser print dialog (`window.print()`) with no retained record of what the printed output actually contained or when it was produced
+- Has no way to distinguish what the jury received at an initial finalization versus any later finalization after a correction, since nothing preserves prior versions
+
+**Hiring Criteria:**
+- Finalizing a jury package generates an actual PDF document suitable for formal handoff and archival, not a browser print approximation
+- Every finalization produces a new, immutable version instead of overwriting the prior one, with full version history retrievable per case
+- The exported PDF reflects the exact same discrepancy-gated, classification-excluded exhibit set the live workspace view shows at that moment — zero divergence between what's displayed and what's exported
+
+**Success Measure:** Deputy/clerk retrieves the exact exhibit set and classification/status state of any prior jury-package finalization from version history, with zero discrepancy against the PDF originally exported, in 100% of version-retrieval attempts.
+
+**Related Features:** F23
 **Priority:** P1
 
 ---
@@ -389,6 +434,8 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 | JTBD-02.2 | F3 | Deputy/clerk answers custody questions instantly with zero paper-log lookups |
 | JTBD-02.3 | F5, F6, F11 | Deputy/clerk assembles a provably clean jury package with zero manual cross-referencing |
 | JTBD-02.4 | F4, F9 | Deputy/clerk locates any exhibit in under 10 seconds during live testimony |
+| JTBD-02.5 | F22 | Deputy/clerk switches between active cases with zero cross-case data leakage |
+| JTBD-02.6 | F23 | Deputy/clerk retrieves a defensible, versioned PDF record of exactly what each jury package finalization contained |
 | JTBD-03.1 | F1, F7 | Attorney confirms exhibit status in seconds without relying on courtroom staff |
 | JTBD-03.2 | F2 | Attorney confirms objection resolution status in under 10 seconds |
 | JTBD-03.3 | F3, F10 | Attorney verifies custody chain in under 10 seconds without a formal evidentiary request |
@@ -412,6 +459,8 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 | JTBD-02.2 | Instant custody answer | Given a request for "who currently has custody of Exhibit X," the current custodian is returned in under 5 seconds with zero paper-log lookup |
 | JTBD-02.3 | Provably clean jury package assembly | Given a jury package finalization attempt, the system blocks or flags finalization until 100% of discrepancy checks are resolved or acknowledged |
 | JTBD-02.4 | Fast exhibit location during live testimony | Given a search by ID, keyword, status, witness, or date (or combination), matching exhibits are returned in under 10 seconds |
+| JTBD-02.5 | Switch between multiple active cases with zero cross-case leakage | Given two or more active cases exist, selecting a case from the case selector updates every screen and the assistant to that case's data exclusively, with zero data from the other case visible anywhere |
+| JTBD-02.6 | Defensible, versioned proof of exact jury-package contents | Given a jury package is finalized (or re-finalized after a correction), a new immutable PDF version is generated and retrievable from version history, exactly matching the discrepancy-gated, classification-excluded exhibit set shown on the live workspace at that moment |
 | JTBD-03.1 | Confirmed exhibit status before acting in argument | Given an attorney asks for an exhibit's current status, a cited answer is returned within seconds without requiring courtroom staff involvement |
 | JTBD-03.2 | Known objection resolution status | Given a query for unresolved objections (case-wide or per-exhibit), the full current objection/ruling status is returned in under 10 seconds |
 | JTBD-03.3 | Verified custody chain for admissibility challenge | Given a request for an exhibit's chain-of-custody, the full timestamped transfer history is returned in under 10 seconds with any gaps visually distinguishable |
@@ -424,4 +473,4 @@ When assessing rollout cost across courtrooms, I want to see whether staff spend
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-06*
+*Last updated: 2026-10-09 (added JTBD-02.5, JTBD-02.6 for Phase 7.1)*

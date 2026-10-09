@@ -46,6 +46,18 @@ enum OfferingParty {
   DEFENSE
 }
 
+/// Added Phase 7.1 (F16). Required at intake, immutable thereafter — no
+/// reclassification endpoint exists in this version. Supersedes `isSealed`
+/// as the authoritative sensitivity input to jury-package exclusion (F13)
+/// and role-based visibility; `isSealed` is retained as a write-once mirror
+/// (see note on `Exhibit.isSealed` below) rather than removed, so every
+/// existing read path (`visibility.ts`) requires no change.
+enum ExhibitClassification {
+  TRIAL
+  CHAMBERS_EX_PARTE
+  SEALED
+}
+
 model Exhibit {
   id                 String        @id @default(uuid())
   caseId             String
@@ -54,7 +66,8 @@ model Exhibit {
   source             String?
   offeringParty      OfferingParty
   associatedWitness  String?
-  isSealed           Boolean       @default(false)
+  classification     ExhibitClassification               // added Phase 7.1 (F16): required at creation, immutable
+  isSealed           Boolean       @default(false)        // Phase 7.1 (F16): now write-once, derived at creation as `classification !== 'TRIAL'` — never independently set thereafter
   createdAt          DateTime      @default(now())
 
   case              Case                @relation(fields: [caseId], references: [id])
@@ -77,9 +90,12 @@ enum EventType {
   STATUS_CHANGE
   OBJECTION_RAISED
   RULING_RECORDED
-  CUSTODY_TRANSFER
+  CUSTODY_TRANSFER                 // legacy unilateral transfer — retained only for the F18 intake-bootstrap path; rejected for any non-first transfer as of Phase 7.1 (F19)
   DISCREPANCY_ACKNOWLEDGED
-  JURY_PACKAGE_EXHIBIT_EXCLUDED  // added Phase 7 (F13) — see §Jury Package
+  JURY_PACKAGE_EXHIBIT_EXCLUDED     // added Phase 7 (F13) — see §Jury Package
+  CUSTODY_TRANSFER_PROPOSED        // added Phase 7.1 (F19) — two-phase custody handoff, phase 1
+  CUSTODY_TRANSFER_CONFIRMED       // added Phase 7.1 (F19) — two-phase custody handoff, phase 2 (also used directly, with no preceding PROPOSED, for F18's intake-bootstrap link)
+  CUSTODY_TRANSFER_CANCELLED       // added Phase 7.1 (F19) — reverts a pending proposal; currentCustodianUserId unaffected
 }
 
 /// The single append-only ledger table. Rows are NEVER updated or deleted
@@ -108,9 +124,12 @@ model ExhibitEvent {
 - `STATUS_CHANGE`: `{ fromStatus: ExhibitStatus | null, toStatus: ExhibitStatus, notes?: string }`
 - `OBJECTION_RAISED`: `{ objectionId: string (uuid), objectingParty: OfferingParty, grounds: string }`
 - `RULING_RECORDED`: `{ objectionId: string (uuid), disposition: 'SUSTAINED' | 'OVERRULED' | 'RESERVED' }`
-- `CUSTODY_TRANSFER`: `{ fromCustodianUserId: string | null, toCustodianUserId: string, reason?: string }`
+- `CUSTODY_TRANSFER`: `{ fromCustodianUserId: string | null, toCustodianUserId: string, reason?: string }` — legacy unilateral shape, retained only for F18's intake-bootstrap link in historical/prior-version data
 - `DISCREPANCY_ACKNOWLEDGED`: `{ discrepancyFlagId: string (uuid), ruleCode: string, justification: string }`
 - `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)*: `{ juryPackageId: string (uuid), exhibitId: string (uuid), reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL', note?: string }`
+- `CUSTODY_TRANSFER_PROPOSED` *(added Phase 7.1, F19)*: `{ fromCustodianUserId: string, toCustodianUserId: string, reason?: string }` — `fromCustodianUserId` must match the exhibit's current custodian; does not change `CustodyCurrentState.currentCustodianUserId`
+- `CUSTODY_TRANSFER_CONFIRMED` *(added Phase 7.1, F19)*: `{ proposedEventId: string (uuid) | null, fromCustodianUserId: string | null, toCustodianUserId: string }` — `proposedEventId` references the resolved `CUSTODY_TRANSFER_PROPOSED` event, or is `null` for F18's intake-bootstrap case (where `fromCustodianUserId` is also `null`)
+- `CUSTODY_TRANSFER_CANCELLED` *(added Phase 7.1, F19)*: `{ proposedEventId: string (uuid), reason?: string }` — references the pending proposal being cancelled
 
 ### Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -165,10 +184,18 @@ model ObjectionCurrentState {
 /// An exhibit with NO row here (despite being ADMITTED) is exactly the
 /// ADMITTED_NO_CUSTODIAN discrepancy condition (F6) — absence is meaningful.
 model CustodyCurrentState {
-  exhibitId             String   @id
+  exhibitId              String   @id
   currentCustodianUserId String
-  since                 DateTime
-  lastEventId           String
+  since                  DateTime
+  lastEventId            String
+  // --- added Phase 7.1 (F19): two-phase custody handoff pending state ---
+  // Populated by a CUSTODY_TRANSFER_PROPOSED event; cleared by the resolving
+  // CUSTODY_TRANSFER_CONFIRMED or CUSTODY_TRANSFER_CANCELLED event.
+  // currentCustodianUserId is NEVER modified while these are non-null —
+  // "who currently has it" always reflects the last CONFIRMED transfer.
+  pendingTransferToUserId    String?
+  pendingTransferEventId     String?
+  pendingTransferProposedAt  DateTime?
 
   exhibit    Exhibit @relation(fields: [exhibitId], references: [id])
   custodian  User    @relation(fields: [currentCustodianUserId], references: [id])
@@ -224,11 +251,13 @@ model JuryPackage {
   createdAt    DateTime          @default(now())
   finalizedAt  DateTime?
   finalizedBy  String?
+  version      Int?                                // added Phase 7.1 (F23): assigned ONLY at finalization, never reassigned; null while DRAFT
 
   case Case @relation(fields: [caseId], references: [id])
   exhibitRows JuryPackageExhibit[]
 
   @@index([caseId, status])
+  @@unique([caseId, version])                        // added Phase 7.1 (F23): sparse/partial uniqueness — only enforced where version is non-null
 }
 
 enum JuryExhibitDiscrepancyStatus {
@@ -265,7 +294,9 @@ model JuryPackageExhibit {
 }
 ```
 
-**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates` (F5) is amended to filter `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter, so a sealed/ex-parte exhibit never acquires an `INCLUDED` row here in the first place — see F13 §Process step 1. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
+**Jury Package Exclusion note (Phase 7, F13; amended Phase 7.1, F16):** `computeJuryCandidates` (F5) originally filtered `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter (F13 §Process step 1). As of Phase 7.1, this filter reads `exhibit.classification = 'TRIAL'` instead — both `CHAMBERS_EX_PARTE` and `SEALED` are hard-excluded identically — so a chambers-ex-parte or sealed exhibit never acquires an `INCLUDED` row here in the first place. See `F16-exhibit-classification-taxonomy.md` §Process step 4. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
+
+**Jury Package Versioning note (Phase 7.1, F23):** `JuryPackage.version` is assigned only at finalization, computed as `(MAX(version) WHERE caseId = :id AND status = 'FINALIZED') + 1` (or `1` if none exists), and never reassigned afterward. No separate snapshot table is introduced — the existing `JuryPackageExhibit` rows, already immutable once their parent package is `FINALIZED` (F05 §Validation), serve directly as each version's permanent record. "Most-recent version" is computed at read time (`MAX(version)` per case), never stored. See `F23-versioned-jury-packages-pdf-export.md` §Process.
 
 ### Assistant
 

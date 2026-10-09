@@ -9,8 +9,10 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 | 422 | VALIDATION_ERROR | "{field} must be {constraint}" | Any input validation failure not covered by a more specific code | Fix the request payload and retry |
 | 409 | EXHIBIT_LABEL_CONFLICT | "An exhibit with this label already exists in this case" | F0 | Use a different label or fetch the existing exhibit |
 | 404 | EXHIBIT_NOT_FOUND | "No exhibit found with the given ID" | F0, F1, F2, F3, F9, F10 | Verify the exhibit ID; also returned for sealed/unauthorized exhibits (no distinction) |
-| 404 | CASE_NOT_FOUND | "No case found with the given ID" | F8, F9 | Verify the case ID / session context |
+| 404 | CASE_NOT_FOUND | "No case found with the given ID" | F8, F9, F22 | Verify the case ID / selected active case |
 | 500 | SEED_INTEGRITY_FAILURE | "Seed data failed required edge-case assertions" | F0 (seed-time only) | Developer-facing; fix seed script, not user-retryable |
+| 422 | CLASSIFICATION_REQUIRED | "classification is required and must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | F16 | Supply a valid classification at exhibit creation |
+| 422 | INVALID_CLASSIFICATION | "classification must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | F16 | Correct the request payload and retry |
 
 ### Status Lifecycle Errors (F1)
 
@@ -75,6 +77,58 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 | 409 | JURY_PACKAGE_ALREADY_FINALIZED | "This jury package has already been finalized" | Not retryable — a `FINALIZED` package's rows are immutable; create a new draft if changes are needed |
 
 **Note:** F14 (Discrepancy Acknowledgment Transparency) and F15 (Courtroom Usability Fixes) introduce no new error codes — both are UI-visibility/client-rendering requirements layered on existing, unchanged service behavior. See their respective FRD chunks' §Error States for the existing codes they continue to rely on.
+
+### Exhibit Classification Errors (F16)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | CLASSIFICATION_REQUIRED | "classification is required and must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | Supply a valid classification; no exhibit can be created unclassified |
+| 422 | INVALID_CLASSIFICATION | "classification must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | Correct the request payload and retry |
+
+**Note:** F17 (Objection-to-Admission State-Machine Hardening) introduces no new error codes — F12's existing `ADMISSION_BLOCKED` / `UNRESOLVED_OBJECTION` response already fully covers the scenario this feature hardens with regression tests; see `F17-objection-admission-state-machine-hardening.md` §Error States.
+
+### Custodian-at-Intake Errors (F18)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | CUSTODIAN_REQUIRED_AT_INTAKE | "A custodian must be established when an exhibit is first marked into evidence" | Supply a valid `custodianUserId` alongside the first MARKED transition |
+
+### Custody Handoff Confirmation Errors (F19)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 409 | CUSTODY_TRANSFER_ALREADY_PENDING | "A custody transfer is already pending for this exhibit" | Wait for the pending transfer to be confirmed or cancelled before proposing a new one |
+| 404 | CUSTODY_CONFIRMATION_NOT_PENDING | "No pending custody transfer found matching this request" | Verify a transfer is currently pending and the `proposedEventId` matches it |
+| 403 | CUSTODY_CONFIRM_WRONG_USER | "Only the named receiving custodian may confirm this transfer" | Not retryable by this user — only the user named as `toCustodianUserId` on the proposal may confirm |
+| 409 | CUSTODY_TRANSFER_REQUIRES_CONFIRMATION | "Transfers after the first must use the propose/confirm flow" | Use `POST /api/exhibits/:id/events/custody/propose` instead of the legacy unilateral endpoint |
+
+### Server-Side Role Enforcement Errors (F20)
+
+| HTTP Status | Error Code | Message | Applies To | Retry Guidance |
+|---|---|---|---|---|
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may create an exhibit" | Create exhibit | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may record this status transition" | Mark/offer/withdraw/admit/exclude transitions | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only an attorney, courtroom deputy, clerk, or admin may raise an objection" | Raise objection | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may propose a custody transfer" | Propose custody transfer | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may confirm custody receipt" | Confirm custody transfer (role gate — distinct from F19's identity-match `CUSTODY_CONFIRM_WRONG_USER`) | Not retryable by this user |
+
+**Note:** Rows for ruling disposition, discrepancy acknowledgment, jury-package finalize, and jury-package exclusion are unchanged by F20 — see their existing entries above (Objection & Ruling Errors, Discrepancy Errors, Jury Package Errors, Jury Package Exclusion Errors respectively). F20 retrofits all of them onto one shared `assertRole` enforcement mechanism without changing any existing message or code.
+
+### Pending-Ruling Queue Errors (F21)
+
+**Note:** F21 introduces no new error codes — it is a read-only client-side view reusing F2's existing `GET /api/cases/:id/objections` endpoint and error handling unchanged; see `F21-pending-ruling-queue.md` §Error States.
+
+### Multi-Case Support Errors (F22)
+
+**Note:** F22 introduces no new error codes — it reuses the existing `CASE_NOT_FOUND` (404) for every amended case-scoped endpoint; see `F22-multi-case-support-case-selector.md` §Error States.
+
+### Versioned Jury Package Export Errors (F23)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | JURY_PACKAGE_EXPORT_NOT_FINALIZED | "Only a finalized jury package version can be exported as a PDF" | Finalize the package first, then retry export |
+| 404 | JURY_PACKAGE_VERSION_NOT_FOUND | "No jury package version found with the given ID" | Verify the jury package ID |
+| 500 | PDF_GENERATION_FAILED | "Unable to generate the jury package PDF — please retry" | Transient; retry. If persistent, check exhibit data integrity for the version being exported |
 
 ### Assistant Errors (F7)
 

@@ -2,29 +2,31 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** FRD (Functional Requirements Document)
-**Version:** 1.1
+**Version:** 1.2
 **Status:** Draft
 **Generated:** 2026-10-06
-**Last Updated:** 2026-10-08 (added F12–F15 for Phase 7)
+**Last Updated:** 2026-10-09 (added F16–F23 for Phase 7.1, inserted after Phase 7)
 **Source PRD:** `PRD-JudicialSync.md`
 
 ---
 
 ## Scope
 
-This FRD translates JudicialSync's 16 PRD features (F0–F15) into implementation-ready specifications: data model, process flows, inputs/outputs, validation rules, error states, API surface, and schema surface. It is grounded in one non-negotiable architectural constraint established by project research (`SUMMARY.md`, `ARCHITECTURE.md`, `PITFALLS.md`): **status, objections/rulings, and custody are modeled exclusively as an append-only event ledger**, never as mutable "current state" fields. Every UI screen and every Pivota Assistant answer reads through one shared service layer over this ledger and its derived current-state projections — there is no parallel retrieval path, which is what makes assistant citations trustworthy.
+This FRD translates JudicialSync's 24 PRD features (F0–F23) into implementation-ready specifications: data model, process flows, inputs/outputs, validation rules, error states, API surface, and schema surface. It is grounded in one non-negotiable architectural constraint established by project research (`SUMMARY.md`, `ARCHITECTURE.md`, `PITFALLS.md`): **status, objections/rulings, and custody are modeled exclusively as an append-only event ledger**, never as mutable "current state" fields. Every UI screen and every Pivota Assistant answer reads through one shared service layer over this ledger and its derived current-state projections — there is no parallel retrieval path, which is what makes assistant citations trustworthy.
 
 F12–F15 (added for Phase 7: "Fix admission integrity and UI usability issues") extend this foundation with a hard pre-write admission gate (F12), a structural sealed/ex-parte exclusion from jury packages (F13), a UI-visibility-only requirement over F6's existing acknowledgment audit trail (F14), and a cluster of client-rendering usability fixes with no backend contract changes (F15). None of F12–F15 alters the behavior specified for F0–F11 in this document; they add new validation points, one new ledger event type, and new fields strictly additive to the schema described in `Y0-schema.md`.
 
-This document is written for developers implementing JudicialSync and assumes familiarity with the PRD's feature priorities and the project's demo-first context (seeded data, no production auth, single-case scope).
+F16–F23 (added for Phase 7.1, an urgent INSERTED phase between Phase 7 and the next planned milestone phase: "Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export") harden the admission/custody state machine and formally reverse two recorded v1 scope exclusions. F16 replaces the `isSealed` boolean's governing role with a formal three-value `ExhibitClassification` taxonomy. F17 is a documentation/test-only hardening of F12's existing admission gate — it introduces no new runtime mechanism. F18 moves the custodian requirement to intake (the `MARKED` transition). F19 converts unilateral custody transfer into a two-phase propose/confirm ledger model. F20 extends server-side role enforcement (already applied to rulings, jury finalization, and discrepancy acknowledgment) to every write action in the system via a single permission matrix, formally superseding the PRD's prior "production-grade auth hardening out of scope" note for *authorization* (authentication remains out of scope). F21 adds a judge-facing pending-ruling queue, reusing F2's existing service function with one additive read-time join. F22 reverses the single-case v1 scope assumption, adding a case selector with no schema change (case-scoping foreign keys already existed). F23 adds immutable version numbering and real PDF export to jury packages, introducing the project's first new runtime dependency since the original tech-stack lock-in. None of F16–F23 alters the behavior specified for F0–F15 in this document; all changes are additive to the schema, API surface, and error catalog described in `Y0`–`Y3`.
+
+This document is written for developers implementing JudicialSync and assumes familiarity with the PRD's feature priorities and the project's demo-first context (seeded data, no production auth, single-case scope as of Phase 7 — multi-case as of Phase 7.1's F22).
 
 ---
 
 ## How to Read This Document
 
-- **Feature chunks (`F00`–`F15`)** map 1:1 to PRD features F0–F15. Each chunk is self-contained (description, process, inputs/outputs, validation, errors) but defers full DDL to `Y0-schema.md` and full endpoint contracts to `Y1-api.md`. F12–F15 (Phase 7) additionally cross-reference the F0–F11 chunks whose behavior they extend or gate, rather than restating or altering that behavior in place.
+- **Feature chunks (`F00`–`F23`)** map 1:1 to PRD features F0–F23. Each chunk is self-contained (description, process, inputs/outputs, validation, errors) but defers full DDL to `Y0-schema.md` and full endpoint contracts to `Y1-api.md`. F12–F15 (Phase 7) and F16–F23 (Phase 7.1) additionally cross-reference the earlier chunks whose behavior they extend or gate, rather than restating or altering that behavior in place.
 - **Cross-feature chunks (`Y0`–`Y3`)** consolidate schema, API, error catalog, and integrations so there is one canonical definition of each, referenced (not duplicated) by every feature chunk.
-- **IDs:** Feature IDs (`F0`–`F11`) match the PRD exactly. Database entity names use `PascalCase` (Prisma model convention). API paths use `kebab-case`. Event types use `SCREAMING_SNAKE_CASE`.
+- **IDs:** Feature IDs (`F0`–`F23`) match the PRD exactly. Database entity names use `PascalCase` (Prisma model convention). API paths use `kebab-case`. Event types use `SCREAMING_SNAKE_CASE`.
 - **Cross-references** appear as `see F03 §Process step 2` or `see Y0-schema.md §Event Ledger`.
 - **"Derived"** means a value is computed/projected from the event ledger at write-time or read-time and must never be treated as independently editable ground truth.
 
@@ -41,8 +43,11 @@ These terms recur across multiple feature chunks and are defined once here to av
 - **Discrepancy:** A system-detected mismatch between what the current-state projection shows and what it logically should show (e.g., admitted exhibit with no custodian of record). Discrepancies are computed by rule, not manually flagged, and persist as `DiscrepancyFlag` rows until resolved or explicitly acknowledged (acknowledgment itself is a ledger event — see F6).
 - **Citation:** A reference embedded in every Pivota Assistant factual claim, pointing to a specific `ExhibitEvent.id` (or current-state projection row id) and its timestamp. An answer with no citation is only valid when it is an explicit "I don't have that information" response.
 - **Role:** One of `JUDGE`, `CHAMBERS_STAFF`, `DEPUTY`, `CLERK`, `ATTORNEY`, `ADMIN` — see §Role-Based Visibility below. Assigned per seeded `User` row; the demo uses a role switcher (no production auth) per PROJECT.md scope.
-- **Sealed Exhibit:** An exhibit flagged `is_sealed = true` at creation (e.g., sidebar/in-camera material). Sealed exhibits are excluded from both UI queries and assistant tool results for roles outside the visibility set defined below, with no indication to the excluded role that a sealed record even exists (not just redacted content).
+- **Sealed Exhibit:** An exhibit flagged `is_sealed = true` at creation (e.g., sidebar/in-camera material). Sealed exhibits are excluded from both UI queries and assistant tool results for roles outside the visibility set defined below, with no indication to the excluded role that a sealed record even exists (not just redacted content). **As of Phase 7.1 (F16):** `isSealed` is retained as a field but is now a write-once mirror derived from the new `ExhibitClassification` taxonomy at exhibit-creation time (`isSealed = classification !== 'TRIAL'`) — it is never independently set after this phase. The role-visibility gate below continues to read `isSealed` and is therefore unaffected in its outputs; see `F16-exhibit-classification-taxonomy.md` for the full rationale.
 - **Tool-Calling (Assistant):** The Pivota Assistant answers exclusively via LLM tool-calls that are thin 1:1 wrappers around service-layer functions (see F7, `Y1-api.md` §Assistant). No retrieval-augmented generation, no embeddings, no vector search — the data is small, structured, and exact-citation-critical.
+- **Exhibit Classification (`ExhibitClassification`):** The three-value intake-time taxonomy (`TRIAL`, `CHAMBERS_EX_PARTE`, `SEALED`) introduced by Phase 7.1's F16, superseding the `isSealed` boolean as the authoritative sensitivity classification. Immutable after intake in this version — no reclassification flow is specified. See `F16-exhibit-classification-taxonomy.md`.
+- **Custody Proposal / Confirmation:** The two-phase custody handoff model introduced by Phase 7.1's F19 — a `CUSTODY_TRANSFER_PROPOSED` event naming an intended receiver, followed by that same receiver's own `CUSTODY_TRANSFER_CONFIRMED` event. `CustodyCurrentState.currentCustodianUserId` changes only on confirmation, never on proposal. See `F19-custody-handoff-confirmation.md`.
+- **Permission Matrix:** The single, explicit table (Phase 7.1's F20) governing which `Role` may perform which write action system-wide, enforced server-side by resolving the acting user's role from the `User.role` DB column via `actorUserId` — never a client-supplied role claim. See `F20-server-side-role-enforcement-matrix.md`.
 
 ### Role-Based Visibility
 
@@ -80,6 +85,14 @@ This table is the single source of truth for role scoping and is applied identic
 | `F13-jury-package-ex-parte-sealed-exclusion.md` | Hard structural exclusion of sealed/ex-parte exhibits from jury packages |
 | `F14-discrepancy-acknowledgment-transparency.md` | UI visibility of acknowledgment role gating + audit trail (no new data) |
 | `F15-courtroom-usability-fixes.md` | Case Workspace/assistant/header/activity-feed client-rendering fixes |
+| `F16-exhibit-classification-taxonomy.md` | Intake-time TRIAL/CHAMBERS_EX_PARTE/SEALED taxonomy, supersedes `isSealed` boolean |
+| `F17-objection-admission-state-machine-hardening.md` | F12 hardening/clarification — no new runtime mechanism |
+| `F18-custodian-required-at-intake.md` | Custodian required atomically at the MARKED transition |
+| `F19-custody-handoff-confirmation.md` | Two-phase custody propose/confirm ledger model |
+| `F20-server-side-role-enforcement-matrix.md` | Full server-side permission matrix for every write action |
+| `F21-pending-ruling-queue.md` | Judge-facing oldest-first unresolved-objection queue |
+| `F22-multi-case-support-case-selector.md` | Case list/selector, enforced case-scoped isolation |
+| `F23-versioned-jury-packages-pdf-export.md` | Immutable version numbering + real PDF export for jury packages |
 | `Y0-schema.md` | Full database DDL (Prisma schema) |
 | `Y1-api.md` | Consolidated REST API endpoint catalog |
 | `Y2-errors.md` | Cross-feature error catalog |
@@ -896,6 +909,438 @@ No new error codes are introduced by this feature. All five sub-fixes are client
 **API Surface (this feature):** no new endpoints and no response-shape changes. Reuses `GET /api/cases/:id/exhibits` (F9), `GET /api/cases/:id/activity` (F8 — `exhibitLabel` field already present and unchanged), and the assistant's existing example-prompt rendering path (F7). See `Y1-api.md` §Exhibits, §Command Center, §Assistant.
 
 **Schema Surface (this feature):** no schema changes. This feature touches only client-side rendering logic against data the service layer already returns correctly per `Y0-schema.md`.
+## F16: Exhibit Classification Taxonomy
+
+**Description:** Introduces a formal, three-value `ExhibitClassification` enum (`TRIAL`, `CHAMBERS_EX_PARTE`, `SEALED`) captured at exhibit intake and immutable thereafter, replacing the `isSealed` boolean's role as the authoritative input to jury-package exclusion (F13) and role-based visibility (`00-header.md` §Role-Based Visibility). A boolean can distinguish only two states; this product needs three, since chambers-ex-parte material and sealed material are legally distinct categories that nonetheless both require the same hard exclusion from a jury package. Reclassification after intake is explicitly out of scope — if an exhibit's classification is ever wrong, that is a data-correction concern handled outside this feature, not a supported state transition.
+
+**Terminology:**
+- **Classification:** One of `TRIAL` (ordinary trial exhibit, fully eligible for jury inclusion), `CHAMBERS_EX_PARTE` (in-camera/sidebar submission visible only to chambers), or `SEALED` (sealed by court order). Set exactly once, at intake, never changed.
+- **Derived `isSealed`:** The pre-existing `Exhibit.isSealed` boolean column, retained for backward compatibility with every existing read path (role-visibility gate, F13's pre-Phase-7.1 filter), but as of this feature it is written exactly once — at creation, synchronously, in the same write as `classification` — as `isSealed = (classification !== 'TRIAL')`. It is never set independently of `classification` again.
+
+**Design decision (boolean vs. orthogonal dimension):** `isSealed` is retained as a derived, write-once mirror of `classification` rather than kept as an independently-settable, orthogonal field, because a single source of truth with one place where sensitivity is decided eliminates any possibility of the boolean and the taxonomy disagreeing with each other — a risk an orthogonal second dimension would otherwise require ongoing application-level synchronization to avoid.
+
+**Sub-features:**
+- `classification` required at exhibit creation (`POST /api/exhibits`, F0) — no exhibit can exist unclassified
+- `classification` immutable after creation — no update endpoint, no reclassification flow, in this version
+- `Exhibit.isSealed` computed once, at creation, directly from `classification` — removed as a direct client-settable input
+- F13's jury-candidacy exclusion filter extended from a boolean check (`isSealed = false`) to a classification-set check (`classification = 'TRIAL'`)
+- Role-based visibility (`00-header.md` §Role-Based Visibility) continues to read `isSealed`, which is now always classification-consistent by construction — no visibility-table changes required
+
+**Process:**
+1. At exhibit creation (`POST /api/exhibits`, F0 §Process), the caller supplies `classification` as a required field — not optional, not defaulted.
+2. The service layer validates `classification` is one of the three enum values before any write occurs.
+3. Within the same transaction that creates the `Exhibit` row, the service layer sets `isSealed = (classification !== 'TRIAL')` directly — this is the only write path for `isSealed` in this and all future versions; the creation API no longer accepts `isSealed` as a independent client input (a client-supplied `isSealed` value in the request body, if present, is ignored and overwritten by the derived value — see Validation).
+4. `computeJuryCandidates` (F5 §Process step 1, amended by F13 §Process step 1) is further amended: its candidate query now filters `exhibit.classification = 'TRIAL'` in the same query as the `ADMITTED`-status filter, in place of the prior `exhibit.isSealed = false` filter. Both `CHAMBERS_EX_PARTE` and `SEALED` classifications are hard-excluded identically — neither can ever acquire an `INCLUDED` `JuryPackageExhibit` row via the normal computation path, matching F13's existing "never passed into discrepancy evaluation" guarantee (F13 §Process step 2), now driven by the three-value field instead of the boolean.
+5. Role-based visibility checks (`visibility.ts`'s `canViewSealed`-style gate, used by F4/F7/F9/F10) continue to branch on `Exhibit.isSealed` exactly as before — because `isSealed` is now always classification-consistent by construction (step 3), no call site in `visibility.ts` requires modification; `CHAMBERS_EX_PARTE` material is therefore already treated with the same visibility rigor as `SEALED` material everywhere the boolean previously governed, satisfying the PRD's F16 capability without a second visibility pass keyed on `classification` directly.
+6. No reclassification endpoint exists. If a future change to an exhibit's classification is ever required, it is handled as a separate, explicitly out-of-scope concern (e.g., a manual data correction outside the application, or a future audited reclassification feature not designed here).
+7. Seed data (F0 §Process step 5) is extended so at least one seeded exhibit uses `CHAMBERS_EX_PARTE` and at least one uses `SEALED`, distinct from each other, so the demo can show both categories independently hard-excluded from a jury package — not merely a single sealed example as before.
+
+**Inputs:**
+- `classification` (enum: `TRIAL` | `CHAMBERS_EX_PARTE` | `SEALED`, required): supplied at `POST /api/exhibits` (F0) — no default value
+- All other `POST /api/exhibits` inputs are unchanged from F0 §Inputs
+
+**Outputs:**
+- `Exhibit` record now includes `classification` and a classification-consistent `isSealed` (both present on every exhibit-read response — F0/F4/F9/F10 response shapes are additive, not altered)
+- `computeJuryCandidates` / `JuryPackageExhibit` outputs are unaffected in shape — only the candidate-set membership rule changes (F13's exclusion behavior is preserved, now classification-driven)
+
+**Validation:**
+- `classification` must be supplied and must be one of the three enum values — reject with 422 otherwise; an exhibit can never exist in an unclassified state
+- A client-supplied `isSealed` value in the `POST /api/exhibits` request body, if present, is ignored — the server always derives and overwrites it from `classification`, never trusting a client-asserted boolean for a security-relevant exclusion/visibility input
+- `classification` cannot be changed by any existing or new endpoint in this version — no route accepts a `classification` update; this is enforced by omission (no such route exists), not by a runtime immutability check on an update path
+- F13's exclusion validation (F13 §Validation: "exclusion takes precedence over and is evaluated independently of F6's `discrepancyStatus`") is unchanged in substance — it now reads `classification != 'TRIAL'` instead of `isSealed = true` to determine the same hard-exclusion outcome
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| `classification` missing at exhibit creation | 422 | CLASSIFICATION_REQUIRED | "classification is required and must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" |
+| `classification` supplied with an invalid value | 422 | INVALID_CLASSIFICATION | "classification must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" |
+
+**API Surface (this feature):** amends `POST /api/exhibits` (F0) to require `classification` in the request body; amends the candidate computation behind `POST /api/cases/:id/jury-package` (F5/F13) to filter on `classification` instead of `isSealed` — see `Y1-api.md` §Exhibits and §Jury Package (amended). No new endpoints.
+
+**Schema Surface (this feature):** adds enum `ExhibitClassification` and column `Exhibit.classification` (required); `Exhibit.isSealed` is retained unchanged in type but is now documented as write-once/derived at creation time — see `Y0-schema.md` §Core Entities (amended).
+## F17: Objection-to-Admission State-Machine Hardening
+
+**Description:** Formally closes the theoretical bypass path Phase 7's F12 does not explicitly rule out: an `OBJECTED → ADMITTED` transition occurring without a ruling ever having been recorded on every currently-unresolved thread. Having re-read F12's specification in full (`F12-admission-integrity-gating.md`), **this feature adds no new runtime validation mechanism.** F12's existing Admission Gate — which rejects `toStatus = ADMITTED` whenever any `ObjectionCurrentState` row for the exhibit has `status = 'UNRESOLVED'` (F12 §Process step 3a) — already fully and unconditionally prevents this transition, because `ObjectionCurrentState.status` can leave `UNRESOLVED` only via a `RULING_RECORDED` ledger event (F02 §Process steps 5–6; see `00-header.md` §Current-State Projection: projections are derived exclusively from the ledger, with no independent update path). There is therefore no code path — UI, API, seed loader, or any future automation — by which an objection thread's status could change without a ruling event, and consequently no code path by which `OBJECTED → ADMITTED` could succeed without one.
+
+**What this feature actually adds:** (1) an explicit, named statement of this guarantee as a formal invariant of the system (this document), so the guarantee is traceable and not merely an emergent property of two unrelated features; (2) dedicated regression test coverage exercising the bypass scenario directly — attempting to force an exhibit into `ADMITTED` immediately after an objection is raised but before any ruling is recorded, and confirming F12's existing gate rejects it with the existing `ADMISSION_BLOCKED` / `UNRESOLVED_OBJECTION` response, unchanged; and (3) an explicit confirmation, also now regression-tested, that `OFFERED → ADMITTED` (skipping `OBJECTED` entirely, when no objection was ever raised against the exhibit) remains a legal, unaffected transition — because F12's gate only fires when an `UNRESOLVED` row exists, and an exhibit with zero objection threads has none.
+
+**Terminology:**
+- No new terms. This feature reuses F12's **Admission Gate** and **Blocking Reason** terminology unchanged (see `F12-admission-integrity-gating.md` §Terminology).
+
+**Sub-features:**
+- None (no new capability). This entry exists to satisfy the PRD's F17 requirement with an honest "already covered" determination rather than inventing redundant mechanism.
+- Regression test: objection raised → ruling not yet recorded → attempt `ADMITTED` → rejected (exercises F12's existing gate, not new code)
+- Regression test: exhibit never objected to → `OFFERED → ADMITTED` directly → succeeds (confirms no regression in the legal direct-admission path)
+
+**Process:**
+1. A caller attempts `toStatus = ADMITTED` on an exhibit currently in `OBJECTED` status with at least one `UNRESOLVED` objection thread.
+2. F12's existing Admission Gate (F12 §Process step 3a) runs unchanged: it queries `ObjectionCurrentState WHERE exhibitId = :id AND status = 'UNRESOLVED'`.
+3. Because the objection thread has had no `RULING_RECORDED` event, its `ObjectionCurrentState.status` is still `UNRESOLVED` (it can be in no other state — see F02 §Process step 2, which sets `status: 'UNRESOLVED'` at raise-time, and steps 5–7, the only code path that ever changes it).
+4. The gate's query returns the unresolved row; the `UNRESOLVED_OBJECTION` blocking reason applies; the request is rejected with `422 ADMISSION_BLOCKED`, identically to F12 §Process step 4 — no `ExhibitEvent` is appended, no projection is updated.
+5. A ruling is subsequently recorded (`RULING_RECORDED`, F02 §Process step 4) with disposition `SUSTAINED` or `OVERRULED`. `ObjectionCurrentState.status` updates to that disposition (F02 §Process step 6) — the thread is now resolved.
+6. A subsequent `toStatus = ADMITTED` attempt now finds zero `UNRESOLVED` rows for the exhibit; F12's gate passes (assuming the `NO_CUSTODIAN` condition also does not apply); the transition succeeds via F12's existing unchanged success path.
+7. Separately: an exhibit that was never objected to (zero `ObjectionCurrentState` rows exist for it at all) attempts `OFFERED → ADMITTED` directly. F12's gate query returns zero rows (there is nothing to return — no thread exists); the `UNRESOLVED_OBJECTION` blocking reason does not apply; the transition proceeds exactly as it does today, unaffected by this feature.
+
+**Inputs:** Identical to F12 §Inputs — no new inputs.
+
+**Outputs:** Identical to F12 §Outputs — no new outputs.
+
+**Validation:**
+- No new validation rules. F12 §Validation already states the complete, sufficient condition: "`toStatus = ADMITTED` is accepted only if zero `ObjectionCurrentState` rows for the exhibit have `status = 'UNRESOLVED'` at check time" — this is unconditionally equivalent to "every objection thread has a recorded ruling," because `UNRESOLVED` is the only status a thread can hold before a ruling is recorded, and no non-ledger write path to `ObjectionCurrentState` exists anywhere in the service layer.
+- This feature's only "validation" contribution is the regression test suite described above, confirming the invariant holds and will continue to hold (i.e., any future code change that introduced a direct current-state mutation bypassing `recordEvent` would be caught by this suite, not silently permitted).
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| (No new error states — F12's existing `ADMISSION_BLOCKED` / `UNRESOLVED_OBJECTION` response, exercised by new regression tests, is unchanged) | — | — | See `F12-admission-integrity-gating.md` §Error States |
+
+**API Surface (this feature):** none — no endpoint is added, amended, or behaviorally changed. See `Y1-api.md` §Status (F1/F12 entry, unchanged).
+
+**Schema Surface (this feature):** none — introduces no new tables, fields, or enum values. See `Y0-schema.md` (unchanged by this feature).
+## F18: Custodian Required at Intake (MARKED)
+
+**Description:** Moves the custodian requirement from F12's admission-time check to the very first status transition (`(none) → MARKED`), so no exhibit can ever exist in the system having entered the admission lifecycle with no custodian of record — closing the window, previously open from intake until admission, during which an exhibit's custody chain had no starting link. The custodian is supplied as a required parameter alongside the `MARKED` transition itself and validated/written in the same transaction, so there is no separate manual step a user could skip or forget.
+
+**Terminology:**
+- **Intake Custodian:** The `toCustodianUserId` established atomically with an exhibit's first-ever `STATUS_CHANGE` event (`(none) → MARKED`). Functionally identical to any other custody-chain link (F03 §Terminology) but created as part of the same transaction as the status transition rather than via a subsequent, separate call.
+
+**Sub-features:**
+- The `(none) → MARKED` transition now requires a non-null `custodianUserId` parameter
+- Both the `STATUS_CHANGE` event and the exhibit's first `CUSTODY_TRANSFER`-family event (see F19 §Process for the first-assignment exception) are appended within the same database transaction
+- `createExhibit` (F0, identity-only) is unchanged — it accepts no status or custody fields, exactly as before; the new requirement attaches exclusively to the first `recordStatusChange` call, not to exhibit creation
+- F12's existing admission-time custodian check (F12 §Process step 3b) is retained unchanged as a second, later gate — this feature does not replace it, since a custody chain established at intake could in principle still break before admission (e.g., a future custody event with a null result), and F12's later check remains the final backstop
+
+**Process:**
+1. `createExhibit` (F0) creates the `Exhibit` identity row exactly as before — no status, no custodian. An exhibit with zero `ExhibitEvent` rows continues to report "not yet entered into evidence" (F0 §Outputs), unaffected by this feature.
+2. A caller requests the exhibit's first status transition via the same endpoint as every other transition (`POST /api/exhibits/:id/events/status`, F1), with `toStatus = MARKED` and a new required body field `custodianUserId`.
+3. The service layer runs F1's existing zero-prior-events check (F01 §Validation: "only accepts `toStatus = MARKED` as its first transition") — unchanged.
+4. **New gate, evaluated only when this is the exhibit's first-ever `STATUS_CHANGE` event (i.e., `toStatus = MARKED` with no prior events):** the service layer validates that `custodianUserId` is present and references an existing, active `User` (reusing F03 §Validation's existing `INVALID_CUSTODIAN` check). If absent or invalid, the request is rejected before any write occurs.
+5. If the gate passes, the service layer — within a single database transaction — (a) appends the `STATUS_CHANGE` event (`fromStatus: null, toStatus: 'MARKED'`), (b) appends a `CUSTODY_TRANSFER_CONFIRMED` event (`fromCustodianUserId: null, toCustodianUserId: custodianUserId`) establishing the exhibit's first-ever custody link directly, with no preceding `CUSTODY_TRANSFER_PROPOSED` event (see `F19-custody-handoff-confirmation.md` §Process step 1 and §Design Decisions for why this specific event is a documented single-phase bootstrap exception to F19's general two-phase model), and (c) updates both `ExhibitCurrentState` and `CustodyCurrentState` together.
+6. If the transaction fails for any reason, neither the status event nor the custody event is persisted — there is no intermediate state where an exhibit is `MARKED` with no custodian, even transiently.
+7. All subsequent transitions (`MARKED → OFFERED`, etc.) and all subsequent custody transfers are unaffected by this feature and follow F1/F19's existing rules unchanged.
+8. The seed loader (F0 §Process step 3) is amended so every seeded exhibit's first `recordEvent` call for `STATUS_CHANGE` includes a `custodianUserId` — a seed assertion (F0 §Validation) now additionally fails fast if any seeded exhibit's `MARKED` transition was recorded without one, preventing the seed loader itself from producing a state the live system could no longer produce.
+
+**Inputs:**
+- `exhibitId` (string/UUID, required) — same as F1
+- `toStatus` (enum, required) — same as F1
+- `actorUserId` (string/UUID, required) — same as F1
+- `notes` (string, optional) — same as F1
+- `custodianUserId` (string/UUID, **required only when this is the exhibit's first-ever `STATUS_CHANGE` event, i.e. `toStatus = MARKED` with zero prior events**): the user established as the exhibit's intake custodian, atomically with the transition
+
+**Outputs:**
+- On success: identical to F1 §Outputs, plus the `CustodyCurrentState` row created in the same transaction (returned alongside the `STATUS_CHANGE` event's response so the caller sees both writes without a second round-trip)
+- On rejection: `{ error: { code: 'CUSTODIAN_REQUIRED_AT_INTAKE', message } }`, or F03's existing `INVALID_CUSTODIAN` shape if a `custodianUserId` was supplied but does not reference a valid active user
+
+**Validation:**
+- `custodianUserId` must be present and non-null when, and only when, the transition being recorded is the exhibit's first-ever `STATUS_CHANGE` event with `toStatus = MARKED` — all other transitions (including any that are not the first event) do not require or accept this field
+- `custodianUserId`, when supplied, must reference an existing, active `User` — reuses F03's existing `INVALID_CUSTODIAN` validation and error code, not a new one
+- The status write and the custody write are atomic — both succeed or both fail; there is no code path producing a `MARKED` exhibit with no `CustodyCurrentState` row
+- F12's admission-time custodian check (F12 §Validation) is unchanged and continues to run independently at the `ADMITTED` transition — this feature does not weaken, replace, or make redundant that later check
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| First-ever `MARKED` transition attempted with no `custodianUserId` | 422 | CUSTODIAN_REQUIRED_AT_INTAKE | "A custodian must be established when an exhibit is first marked into evidence" |
+| `custodianUserId` supplied but does not reference a valid active user | 422 | INVALID_CUSTODIAN | "custodianUserId does not reference a valid active user" *(reused from F03)* |
+| All other status-transition errors (invalid transition, finalized status, stale-state conflict, exhibit not found, admission-blocked) | — | — | Unchanged — see F01/F12 §Error States |
+
+**API Surface (this feature):** amends `POST /api/exhibits/:id/events/status` (F1) — body gains conditionally-required `custodianUserId` when this is the exhibit's first transition. See `Y1-api.md` §Status (amended).
+
+**Schema Surface (this feature):** introduces no new tables or fields. Writes the existing `ExhibitEvent`/`CustodyCurrentState` shapes (F03) one transaction earlier than before; reads existing `User` for validation — see `Y0-schema.md` §Event Ledger, §Current-State Projections (unchanged shapes, amended write-timing only).
+## F19: Custody Handoff Confirmation
+
+**Description:** Converts custody transfer from a single unilateral event (the current custodian unilaterally asserts a handoff occurred) into a two-phase ledger-event model: a `CUSTODY_TRANSFER_PROPOSED` event creates a pending transfer, and a `CUSTODY_TRANSFER_CONFIRMED` event — recorded only by the named receiving custodian, confirming their own receipt — completes it. This closes the gap where a custody record could previously assert a handoff the receiving party never actually acknowledged taking possession of. The exhibit's first-ever custody assignment (established atomically at intake per F18) is an explicit, documented exception to this two-phase model — see §Design Decisions below.
+
+**Terminology:**
+- **Pending Transfer:** The state of a `CustodyCurrentState` row between a `CUSTODY_TRANSFER_PROPOSED` event and its resolving `CUSTODY_TRANSFER_CONFIRMED` or `CUSTODY_TRANSFER_CANCELLED` event. During this window, `currentCustodianUserId` does **not** change — "who currently has custody" always reflects the last *confirmed* transfer, never a pending proposal.
+- **Proposer:** The user recording a `CUSTODY_TRANSFER_PROPOSED` event. Must be the exhibit's current custodian of record (identical to F03's existing `fromCustodianUserId`-match requirement — unchanged, see §Validation).
+- **Named Receiver:** The user identified as `toCustodianUserId` on a pending proposal. Only this specific user may record the resolving `CUSTODY_TRANSFER_CONFIRMED` event — not an authorized role acting generally, not the proposer, not any other user, even one with an otherwise-permitted role.
+
+**Design decisions:**
+- **Pending-state representation:** `CustodyCurrentState` gains three nullable fields — `pendingTransferToUserId`, `pendingTransferEventId`, `pendingTransferProposedAt` — populated when a proposal is recorded and cleared when it resolves (confirmed or cancelled). `currentCustodianUserId` is left untouched during the pending window. This is simpler than introducing a parallel "proposed state" table, keeps exactly one row per exhibit to read for "who has it / is anything pending," and requires no join for the common case.
+- **No-confirm path:** a pending transfer stays pending indefinitely by default; there is no time-based auto-expiry. A time-based expiry would require a background job or scheduled task, which this architecture explicitly does not have (`Y3-integrations.md`: "No message queues, caches, or background job runners"). Instead, an explicit, synchronous `CUSTODY_TRANSFER_CANCELLED` action is provided, consistent with the system's request/response-only write model. This is the simpler option and is justified by architectural fit, not by any claim that indefinite pending is ideal operationally.
+- **Interaction with F18 (first-ever assignment):** the exhibit's first-ever custody link, established atomically at the `MARKED` transition (F18 §Process step 5), does **not** go through the propose/confirm flow. At intake there is no existing custodian relationship to formalize a handoff *from* — the deputy establishing custody at intake is creating the record, not receiving a transfer from a predecessor. This bootstrap case is recorded as a single, immediately-effective event (see §Process step 1) with `fromCustodianUserId: null`; two-phase confirmation applies only to transfers **after** that first established custodian.
+
+**Sub-features:**
+- Propose a custody transfer (current custodian names an intended receiver) — does not change current custody
+- Confirm a custody transfer (named receiver only) — completes the transfer, updates `CustodyCurrentState`
+- Cancel a pending transfer (proposer, or any role authorized to propose) — reverts to no-pending-transfer state, current custody unaffected
+- Visible distinction between a pending proposal and a confirmed transfer on Custody Tracking (F3), Exhibit Detail (F10), and the assistant's `getCustodian` tool (F7)
+- The exhibit's intake custody link (F18) is a documented single-phase exception — not routed through propose/confirm
+
+**Process:**
+1. **Intake bootstrap (F18 interaction):** at the `(none) → MARKED` transition, the service layer appends a `CUSTODY_TRANSFER_CONFIRMED` event directly — `payload: { fromCustodianUserId: null, toCustodianUserId: <F18's custodianUserId>, reason?: 'intake' }` — with no preceding `CUSTODY_TRANSFER_PROPOSED` event, and immediately sets `CustodyCurrentState.currentCustodianUserId` accordingly. No pending-transfer fields are ever populated for this specific event.
+2. **Proposing a subsequent transfer:** the current custodian (or an authorized role per F20's propose gate) calls `recordEvent({ exhibitId, eventType: 'CUSTODY_TRANSFER_PROPOSED', payload: { fromCustodianUserId, toCustodianUserId, reason? }, actorUserId })`.
+3. The service layer validates `fromCustodianUserId` exactly matches `CustodyCurrentState.currentCustodianUserId` — identical, unchanged validation to F03 §Validation's existing wrong-holder rejection (`CUSTODY_CHAIN_BROKEN`).
+4. The service layer validates no transfer is already pending for this exhibit (`pendingTransferToUserId` must currently be null) — a second proposal cannot be raised while one is outstanding.
+5. The service layer appends the immutable `CUSTODY_TRANSFER_PROPOSED` `ExhibitEvent` row, then sets `CustodyCurrentState.pendingTransferToUserId = toCustodianUserId`, `pendingTransferEventId = <this event's id>`, `pendingTransferProposedAt = now()`. `currentCustodianUserId` is **not** modified.
+6. **Confirming:** the named receiver (and only the named receiver — `actorUserId` must exactly equal `CustodyCurrentState.pendingTransferToUserId`) calls `recordEvent({ exhibitId, eventType: 'CUSTODY_TRANSFER_CONFIRMED', payload: { proposedEventId }, actorUserId })`.
+7. The service layer validates a transfer is currently pending for this exhibit and that `actorUserId` matches `pendingTransferToUserId` exactly — any other user, including the original proposer, the exhibit's prior custodian, or a user with an otherwise custody-authorized role, is rejected.
+8. The service layer appends the `CUSTODY_TRANSFER_CONFIRMED` event, then updates `CustodyCurrentState`: `currentCustodianUserId = pendingTransferToUserId`, `since = now()`, `lastEventId = <confirm event id>`, and clears all three pending fields to null.
+9. **Cancelling:** the proposer, or any user holding a role authorized to propose custody transfers (F20 §Permission Matrix), calls `recordEvent({ exhibitId, eventType: 'CUSTODY_TRANSFER_CANCELLED', payload: { proposedEventId, reason? }, actorUserId })` while a transfer is pending.
+10. The service layer appends the `CUSTODY_TRANSFER_CANCELLED` event and clears the three pending fields to null. `currentCustodianUserId` is unaffected — it was never changed by the proposal in the first place.
+11. `getCustodian(exhibitId)` (F03 §Process step 5) is amended to additionally return whether a transfer is currently pending and, if so, to whom — so Custody Tracking (F3), Exhibit Detail (F10), and the assistant's `getCustodian` tool (F7) all render a pending proposal as visibly distinct from a confirmed custodian, never silently indistinguishable from "no activity."
+12. `getCustodyHistory(exhibitId)` (F03 §Process step 6) is amended to include `CUSTODY_TRANSFER_PROPOSED`, `CUSTODY_TRANSFER_CONFIRMED`, and `CUSTODY_TRANSFER_CANCELLED` events in the ordered chain-of-custody timeline, so a cancelled/superseded proposal remains visible in history rather than disappearing.
+
+**Inputs — Propose:**
+- `exhibitId` (string/UUID, required)
+- `fromCustodianUserId` (string/UUID, required): must match the exhibit's current custodian exactly
+- `toCustodianUserId` (string/UUID, required): the intended receiver
+- `reason` (string, optional, max 300 chars)
+- `actorUserId` (string/UUID, required): must hold an F20-authorized propose role
+
+**Inputs — Confirm:**
+- `exhibitId` (string/UUID, required)
+- `proposedEventId` (string/UUID, required): must reference the currently-pending `CUSTODY_TRANSFER_PROPOSED` event for this exhibit
+- `actorUserId` (string/UUID, required): must exactly equal the pending transfer's named receiver
+
+**Inputs — Cancel:**
+- `exhibitId` (string/UUID, required)
+- `proposedEventId` (string/UUID, required): must reference the currently-pending proposal
+- `reason` (string, optional, max 300 chars)
+- `actorUserId` (string/UUID, required): must be the original proposer or hold an F20-authorized propose role
+
+**Outputs:**
+- Propose: updated `CustodyCurrentState` (pending fields populated, `currentCustodianUserId` unchanged), the created `ExhibitEvent` row
+- Confirm: updated `CustodyCurrentState` (`currentCustodianUserId` updated, pending fields cleared), the created `ExhibitEvent` row
+- Cancel: updated `CustodyCurrentState` (pending fields cleared, `currentCustodianUserId` unchanged), the created `ExhibitEvent` row
+- `getCustodian` output shape extended with `pendingTransfer: { toUserId, proposedAt, eventId } | null`
+
+**Validation:**
+- Propose: `fromCustodianUserId` must exactly match `CustodyCurrentState.currentCustodianUserId` (F03's existing rule, unchanged) — reuses `CUSTODY_CHAIN_BROKEN`
+- Propose: rejected if a transfer is already pending for this exhibit — one outstanding proposal at a time, per exhibit
+- Propose: `toCustodianUserId` must reference a valid active `User`; `fromCustodianUserId`/`toCustodianUserId` must differ (F03's existing `NO_OP_TRANSFER`, unchanged)
+- Confirm: rejected if no transfer is currently pending for this exhibit, or if `proposedEventId` does not match the currently-pending proposal
+- Confirm: rejected if `actorUserId` does not exactly equal the pending transfer's `toCustodianUserId` — this check is an identity match, not a role check; even a user whose role is generally authorized to confirm custody cannot confirm on behalf of a different named receiver
+- Cancel: rejected if no transfer is currently pending, or if the actor is neither the original proposer nor holds an F20-authorized propose role
+- The legacy unilateral `POST /api/exhibits/:id/events/custody` endpoint (F03) is retained **only** for the F18 intake-bootstrap case (`fromCustodianUserId: null`) — if called with a non-null `fromCustodianUserId` (i.e., for any transfer after the first), it is rejected, directing the caller to the propose/confirm endpoints instead
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| Propose attempted while a transfer is already pending | 409 | CUSTODY_TRANSFER_ALREADY_PENDING | "A custody transfer is already pending for this exhibit" |
+| Confirm/cancel attempted with no transfer currently pending, or a mismatched `proposedEventId` | 404 | CUSTODY_CONFIRMATION_NOT_PENDING | "No pending custody transfer found matching this request" |
+| Confirm attempted by anyone other than the named receiver | 403 | CUSTODY_CONFIRM_WRONG_USER | "Only the named receiving custodian may confirm this transfer" |
+| Legacy unilateral custody endpoint called for a non-first transfer (`fromCustodianUserId` non-null) | 409 | CUSTODY_TRANSFER_REQUIRES_CONFIRMATION | "Transfers after the first must use the propose/confirm flow" |
+| All other custody errors (chain-broken on propose, invalid custodian, no-op transfer, exhibit not found) | — | — | Unchanged — see F03 §Error States |
+
+**API Surface (this feature):** amends `POST /api/exhibits/:id/events/custody` (F3) to reject non-first-transfer calls; adds `POST /api/exhibits/:id/events/custody/propose`, `POST /api/exhibits/:id/events/custody/confirm`, `POST /api/exhibits/:id/events/custody/cancel` — see `Y1-api.md` §Custody (amended).
+
+**Schema Surface (this feature):** adds `CUSTODY_TRANSFER_PROPOSED`, `CUSTODY_TRANSFER_CONFIRMED`, `CUSTODY_TRANSFER_CANCELLED` to the `EventType` enum; adds `pendingTransferToUserId` (nullable), `pendingTransferEventId` (nullable), `pendingTransferProposedAt` (nullable) to `CustodyCurrentState` — see `Y0-schema.md` §Current-State Projections (amended). The legacy `CUSTODY_TRANSFER` event type is retained for the F18 intake-bootstrap path's historical/first-link semantics only where already written by prior-version seed data; new intake links use `CUSTODY_TRANSFER_CONFIRMED` per §Process step 1.
+## F20: Server-Side Role Enforcement Matrix (Full RBAC)
+
+**Description:** Extends server-side role checking — today applied only to ruling disposition (F02), jury-package finalization (F05), and discrepancy acknowledgment (F06) — to every write action in the system, under one explicit, single permission matrix. Every write handler resolves the acting user's role from the `User.role` database column via `actorUserId`, exactly as `recordRuling`'s existing judge-check and `assertJuryWriteRole` already do — never from a client-supplied role claim. This feature formally and explicitly supersedes the PRD's and TechArch's prior "full OAuth/production-grade auth hardening out of scope" note, narrowing it to *authentication* only: proving who a user is (OAuth/OIDC/session hardening) remains out of scope; *authorization* — what a known, seeded role may do — is now fully enforced server-side for every write path.
+
+**Terminology:**
+- **Permission Matrix:** The single table below, the canonical and only definition of which `Role` may perform which write action — see `00-header.md` §Cross-Cutting Terminology.
+- **Role Resolution:** The act of looking up `actorUserId`'s `role` column from the `User` table at request time, inside the service layer, before the requested write is permitted to proceed. This is the only trusted source of a user's role for authorization purposes — a request body or header asserting a role is never trusted.
+- **`assertRole`:** A new shared service-layer helper, `assertRole(actorUserId, allowedRoles: Role[], actionLabel: string)`, generalizing the pattern already used ad hoc by `recordRuling`'s judge-check and `assertJuryWriteRole`. Every write action listed in the matrix below calls this helper (or an action-specific wrapper around it) rather than re-implementing its own role check.
+
+**Sub-features:**
+- A single, explicit permission matrix covering every write action in the system (table below)
+- `assertRole` shared helper, replacing ad hoc per-feature role checks with one reusable, consistently-tested mechanism
+- New `ROLE_NOT_PERMITTED` message variants for each action not already role-gated prior to this feature
+- No change to authentication — seeded users + role switcher remain the identity model; this feature hardens what a known role may do, not how identity is established
+
+**Permission Matrix:**
+
+| # | Action | JUDGE | CHAMBERS_STAFF | DEPUTY | CLERK | ATTORNEY | ADMIN | Status Before F20 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Create exhibit | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | **New gate** |
+| 2 | Mark / Offer / Withdraw status transition | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | **New gate** |
+| 3 | Admit / Exclude status transition | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | **New gate** |
+| 4 | Raise objection | ✗ | ✗ | ✓ | ✓ | ✓ | ✓ | **New gate** |
+| 5 | Record ruling (SUSTAINED/OVERRULED/RESERVED) | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | Unchanged (F02) |
+| 6 | Propose custody transfer | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | **New gate** |
+| 7 | Confirm custody transfer receipt | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ *(plus identity match — see F19)* | **New gate** |
+| 8 | Acknowledge discrepancy | ✓ | ✗ | ✓ | ✓ | ✗ | ✓ | Unchanged (F06) |
+| 9 | Initiate / finalize jury package | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | Unchanged (F05) |
+| 10 | Exclude jury package exhibit | ✗ | ✗ | ✓ | ✓ | ✗ | ✓ | Unchanged (F13) |
+
+Rows 5, 8, 9, 10 are included for completeness (the PRD requires the *complete* matrix to be documented in one place) but their enforcement is unchanged by this feature — they are retrofitted onto the same `assertRole` helper for consistency, not newly gated. Rows 1–4, 6, and 7 are the new server-side gates this feature adds. `CHAMBERS_STAFF` has full read/visibility (per `00-header.md` §Role-Based Visibility) but no write permission for any action in this matrix — it is a read-only role in this version. `ATTORNEY` is permitted exactly one write action (raise objection) and is otherwise read-only, matching the PRD's explicit "Attorneys: raise objections, read/view only — no write access outside objections."
+
+**Process:**
+1. Every write-handling service function listed in the matrix now begins by calling `assertRole(actorUserId, <allowed roles for this action>, <action label>)` before performing any other validation or write.
+2. `assertRole` resolves `actorUserId` to its `User.role` column via a direct database lookup — never trusting a role value passed in the request body or a client-side store.
+3. If the resolved role is not in the action's allowed set, `assertRole` throws, and the route handler surfaces `403 ROLE_NOT_PERMITTED` with the action-specific message (see table below) **before** any other validation in that handler runs — a disallowed-role request never reaches field-level validation, state-machine checks, or ledger writes.
+4. If the resolved role is permitted, the handler proceeds exactly as already specified in F0–F19 — this feature adds a precondition, it does not alter any downstream logic.
+5. For custody confirmation specifically (row 7), `assertRole` is necessary but not sufficient: after the role check passes, F19's separate identity check (`actorUserId` must equal the pending transfer's named receiver) still applies — a `DEPUTY` who is not the named receiver is correctly role-permitted in general but still rejected with `CUSTODY_CONFIRM_WRONG_USER` (F19), not `ROLE_NOT_PERMITTED`. The two checks are independent and both must pass.
+6. UI screens are updated so that a control for an action the current role cannot perform is not rendered as an enabled, silently-failing control (consistent with F14's existing disclosure principle) — this is a UI-consistency recommendation, not a server-side requirement; the server-side gate in steps 1–4 is authoritative regardless of what the UI renders.
+7. The assistant's tool wrappers (F7) are read-only in this version (none of the 8 tools perform a write) and are therefore unaffected by this matrix — if a future write-capable tool is added, it must call the identical `assertRole` helper with the requesting user's resolved role, per the existing "no assistant admin override" principle (`00-header.md` §Role-Based Visibility).
+
+**Inputs:**
+- `actorUserId` (string/UUID, required): already required on every write action listed above (F0–F19) — no new input is introduced; this feature changes only how `actorUserId` is validated (role resolution + enforcement), not what callers must supply
+- No new client-supplied role input is introduced by this feature — a client-supplied role claim, if one is ever present in a request, continues to be ignored, exactly as the pre-existing judge-check and `assertJuryWriteRole` already ignore it
+
+**Outputs:**
+- No change to the success-path output shape of any existing action — `assertRole` either permits the request to proceed unchanged or rejects it before any processing occurs
+- Rejection output: `{ error: { code: 'ROLE_NOT_PERMITTED', message } }`, message varying per action per the table below
+
+**Validation:**
+- Role resolution is always via a server-side `User.role` lookup keyed on `actorUserId` — never via a request body field, header, or any other client-supplied value
+- Each action's allowed-role set is exactly as listed in the Permission Matrix above — no action has an implicit "ADMIN can always do anything regardless of the table" override beyond what the table explicitly lists (in this matrix, ADMIN is in fact permitted for every action except ruling disposition, which remains strictly JUDGE-only with no exception)
+- `assertRole` is called before any other validation in every gated handler — a malformed request from a disallowed role is still rejected with `ROLE_NOT_PERMITTED`, not a field-validation error, so no information about the request's validity is leaked to an unauthorized actor
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| Non-DEPUTY/CLERK/ADMIN attempts to create an exhibit | 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may create an exhibit" |
+| Non-DEPUTY/CLERK/ADMIN attempts a mark/offer/withdraw status transition | 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may record this status transition" |
+| Non-DEPUTY/CLERK/ADMIN attempts an admit/exclude status transition | 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may record this status transition" |
+| Non-ATTORNEY/DEPUTY/CLERK/ADMIN attempts to raise an objection | 403 | ROLE_NOT_PERMITTED | "Only an attorney, courtroom deputy, clerk, or admin may raise an objection" |
+| Non-DEPUTY/CLERK/ADMIN attempts to propose a custody transfer | 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may propose a custody transfer" |
+| Non-DEPUTY/CLERK/ADMIN attempts to confirm a custody transfer | 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may confirm custody receipt" |
+| Non-JUDGE attempts SUSTAINED/OVERRULED ruling | 403 | ROLE_NOT_PERMITTED | "Only a judge may record a sustained or overruled ruling" *(unchanged, F02)* |
+| Non-DEPUTY/CLERK/JUDGE/ADMIN attempts discrepancy acknowledgment | 403 | ROLE_NOT_PERMITTED | "This role is not permitted to acknowledge discrepancies" *(unchanged, F06)* |
+| Non-DEPUTY/CLERK/ADMIN attempts jury package initiate/finalize | 403 | ROLE_NOT_PERMITTED | "Only courtroom deputy, clerk, or admin roles may finalize a jury package" *(unchanged, F05)* |
+| Non-DEPUTY/CLERK/ADMIN attempts jury package exhibit exclusion | 403 | ROLE_NOT_PERMITTED | "Only courtroom deputy, clerk, or admin roles may remove an exhibit from a jury package" *(unchanged, F13)* |
+
+**API Surface (this feature):** amends every write endpoint listed in the Permission Matrix to add a `ROLE_NOT_PERMITTED` (403) error response where one did not already exist (rows 1–4, 6, 7) — see `Y1-api.md` §Exhibits, §Status, §Objections, §Custody (all amended). No new endpoints.
+
+**Schema Surface (this feature):** introduces no new tables, fields, or enums. Reads the existing `User.role` column (`Y0-schema.md` §Core Entities, `Role` enum, unchanged) as the sole source of role-resolution truth for every gated action.
+## F21: Pending-Ruling Queue
+
+**Description:** A new judge-facing read view listing every currently-`UNRESOLVED` objection thread case-wide, sorted longest-waiting-first by elapsed time since `raisedAt`, so a judge can immediately see which objections have been waiting longest rather than discovering them exhibit-by-exhibit. Having checked `Y1-api.md`'s existing `GET /api/cases/:id/objections?status=unresolved` endpoint and `Y0-schema.md`'s `ObjectionCurrentState` shape, **`raisedAt` is already present on every row** — this feature therefore requires **no new endpoint and no new service function**. It reuses F02's existing `getUnresolvedObjections(caseId)` unchanged at the data layer, with exactly one additive read-time amendment (an `exhibitLabel` join, to avoid a client-side N+1 lookup) and a new client-side screen that sorts and live-updates the existing response.
+
+**Terminology:**
+- **Elapsed Wait Time:** `now() - ObjectionCurrentState.raisedAt`, computed client-side at render time and recomputed on each live-sync tick, exactly matching the Command Center's existing freshness-indicator recomputation pattern (F08, `Y3-integrations.md` §Live Multi-Screen Sync) — not a stored or server-computed value, since "now" is only meaningful at render time.
+
+**Sub-features:**
+- Judge-facing screen listing every case-wide `UNRESOLVED` objection thread
+- Default sort: elapsed wait time descending (longest-waiting first) — computed and applied client-side against the existing endpoint's response
+- Each row: exhibit label, objecting party, grounds, elapsed time (live-updating)
+- Entries link directly into the existing ruling-recording action (F02) and into the Exhibit Detail View (F10)
+- One additive backend amendment: `getUnresolvedObjections` now includes `exhibitLabel` in its response (read-time join), avoiding a second round-trip per row
+
+**Process:**
+1. A judge opens the new Pending-Ruling Queue screen (route restricted to `JUDGE` role per F20's permission matrix — other roles do not get a navigation entry point to this screen; the underlying `GET /api/cases/:id/objections?status=unresolved` endpoint itself remains readable by any role with case visibility, consistent with every other read endpoint in the system, since this is a read-only view and F20's matrix governs writes).
+2. The client calls the existing `GET /api/cases/:id/objections?status=unresolved` endpoint (F02) — no new route.
+3. The service layer's `getUnresolvedObjections(caseId)` function is amended to join `Exhibit.exhibitLabel` into each returned row (read-time join, same pattern as F14's existing `justification` read-time join from `acknowledgedEventId` — no schema change, see F14 §Outputs for the precedent).
+4. The client receives the array of `ObjectionCurrentState` rows (each now including `exhibitLabel`, `objectingParty`, `grounds`, `raisedAt`) and sorts it client-side by `raisedAt` ascending (oldest `raisedAt` = longest elapsed = displayed first).
+5. The client recomputes each row's elapsed-time display on every live-sync poll tick (reusing the existing `useUnresolvedObjections` polling hook, F08/`Y3-integrations.md` §Live Multi-Screen Sync — no new hook, no new polling interval), so the queue's ordering and displayed wait times stay current without a manual refresh, matching the Command Center's established freshness pattern.
+6. Each row renders a link into the existing ruling-recording action (`POST /api/objections/:id/ruling`, F02) and a link into the Exhibit Detail View (`GET /api/exhibits/:id/history`, F10) for full context — both existing endpoints, unchanged.
+7. When a ruling is recorded against a thread (via this screen's link, or from any other screen), the thread's `ObjectionCurrentState.status` leaves `UNRESOLVED` (F02 §Process step 6); on the queue's next poll, that row no longer appears in `getUnresolvedObjections`'s result set and disappears from the queue — no special-case removal logic is needed, since the queue is a live, unfiltered-further view of the same case-wide unresolved set every other screen reads.
+
+**Inputs:**
+- `caseId` (string/UUID, required): identical input to the existing F02 endpoint — no new inputs
+
+**Outputs:**
+- `Array<ObjectionCurrentState & { exhibitLabel: string }>` — the existing F02 response shape, additively widened with `exhibitLabel`. No other field changes.
+
+**Validation:**
+- No new validation rules — this feature performs no write of its own; it reuses F02's existing read path and validation unchanged
+- The `exhibitLabel` join must never fail silently if an `ObjectionCurrentState` row's `exhibitId` does not resolve to an exhibit the requesting role may view — in that case the row is omitted entirely (same 404-style masking principle as every other sealed/role-restricted read, `00-header.md` §Role-Based Visibility), not rendered with a blank or placeholder label
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| (No new error states — reuses F02's existing `GET /api/cases/:id/objections` error handling unchanged) | — | — | See `F02-objection-ruling-tracking.md` §Error States |
+
+**API Surface (this feature):** amends the response shape of the existing `GET /api/cases/:id/objections?status=unresolved` endpoint (F2) to additively include `exhibitLabel` per row — see `Y1-api.md` §Objections (amended). No new endpoint.
+
+**Schema Surface (this feature):** none. Reads existing `ObjectionCurrentState` and `Exhibit.exhibitLabel` via an additive read-time join — see `Y0-schema.md` §Current-State Projections (unchanged).
+## F22: Multi-Case Support with Case Selector
+
+**Description:** Replaces the current hardcoded single-demo-case assumption (`DEMO_CASE_NUMBER`) with the ability to list active cases and explicitly select which one is active for every screen and the assistant. **This requires no database schema change** — `Case`, `User`, `Exhibit`, `JuryPackage`, and `AssistantConversation` are already properly `caseId`-scoped via foreign keys in the existing schema (`Y0-schema.md`), per the prior TechArch note that recorded case-partitioning as structurally present but not enforced. This feature is confirmed to be a service/API/UI change only.
+
+**Terminology:**
+- **Active Case:** The `caseId` the client currently has selected, carried on every request exactly as `requestingUserRole` already is today (a per-request parameter derived from client-side state, not a server-side session value) — the server remains stateless with respect to "which case is active," consistent with the existing architecture's treatment of role.
+- **Case Selector:** The new UI control (app header, alongside the existing role switcher) allowing a user to list and switch the active case.
+
+**Sub-features:**
+- New `GET /api/cases` endpoint listing all cases available to the current user
+- Case selector UI control in the app header, alongside the role switcher
+- `GET /api/case` (singular, implicit `DEMO_CASE_NUMBER`) evolves into `GET /api/cases/:id` (explicit, parameterized)
+- `getActiveCaseWithUsers()` (currently no-argument, implicit) becomes `getActiveCaseWithUsers(caseId)` (explicit parameter)
+- Every existing query that today implicitly scopes to "the" case via `DEMO_CASE_NUMBER` is amended to scope explicitly to the client-selected `caseId`
+- Seed data extended to include a second `Case` with its own exhibits, so multi-case switching is demonstrable, not just structurally possible
+
+**Process:**
+1. On initial app load, the client calls the new `GET /api/cases` endpoint, which lists every `Case` row (`{ id, caseNumber, title, court, createdAt }`) — no role restriction on this read (case existence is not sensitive; exhibit-level sealed/classification visibility, F16/`00-header.md` §Role-Based Visibility, remains the sensitive boundary and is unaffected).
+2. If the client has no previously-selected `caseId` (first load, or a fresh session), it defaults to the first case in the list (by `createdAt` ascending, i.e., the original seeded demo case) — preserving the existing single-case demo script's zero-interaction behavior with no selector action required.
+3. The user may open the Case Selector (header, alongside the role switcher) and choose a different case; this updates client-side state (a new `activeCaseStore`, modeled on the existing role-switcher's zustand store) and triggers every open screen (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) and the assistant to refetch against the newly-selected `caseId` — the same refetch mechanism already used when the role switcher changes (`00-header.md`'s existing per-request role plumbing; `caseId` is now carried identically, alongside role, on every request).
+4. `getActiveCaseWithUsers(caseId)` (amended from its current no-argument form) fetches the specified case plus its user roster — the bootstrap screen (`GET /api/cases/:id`, replacing `GET /api/case`) returns the identical shape as today's single-case bootstrap, just explicitly parameterized.
+5. Every service function that currently queries "the" case implicitly via the `DEMO_CASE_NUMBER` constant (exhibit list, search, activity feed, discrepancies, jury package, assistant tool calls) is amended to accept and filter on the caller-supplied `caseId` — this is additive query-parameter plumbing on functions whose underlying tables already carry a `caseId` foreign key; no new join, no new index, no new table.
+6. Role-based visibility (`00-header.md` §Role-Based Visibility) and every other existing per-request scoping rule continue to apply exactly as before, now additionally and simultaneously scoped by the selected `caseId` — a user's role visibility rules do not change per-case, but the exhibit set they're evaluated against is now explicitly the selected case's set, not an implicit single case's.
+7. The assistant's tool wrappers (F7) receive `caseId` as part of the same per-turn context as `userId`/`role` (F07 §Inputs already lists `caseId` as a required input) — this feature changes only where that `caseId` value comes from (an explicit client selection, not an implicit constant), not the tool contract itself.
+8. The seed loader (F0 §Process) is extended to create a second `Case` row with its own seeded exhibits and history, independent of the original demo case, so a reviewer can demonstrate switching between two populated cases without a redeploy or manual data entry.
+
+**Inputs:**
+- `GET /api/cases`: none (lists all cases unconditionally)
+- `GET /api/cases/:id`: `id` (string/UUID, required, path parameter) — replaces the current no-argument `GET /api/case`
+- Every amended existing endpoint (exhibits list/search, activity, discrepancies, jury package, assistant chat): `caseId` is now an explicit required parameter/path segment on each, carried from the client's Case Selector state — this is not a new conceptual input (every one of these endpoints already requires a case context today, just implicitly), only a change from implicit to explicit sourcing
+
+**Outputs:**
+- `GET /api/cases`: `Array<{ id, caseNumber, title, court, createdAt }>`
+- `GET /api/cases/:id`: identical shape to today's `GET /api/case` response (case + user roster) — no shape change, only explicit parameterization
+
+**Validation:**
+- `GET /api/cases/:id` rejects a nonexistent `id` with the existing `CASE_NOT_FOUND` (404) — reused, not new
+- Every amended endpoint's `caseId` must reference an existing `Case` — same `CASE_NOT_FOUND` reuse
+- Switching the active case client-side must trigger a refetch on every open screen and the assistant's working context — no screen may silently continue displaying data scoped to a previously-selected case after a switch (stale single-case assumption is explicitly disallowed, per the PRD's F22 capability)
+- Cross-case data leakage is explicitly disallowed: a query scoped to `caseId = A` must never return rows belonging to `caseId = B`, even transiently — since every relevant table already carries a `caseId` foreign key, this is enforced by adding an explicit `WHERE caseId = :selectedCaseId` clause (or equivalent Prisma filter) to every amended query, not by any new isolation mechanism
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| `GET /api/cases/:id` (or any amended endpoint) referencing a nonexistent case | 404 | CASE_NOT_FOUND | "No case found with the given ID" *(reused, unchanged)* |
+
+**API Surface (this feature):** adds `GET /api/cases`; amends `GET /api/case` → `GET /api/cases/:id` (F0); amends every existing case-scoped endpoint (F4 search, F8 activity, F6 discrepancies, F5 jury package, F7 assistant chat) to take `caseId` explicitly rather than implicitly — see `Y1-api.md` §Cases (new section) and inline amendment notes on each affected existing section.
+
+**Schema Surface (this feature):** **none.** `Case`, `User`, `Exhibit`, `JuryPackage`, and `AssistantConversation` already carry `caseId` foreign keys in the existing schema (`Y0-schema.md` §Core Entities, §Jury Package, §Assistant) — this feature adds no table, column, index, or constraint. Confirmed explicitly: this is a service/API/UI-only change.
+## F23: Versioned Jury Packages with PDF Export
+
+**Description:** Replaces the current `window.print()`-based export on the Jury Package Workspace (F11) with real, generated PDF export, and adds immutable version numbering so every finalization produces a permanent, independently-retrievable record of exactly what the jury received at that point in time. Finalizing a package creates an immutable numbered snapshot (version N); a new `DRAFT` package may then be started afterward for the same case, and each prior finalized version remains independently retrievable and exportable — multiple historical `FINALIZED` versions coexist per case, which is the natural reading of "a record of exactly what the jury received" together with the PRD's plural "versioned jury packages."
+
+**Terminology:**
+- **Version:** An integer, assigned to a `JuryPackage` only at the moment it is finalized (`null` while `DRAFT`), unique per case, monotonically increasing — `(caseId, version)` is unique. The first package ever finalized for a case is version `1`; the next is version `2`, regardless of how many `DRAFT` packages were created and abandoned in between (abandoned drafts never consume a version number, since they're never finalized).
+- **Most-Recent Version:** The `FINALIZED` package for a case with the highest `version` value — computed at read time (`MAX(version) WHERE caseId = :id AND status = 'FINALIZED'`), not stored as an independent flag, consistent with the project's existing principle that derived facts are computed, not independently maintained state that could drift.
+
+**Sub-features:**
+- `JuryPackage.version` (nullable integer, set only at finalization) replaces the implicit "one package per case" assumption
+- A new `DRAFT` package can be created after a prior version was finalized — F05's existing rule ("a new DRAFT package must be created for subsequent changes," F05 §Validation) already permits this; this feature adds the version number that makes each resulting `FINALIZED` package independently identifiable and retrievable
+- Real PDF generation via `@react-pdf/renderer` (new dependency — see §PDF Generation Mechanism below), replacing the client-side `window.print()` CSS trick
+- Full per-case version history retrieval: which exhibits were included, in what classification/status state, at each finalization timestamp
+- Exported PDFs reflect the exact same discrepancy-gated (F6), classification-excluded (F13/F16) exhibit set the live workspace showed at finalization time — no divergence between what was displayed and what is exported
+
+**PDF Generation Mechanism:** `@react-pdf/renderer` is selected as the new dependency. It generates PDFs from JSX/React-component definitions in pure JavaScript, with no headless-browser binary (unlike a Puppeteer/Playwright-based HTML-to-PDF approach) — this matters specifically because the system is hosted on Vercel serverless functions (`Y3-integrations.md` §Deployment/Runtime Dependencies), where bundling and cold-starting a full Chromium binary per invocation is both heavy and operationally fragile. `@react-pdf/renderer`'s component-based API (`<Document>`, `<Page>`, `<View>`, `<Text>`) also lets the PDF layout be authored in a style idiomatic to the rest of this React/Next.js codebase, rather than introducing an unrelated templating system. **This is a new runtime dependency, explicitly flagged as distinct from F16–F22, which introduce no new dependencies.**
+
+**Process:**
+1. Finalization (`POST /api/jury-package/:id/finalize`, F05 §Process steps 5–7) is amended: immediately before setting `status = 'FINALIZED'`, the service layer computes `version = (SELECT MAX(version) FROM JuryPackage WHERE caseId = :caseId AND status = 'FINALIZED') + 1` (or `1` if no prior finalized version exists for this case), and sets it atomically in the same transaction as the status/`finalizedAt`/`finalizedBy` write (F05 §Process step 7, unchanged otherwise).
+2. Once `FINALIZED` with a `version` assigned, the package and its `JuryPackageExhibit` rows remain immutable exactly as F05 already specifies (F05 §Validation: "A `FINALIZED` package is immutable") — this feature adds no new mutability rule, it adds the version number to an already-immutable artifact.
+3. A deputy/clerk/admin may subsequently create a new `DRAFT` `JuryPackage` for the same case (F05 §Process step 1, unchanged) — this new draft has `version = null` until it, too, is eventually finalized, at which point it receives the next sequential version number for that case.
+4. `GET /api/cases/:id/jury-package/versions` (new endpoint) lists every `JuryPackage` for the case — every `FINALIZED` version plus the current `DRAFT`, if one exists — each annotated with `isMostRecent` (computed per §Terminology, `true` only for the highest-`version` `FINALIZED` row).
+5. `GET /api/jury-package/:id/export` (new endpoint) accepts a specific `JuryPackage` id (which must be `FINALIZED`) and generates a PDF server-side via `@react-pdf/renderer`, rendering the package's immutable `INCLUDED` `JuryPackageExhibit` rows (F13's `EXCLUDED` rows are never rendered into the export, exactly as they're never rendered into the live `INCLUDED` list — F13 §Outputs) as a formatted document: case identification, finalization timestamp, finalizing user, and one entry per included exhibit (label, description, classification, status at finalization).
+6. The generated PDF is streamed back as `application/pdf` — a real downloadable file, not a browser print dialog. The Jury Package Workspace (F11)'s existing export control is amended to call this endpoint and trigger a file download, in place of `window.print()`.
+7. Because a `FINALIZED` package's `JuryPackageExhibit` rows are immutable (step 2), re-exporting the same version at a later date always produces an identical PDF (same exhibit set, same classification/status snapshot) — the export is deterministic per version, not re-computed against the exhibits' *current* live state.
+8. The Jury Package Workspace (F11) is amended to show the most-recent version prominently (via `isMostRecent`) and to surface the full version history list (step 4's endpoint) as a secondary view, so a user can locate and export any prior finalized version, not only the latest.
+
+**Inputs:**
+- `GET /api/cases/:id/jury-package/versions`: `caseId` (string/UUID, required, path parameter)
+- `GET /api/jury-package/:id/export`: `id` (string/UUID, required, path parameter) — the specific `JuryPackage` id to export; must currently be `FINALIZED`
+- No new inputs to the existing finalize endpoint (`POST /api/jury-package/:id/finalize`, F05) — `version` is computed server-side, never client-supplied
+
+**Outputs:**
+- `GET /api/cases/:id/jury-package/versions`: `Array<{ id, version: number | null, status, finalizedAt?, finalizedBy?, exhibitCount, isMostRecent: boolean }>`
+- `GET /api/jury-package/:id/export`: binary `application/pdf` stream (not JSON)
+- `POST /api/jury-package/:id/finalize` (F05, amended): response now additionally includes `version` on the returned `JuryPackage`
+
+**Validation:**
+- `version` is assigned exactly once, at finalization, and is never reassigned or recomputed afterward — it is part of the immutable finalized snapshot, identical in spirit to `finalizedAt`/`finalizedBy`
+- `(caseId, version)` must be unique — enforced at the database level; two packages for the same case can never share a version number
+- Export is rejected for any package with `status = 'DRAFT'` (no version exists yet to export) — a draft must be finalized first
+- A `DRAFT` package's export control (if ever exposed in a future UI iteration) must be hard-disabled, not merely hidden, consistent with F05's existing hard-gate pattern for finalization itself
+
+**Error States:**
+| Scenario | HTTP Status | Error Code | Message |
+|---|---|---|---|
+| Export attempted on a `DRAFT` (not yet finalized) package | 422 | JURY_PACKAGE_EXPORT_NOT_FINALIZED | "Only a finalized jury package version can be exported as a PDF" |
+| `GET /api/jury-package/:id/export` or `/versions` referencing a nonexistent package/case | 404 | JURY_PACKAGE_VERSION_NOT_FOUND | "No jury package version found with the given ID" |
+| PDF generation fails at render time (e.g., malformed exhibit data) | 500 | PDF_GENERATION_FAILED | "Unable to generate the jury package PDF — please retry" |
+
+**API Surface (this feature):** adds `GET /api/cases/:id/jury-package/versions`, `GET /api/jury-package/:id/export`; amends `POST /api/jury-package/:id/finalize` (F05) response to include `version` — see `Y1-api.md` §Jury Package (amended) and §Jury Package Versions (new section).
+
+**Schema Surface (this feature):** adds `version Int?` to `JuryPackage`, with `@@unique([caseId, version])` (partial/sparse uniqueness — only enforced where `version` is non-null); no new table — the existing `JuryPackageExhibit` rows, already immutable once their parent `JuryPackage` is `FINALIZED` (F05), serve directly as the versioned snapshot with no separate snapshot table required. See `Y0-schema.md` §Jury Package (amended). **New dependency:** `@react-pdf/renderer` (server-side PDF generation) — see `Y3-integrations.md` §Deployment/Runtime Dependencies (amended).
 ## Y0: Database Schema
 
 Full Prisma DDL for JudicialSync, grounded in the research finding that status, objections/rulings, and custody must be modeled as an **append-only event ledger** with a **derived current-state projection** — never as mutable fields. Every table below is either (a) a ledger table (immutable, insert-only), (b) a current-state projection (derived, rebuildable by replaying the ledger), or (c) a supporting/identity entity.
@@ -944,6 +1389,18 @@ enum OfferingParty {
   DEFENSE
 }
 
+/// Added Phase 7.1 (F16). Required at intake, immutable thereafter — no
+/// reclassification endpoint exists in this version. Supersedes `isSealed`
+/// as the authoritative sensitivity input to jury-package exclusion (F13)
+/// and role-based visibility; `isSealed` is retained as a write-once mirror
+/// (see note on `Exhibit.isSealed` below) rather than removed, so every
+/// existing read path (`visibility.ts`) requires no change.
+enum ExhibitClassification {
+  TRIAL
+  CHAMBERS_EX_PARTE
+  SEALED
+}
+
 model Exhibit {
   id                 String        @id @default(uuid())
   caseId             String
@@ -952,7 +1409,8 @@ model Exhibit {
   source             String?
   offeringParty      OfferingParty
   associatedWitness  String?
-  isSealed           Boolean       @default(false)
+  classification     ExhibitClassification               // added Phase 7.1 (F16): required at creation, immutable
+  isSealed           Boolean       @default(false)        // Phase 7.1 (F16): now write-once, derived at creation as `classification !== 'TRIAL'` — never independently set thereafter
   createdAt          DateTime      @default(now())
 
   case              Case                @relation(fields: [caseId], references: [id])
@@ -975,9 +1433,12 @@ enum EventType {
   STATUS_CHANGE
   OBJECTION_RAISED
   RULING_RECORDED
-  CUSTODY_TRANSFER
+  CUSTODY_TRANSFER                 // legacy unilateral transfer — retained only for the F18 intake-bootstrap path; rejected for any non-first transfer as of Phase 7.1 (F19)
   DISCREPANCY_ACKNOWLEDGED
-  JURY_PACKAGE_EXHIBIT_EXCLUDED  // added Phase 7 (F13) — see §Jury Package
+  JURY_PACKAGE_EXHIBIT_EXCLUDED     // added Phase 7 (F13) — see §Jury Package
+  CUSTODY_TRANSFER_PROPOSED        // added Phase 7.1 (F19) — two-phase custody handoff, phase 1
+  CUSTODY_TRANSFER_CONFIRMED       // added Phase 7.1 (F19) — two-phase custody handoff, phase 2 (also used directly, with no preceding PROPOSED, for F18's intake-bootstrap link)
+  CUSTODY_TRANSFER_CANCELLED       // added Phase 7.1 (F19) — reverts a pending proposal; currentCustodianUserId unaffected
 }
 
 /// The single append-only ledger table. Rows are NEVER updated or deleted
@@ -1006,9 +1467,12 @@ model ExhibitEvent {
 - `STATUS_CHANGE`: `{ fromStatus: ExhibitStatus | null, toStatus: ExhibitStatus, notes?: string }`
 - `OBJECTION_RAISED`: `{ objectionId: string (uuid), objectingParty: OfferingParty, grounds: string }`
 - `RULING_RECORDED`: `{ objectionId: string (uuid), disposition: 'SUSTAINED' | 'OVERRULED' | 'RESERVED' }`
-- `CUSTODY_TRANSFER`: `{ fromCustodianUserId: string | null, toCustodianUserId: string, reason?: string }`
+- `CUSTODY_TRANSFER`: `{ fromCustodianUserId: string | null, toCustodianUserId: string, reason?: string }` — legacy unilateral shape, retained only for F18's intake-bootstrap link in historical/prior-version data
 - `DISCREPANCY_ACKNOWLEDGED`: `{ discrepancyFlagId: string (uuid), ruleCode: string, justification: string }`
 - `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)*: `{ juryPackageId: string (uuid), exhibitId: string (uuid), reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL', note?: string }`
+- `CUSTODY_TRANSFER_PROPOSED` *(added Phase 7.1, F19)*: `{ fromCustodianUserId: string, toCustodianUserId: string, reason?: string }` — `fromCustodianUserId` must match the exhibit's current custodian; does not change `CustodyCurrentState.currentCustodianUserId`
+- `CUSTODY_TRANSFER_CONFIRMED` *(added Phase 7.1, F19)*: `{ proposedEventId: string (uuid) | null, fromCustodianUserId: string | null, toCustodianUserId: string }` — `proposedEventId` references the resolved `CUSTODY_TRANSFER_PROPOSED` event, or is `null` for F18's intake-bootstrap case (where `fromCustodianUserId` is also `null`)
+- `CUSTODY_TRANSFER_CANCELLED` *(added Phase 7.1, F19)*: `{ proposedEventId: string (uuid), reason?: string }` — references the pending proposal being cancelled
 
 ### Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -1063,10 +1527,18 @@ model ObjectionCurrentState {
 /// An exhibit with NO row here (despite being ADMITTED) is exactly the
 /// ADMITTED_NO_CUSTODIAN discrepancy condition (F6) — absence is meaningful.
 model CustodyCurrentState {
-  exhibitId             String   @id
+  exhibitId              String   @id
   currentCustodianUserId String
-  since                 DateTime
-  lastEventId           String
+  since                  DateTime
+  lastEventId            String
+  // --- added Phase 7.1 (F19): two-phase custody handoff pending state ---
+  // Populated by a CUSTODY_TRANSFER_PROPOSED event; cleared by the resolving
+  // CUSTODY_TRANSFER_CONFIRMED or CUSTODY_TRANSFER_CANCELLED event.
+  // currentCustodianUserId is NEVER modified while these are non-null —
+  // "who currently has it" always reflects the last CONFIRMED transfer.
+  pendingTransferToUserId    String?
+  pendingTransferEventId     String?
+  pendingTransferProposedAt  DateTime?
 
   exhibit    Exhibit @relation(fields: [exhibitId], references: [id])
   custodian  User    @relation(fields: [currentCustodianUserId], references: [id])
@@ -1122,11 +1594,13 @@ model JuryPackage {
   createdAt    DateTime          @default(now())
   finalizedAt  DateTime?
   finalizedBy  String?
+  version      Int?                                // added Phase 7.1 (F23): assigned ONLY at finalization, never reassigned; null while DRAFT
 
   case Case @relation(fields: [caseId], references: [id])
   exhibitRows JuryPackageExhibit[]
 
   @@index([caseId, status])
+  @@unique([caseId, version])                        // added Phase 7.1 (F23): sparse/partial uniqueness — only enforced where version is non-null
 }
 
 enum JuryExhibitDiscrepancyStatus {
@@ -1163,7 +1637,9 @@ model JuryPackageExhibit {
 }
 ```
 
-**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates` (F5) is amended to filter `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter, so a sealed/ex-parte exhibit never acquires an `INCLUDED` row here in the first place — see F13 §Process step 1. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
+**Jury Package Exclusion note (Phase 7, F13; amended Phase 7.1, F16):** `computeJuryCandidates` (F5) originally filtered `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter (F13 §Process step 1). As of Phase 7.1, this filter reads `exhibit.classification = 'TRIAL'` instead — both `CHAMBERS_EX_PARTE` and `SEALED` are hard-excluded identically — so a chambers-ex-parte or sealed exhibit never acquires an `INCLUDED` row here in the first place. See `F16-exhibit-classification-taxonomy.md` §Process step 4. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
+
+**Jury Package Versioning note (Phase 7.1, F23):** `JuryPackage.version` is assigned only at finalization, computed as `(MAX(version) WHERE caseId = :id AND status = 'FINALIZED') + 1` (or `1` if none exists), and never reassigned afterward. No separate snapshot table is introduced — the existing `JuryPackageExhibit` rows, already immutable once their parent package is `FINALIZED` (F05 §Validation), serve directly as each version's permanent record. "Most-recent version" is computed at read time (`MAX(version)` per case), never stored. See `F23-versioned-jury-packages-pdf-export.md` §Process.
 
 ### Assistant
 
@@ -1224,7 +1700,20 @@ All current-state projection tables must be exactly reproducible by replaying `E
 
 Consolidated REST API surface for JudicialSync. Every route handler is a thin wrapper around the service layer (`00-header.md` §Service Layer) — no route contains business logic beyond request parsing, auth/role extraction, and response shaping. The Pivota Assistant's tools (F7) call the identical underlying service functions, not these HTTP routes directly (in-process function calls, not HTTP round-trips, for the assistant path) — but the request/response shapes below describe the same contract both consumers rely on.
 
-All endpoints require a `requestingUserRole` derived from the session/role-switcher (PROJECT.md scope: no production auth) and apply role-based visibility per `00-header.md` §Role-Based Visibility uniformly.
+All endpoints require a `requestingUserRole` derived from the session/role-switcher (PROJECT.md scope: no production auth) and apply role-based visibility per `00-header.md` §Role-Based Visibility uniformly. As of Phase 7.1 (F22), every case-scoped endpoint also requires an explicit `caseId` (carried from the client's Case Selector state, per-request, exactly as `requestingUserRole` already is) rather than an implicit single-case assumption. As of Phase 7.1 (F20), every write endpoint additionally resolves and enforces `actorUserId`'s server-side role against the permission matrix in `F20-server-side-role-enforcement-matrix.md` before any other processing.
+
+---
+
+### §Cases (F0, F22)
+
+**`GET /api/cases`** *(added Phase 7.1, F22)*
+Lists every case available to the current user — no role restriction (case existence is not sensitive; exhibit-level visibility remains the sensitive boundary, unaffected).
+- 200: `Array<{ id, caseNumber, title, court, createdAt }>`
+
+**`GET /api/cases/:id`** *(amended Phase 7.1, F22: replaces the prior no-argument `GET /api/case`)*
+Fetches a specific case plus its user roster (app bootstrap).
+- 200: identical shape to the prior `GET /api/case` response
+- Errors: `CASE_NOT_FOUND` (404)
 
 ---
 
@@ -1232,9 +1721,9 @@ All endpoints require a `requestingUserRole` derived from the session/role-switc
 
 **`POST /api/exhibits`**
 Creates a new exhibit identity record (F0).
-- Body: `{ caseId, exhibitLabel, description, source?, offeringParty, associatedWitness?, isSealed? }`
-- 201: `Exhibit`
-- Errors: `EXHIBIT_LABEL_CONFLICT` (409), `VALIDATION_ERROR` (422)
+- Body: `{ caseId, exhibitLabel, description, source?, offeringParty, associatedWitness?, classification }` *(amended Phase 7.1, F16: `classification` is now required — `TRIAL` | `CHAMBERS_EX_PARTE` | `SEALED`; a client-supplied `isSealed` value, if present, is ignored — the server always derives it from `classification`)*
+- 201: `Exhibit` *(now includes `classification` and a classification-derived `isSealed`)*
+- Errors: `EXHIBIT_LABEL_CONFLICT` (409), `VALIDATION_ERROR` (422), `CLASSIFICATION_REQUIRED` (422 — added Phase 7.1, F16), `INVALID_CLASSIFICATION` (422 — added Phase 7.1, F16), `ROLE_NOT_PERMITTED` (403 — added Phase 7.1, F20: only `DEPUTY`, `CLERK`, `ADMIN`)
 
 **`GET /api/exhibits/:id`**
 Fetches a single exhibit's identity fields (F0).
@@ -1258,9 +1747,9 @@ Full chronological event timeline for one exhibit (F10).
 
 **`POST /api/exhibits/:id/events/status`**
 Records a status transition.
-- Body: `{ toStatus, actorUserId, notes? }`
-- 201: `{ event: ExhibitEvent, currentState: ExhibitCurrentState }`
-- Errors: `INVALID_STATUS_TRANSITION` (422), `STATUS_FINALIZED` (409), `STATUS_CONFLICT` (409), `EXHIBIT_NOT_FOUND` (404), `ADMISSION_BLOCKED` (422 — added Phase 7, F12: only evaluated when `toStatus = ADMITTED`; see F12 §Process)
+- Body: `{ toStatus, actorUserId, notes?, custodianUserId? }` *(amended Phase 7.1, F18: `custodianUserId` is required when, and only when, this is the exhibit's first-ever `STATUS_CHANGE` event, i.e. `toStatus = MARKED` with zero prior events — the status write and the resulting intake custody write are atomic, see F18 §Process)*
+- 201: `{ event: ExhibitEvent, currentState: ExhibitCurrentState, custodyState?: CustodyCurrentState }` *(amended Phase 7.1, F18: `custodyState` is additionally returned when this call was the exhibit's first-ever transition)*
+- Errors: `INVALID_STATUS_TRANSITION` (422), `STATUS_FINALIZED` (409), `STATUS_CONFLICT` (409), `EXHIBIT_NOT_FOUND` (404), `ADMISSION_BLOCKED` (422 — added Phase 7, F12: only evaluated when `toStatus = ADMITTED`; see F12 §Process; hardened without new mechanism by Phase 7.1's F17 — see `F17-objection-admission-state-machine-hardening.md`), `CUSTODIAN_REQUIRED_AT_INTAKE` (422 — added Phase 7.1, F18), `ROLE_NOT_PERMITTED` (403 — added Phase 7.1, F20: `DEPUTY`, `CLERK`, `ADMIN` for all transitions)
 
 **`GET /api/exhibits/:id/status`**
 Current derived status.
@@ -1275,7 +1764,7 @@ Current derived status.
 Raises an objection against an exhibit.
 - Body: `{ objectingParty, grounds, actorUserId }`
 - 201: `{ event: ExhibitEvent, objectionState: ObjectionCurrentState }`
-- Errors: `INVALID_OBJECTION_TARGET` (422), `EXHIBIT_NOT_FOUND` (404)
+- Errors: `INVALID_OBJECTION_TARGET` (422), `EXHIBIT_NOT_FOUND` (404), `ROLE_NOT_PERMITTED` (403 — added Phase 7.1, F20: `ATTORNEY`, `DEPUTY`, `CLERK`, `ADMIN`)
 
 **`POST /api/objections/:id/ruling`**
 Records a ruling against an objection thread.
@@ -1285,27 +1774,45 @@ Records a ruling against an objection thread.
 
 **`GET /api/cases/:id/objections?status=unresolved`**
 Lists objection threads case-wide, filterable by status.
-- 200: `Array<ObjectionCurrentState>`
+- 200: `Array<ObjectionCurrentState & { exhibitLabel: string }>` *(amended Phase 7.1, F21: additive read-time join of `exhibitLabel` — no schema change; powers the new Pending-Ruling Queue screen's client-side sort by elapsed `raisedAt`, no new endpoint)*
 - Errors: `CASE_NOT_FOUND` (404)
 
 ---
 
-### §Custody (F3)
+### §Custody (F3; amended Phase 7.1, F19)
 
 **`POST /api/exhibits/:id/events/custody`**
-Records a custody transfer.
+Records a custody transfer. *(Amended Phase 7.1, F19: as of this phase, this endpoint is retained ONLY for the F18 intake-bootstrap case — `fromCustodianUserId: null`. Any call with a non-null `fromCustodianUserId` is rejected; use the propose/confirm endpoints below for every transfer after the first.)*
 - Body: `{ fromCustodianUserId?, toCustodianUserId, reason?, actorUserId }`
 - 201: `{ event: ExhibitEvent, custodyState: CustodyCurrentState }`
-- Errors: `CUSTODY_CHAIN_BROKEN` (409), `INVALID_CUSTODIAN` (422), `NO_OP_TRANSFER` (422), `EXHIBIT_NOT_FOUND` (404)
+- Errors: `CUSTODY_CHAIN_BROKEN` (409), `INVALID_CUSTODIAN` (422), `NO_OP_TRANSFER` (422), `EXHIBIT_NOT_FOUND` (404), `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION` (409 — added Phase 7.1, F19: non-first transfer attempted via this unilateral path)
+
+**`POST /api/exhibits/:id/events/custody/propose`** *(added Phase 7.1, F19)*
+Initiates a two-phase custody transfer — does not change current custody.
+- Body: `{ fromCustodianUserId, toCustodianUserId, reason?, actorUserId }`
+- 201: `{ event: ExhibitEvent, custodyState: CustodyCurrentState }` (`custodyState.pendingTransferToUserId` now set; `currentCustodianUserId` unchanged)
+- Errors: `CUSTODY_CHAIN_BROKEN` (409), `INVALID_CUSTODIAN` (422), `NO_OP_TRANSFER` (422), `CUSTODY_TRANSFER_ALREADY_PENDING` (409), `ROLE_NOT_PERMITTED` (403: `DEPUTY`, `CLERK`, `ADMIN`), `EXHIBIT_NOT_FOUND` (404)
+
+**`POST /api/exhibits/:id/events/custody/confirm`** *(added Phase 7.1, F19)*
+Completes a pending custody transfer — callable only by the named receiving custodian.
+- Body: `{ proposedEventId, actorUserId }`
+- 200: `{ event: ExhibitEvent, custodyState: CustodyCurrentState }` (`currentCustodianUserId` updated; pending fields cleared)
+- Errors: `CUSTODY_CONFIRMATION_NOT_PENDING` (404), `CUSTODY_CONFIRM_WRONG_USER` (403), `ROLE_NOT_PERMITTED` (403: `DEPUTY`, `CLERK`, `ADMIN`), `EXHIBIT_NOT_FOUND` (404)
+
+**`POST /api/exhibits/:id/events/custody/cancel`** *(added Phase 7.1, F19)*
+Cancels a pending custody transfer — current custody is unaffected (it never changed).
+- Body: `{ proposedEventId, reason?, actorUserId }`
+- 200: `{ event: ExhibitEvent, custodyState: CustodyCurrentState }` (pending fields cleared)
+- Errors: `CUSTODY_CONFIRMATION_NOT_PENDING` (404), `ROLE_NOT_PERMITTED` (403: original proposer, or `DEPUTY`/`CLERK`/`ADMIN`), `EXHIBIT_NOT_FOUND` (404)
 
 **`GET /api/exhibits/:id/custodian`**
 Current custodian only.
-- 200: `CustodyCurrentState`
+- 200: `CustodyCurrentState` *(amended Phase 7.1, F19: now additionally includes `pendingTransfer: { toUserId, proposedAt, eventId } | null`)*
 - Errors: `EXHIBIT_NOT_FOUND` (404)
 
 **`GET /api/exhibits/:id/custody-history`**
 Full ordered chain-of-custody.
-- 200: `Array<{ fromCustodian, toCustodian, timestamp, reason, eventId }>`
+- 200: `Array<{ fromCustodian, toCustodian, timestamp, reason, eventId, eventType }>` *(amended Phase 7.1, F19: now includes `CUSTODY_TRANSFER_PROPOSED`/`CONFIRMED`/`CANCELLED` events, distinguished by `eventType`, so a cancelled/superseded proposal remains visible in history)*
 - Errors: `EXHIBIT_NOT_FOUND` (404)
 
 ---
@@ -1326,20 +1833,34 @@ Multi-criteria combinable exhibit search.
 Computes/refreshes the draft jury-eligible exhibit set.
 - Body: `{ actorUserId }`
 - 201: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }`
-- Errors: `NO_ELIGIBLE_EXHIBITS` (422), `ROLE_NOT_PERMITTED` (403)
+- Errors: `NO_ELIGIBLE_EXHIBITS` (422), `ROLE_NOT_PERMITTED` (403: `DEPUTY`, `CLERK`, `ADMIN` — unchanged, now enforced via F20's shared `assertRole` helper)
 
 **`GET /api/cases/:id/jury-package`**
 Fetches the current (draft or finalized) jury package with live discrepancy status per exhibit.
-- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*
+- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*.
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`POST /api/jury-package/:id/finalize`**
 Attempts finalization — hard-gated by discrepancy re-check.
 - Body: `{ actorUserId, acknowledgedDiscrepancyIds? }`
-- 200: `{ juryPackage: JuryPackage (status: FINALIZED) }`
+- 200: `{ juryPackage: JuryPackage (status: FINALIZED, version: number) }` *(amended Phase 7.1, F23: `version` is now assigned atomically at finalization — see F23 §Process step 1)*
 - Errors: `JURY_PACKAGE_DISCREPANCIES_OPEN` (409, includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` (409), `ROLE_NOT_PERMITTED` (403)
 
-*(Added Phase 7, F13: the candidate computation behind `POST /api/cases/:id/jury-package` now also filters `exhibit.isSealed = false` at the query level, in addition to the `currentStatus = ADMITTED` filter — see F13 §Process step 1. This is a behavior amendment to the existing endpoint, not a new route.)*
+*(Added Phase 7, F13: the candidate computation behind `POST /api/cases/:id/jury-package` filtered `exhibit.isSealed = false` at the query level, in addition to the `currentStatus = ADMITTED` filter. As of Phase 7.1, F16, this filter reads `exhibit.classification = 'TRIAL'` instead — see F16 §Process step 4. This remains a behavior amendment to the existing endpoint, not a new route.)*
+
+---
+
+### §Jury Package Versions & Export (F23)
+
+**`GET /api/cases/:id/jury-package/versions`** *(added Phase 7.1, F23)*
+Lists every `JuryPackage` for the case — every `FINALIZED` version plus the current `DRAFT`, if one exists.
+- 200: `Array<{ id, version: number | null, status, finalizedAt?, finalizedBy?, exhibitCount, isMostRecent: boolean }>`
+- Errors: `CASE_NOT_FOUND` (404)
+
+**`GET /api/jury-package/:id/export`** *(added Phase 7.1, F23)*
+Generates and streams a PDF (via `@react-pdf/renderer`) of a specific `FINALIZED` package version's included exhibit set.
+- Response: binary `application/pdf` stream
+- Errors: `JURY_PACKAGE_EXPORT_NOT_FINALIZED` (422), `JURY_PACKAGE_VERSION_NOT_FOUND` (404), `PDF_GENERATION_FAILED` (500)
 
 ---
 
@@ -1389,7 +1910,7 @@ Recent-activity feed for the ambient Command Center view.
 
 **`POST /api/assistant/chat`**
 Streaming tool-calling chat endpoint (Vercel AI SDK `streamText`).
-- Body: `{ caseId, userId, message, conversationId? }`
+- Body: `{ caseId, userId, message, conversationId? }` *(`caseId` as of Phase 7.1, F22, is sourced from the client's explicit Case Selector state, not an implicit single-case constant — the field itself is unchanged, only its origin)*
 - Response: streamed text (SSE/chunked), with a final structured payload including `citations[]`
 - Tool calls made server-side during this request (not separately exposed as public routes): `getExhibitStatus`, `getUnresolvedObjections`, `getCustodian`, `getCustodyHistory`, `getExhibitHistory`, `searchExhibits`, `getJuryPackageStatus`, `getDiscrepancies` — each a 1:1 wrapper around the service functions backing the routes above
 - Errors: `TOOL_ARGS_INVALID` (tool-level, surfaced to model, not HTTP), `ASSISTANT_UNAVAILABLE` (503)
@@ -1419,8 +1940,10 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 | 422 | VALIDATION_ERROR | "{field} must be {constraint}" | Any input validation failure not covered by a more specific code | Fix the request payload and retry |
 | 409 | EXHIBIT_LABEL_CONFLICT | "An exhibit with this label already exists in this case" | F0 | Use a different label or fetch the existing exhibit |
 | 404 | EXHIBIT_NOT_FOUND | "No exhibit found with the given ID" | F0, F1, F2, F3, F9, F10 | Verify the exhibit ID; also returned for sealed/unauthorized exhibits (no distinction) |
-| 404 | CASE_NOT_FOUND | "No case found with the given ID" | F8, F9 | Verify the case ID / session context |
+| 404 | CASE_NOT_FOUND | "No case found with the given ID" | F8, F9, F22 | Verify the case ID / selected active case |
 | 500 | SEED_INTEGRITY_FAILURE | "Seed data failed required edge-case assertions" | F0 (seed-time only) | Developer-facing; fix seed script, not user-retryable |
+| 422 | CLASSIFICATION_REQUIRED | "classification is required and must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | F16 | Supply a valid classification at exhibit creation |
+| 422 | INVALID_CLASSIFICATION | "classification must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | F16 | Correct the request payload and retry |
 
 ### Status Lifecycle Errors (F1)
 
@@ -1486,6 +2009,58 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 
 **Note:** F14 (Discrepancy Acknowledgment Transparency) and F15 (Courtroom Usability Fixes) introduce no new error codes — both are UI-visibility/client-rendering requirements layered on existing, unchanged service behavior. See their respective FRD chunks' §Error States for the existing codes they continue to rely on.
 
+### Exhibit Classification Errors (F16)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | CLASSIFICATION_REQUIRED | "classification is required and must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | Supply a valid classification; no exhibit can be created unclassified |
+| 422 | INVALID_CLASSIFICATION | "classification must be one of: TRIAL, CHAMBERS_EX_PARTE, SEALED" | Correct the request payload and retry |
+
+**Note:** F17 (Objection-to-Admission State-Machine Hardening) introduces no new error codes — F12's existing `ADMISSION_BLOCKED` / `UNRESOLVED_OBJECTION` response already fully covers the scenario this feature hardens with regression tests; see `F17-objection-admission-state-machine-hardening.md` §Error States.
+
+### Custodian-at-Intake Errors (F18)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | CUSTODIAN_REQUIRED_AT_INTAKE | "A custodian must be established when an exhibit is first marked into evidence" | Supply a valid `custodianUserId` alongside the first MARKED transition |
+
+### Custody Handoff Confirmation Errors (F19)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 409 | CUSTODY_TRANSFER_ALREADY_PENDING | "A custody transfer is already pending for this exhibit" | Wait for the pending transfer to be confirmed or cancelled before proposing a new one |
+| 404 | CUSTODY_CONFIRMATION_NOT_PENDING | "No pending custody transfer found matching this request" | Verify a transfer is currently pending and the `proposedEventId` matches it |
+| 403 | CUSTODY_CONFIRM_WRONG_USER | "Only the named receiving custodian may confirm this transfer" | Not retryable by this user — only the user named as `toCustodianUserId` on the proposal may confirm |
+| 409 | CUSTODY_TRANSFER_REQUIRES_CONFIRMATION | "Transfers after the first must use the propose/confirm flow" | Use `POST /api/exhibits/:id/events/custody/propose` instead of the legacy unilateral endpoint |
+
+### Server-Side Role Enforcement Errors (F20)
+
+| HTTP Status | Error Code | Message | Applies To | Retry Guidance |
+|---|---|---|---|---|
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may create an exhibit" | Create exhibit | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may record this status transition" | Mark/offer/withdraw/admit/exclude transitions | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only an attorney, courtroom deputy, clerk, or admin may raise an objection" | Raise objection | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may propose a custody transfer" | Propose custody transfer | Not retryable by this user |
+| 403 | ROLE_NOT_PERMITTED | "Only a courtroom deputy, clerk, or admin may confirm custody receipt" | Confirm custody transfer (role gate — distinct from F19's identity-match `CUSTODY_CONFIRM_WRONG_USER`) | Not retryable by this user |
+
+**Note:** Rows for ruling disposition, discrepancy acknowledgment, jury-package finalize, and jury-package exclusion are unchanged by F20 — see their existing entries above (Objection & Ruling Errors, Discrepancy Errors, Jury Package Errors, Jury Package Exclusion Errors respectively). F20 retrofits all of them onto one shared `assertRole` enforcement mechanism without changing any existing message or code.
+
+### Pending-Ruling Queue Errors (F21)
+
+**Note:** F21 introduces no new error codes — it is a read-only client-side view reusing F2's existing `GET /api/cases/:id/objections` endpoint and error handling unchanged; see `F21-pending-ruling-queue.md` §Error States.
+
+### Multi-Case Support Errors (F22)
+
+**Note:** F22 introduces no new error codes — it reuses the existing `CASE_NOT_FOUND` (404) for every amended case-scoped endpoint; see `F22-multi-case-support-case-selector.md` §Error States.
+
+### Versioned Jury Package Export Errors (F23)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 422 | JURY_PACKAGE_EXPORT_NOT_FINALIZED | "Only a finalized jury package version can be exported as a PDF" | Finalize the package first, then retry export |
+| 404 | JURY_PACKAGE_VERSION_NOT_FOUND | "No jury package version found with the given ID" | Verify the jury package ID |
+| 500 | PDF_GENERATION_FAILED | "Unable to generate the jury package PDF — please retry" | Transient; retry. If persistent, check exhibit data integrity for the version being exported |
+
 ### Assistant Errors (F7)
 
 | HTTP Status | Error Code | Message | Retry Guidance |
@@ -1542,15 +2117,30 @@ Though not external integrations, these internal event-driven triggers are docum
 | Status write | `recordEvent(STATUS_CHANGE)` | Updates `ExhibitCurrentState`; re-evaluates `ADMITTED_NO_CUSTODIAN` and `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` discrepancy rules for the exhibit | F1 → F6 |
 | Objection raised | `recordEvent(OBJECTION_RAISED)` | Creates `ObjectionCurrentState` row (`UNRESOLVED`) | F2 |
 | Ruling recorded | `recordEvent(RULING_RECORDED)` | Updates `ObjectionCurrentState`; if the exhibit is `ADMITTED`, re-evaluates `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` | F2 → F6 |
-| Custody transfer | `recordEvent(CUSTODY_TRANSFER)` | Updates `CustodyCurrentState`; re-evaluates `ADMITTED_NO_CUSTODIAN` | F3 → F6 |
+| Custody transfer (legacy/intake) | `recordEvent(CUSTODY_TRANSFER)` | Updates `CustodyCurrentState`; re-evaluates `ADMITTED_NO_CUSTODIAN` | F3 → F6 |
 | Discrepancy acknowledged | `recordEvent(DISCREPANCY_ACKNOWLEDGED)` | Updates `DiscrepancyFlag.status` to `ACKNOWLEDGED` | F6 |
 | Jury package exhibit excluded *(added Phase 7)* | `recordEvent(JURY_PACKAGE_EXHIBIT_EXCLUDED)` | Updates `JuryPackageExhibit.status` to `EXCLUDED`, setting `excludedAt`/`excludedBy`/`exclusionReason` | F13 |
+| Custody transfer proposed *(added Phase 7.1)* | `recordEvent(CUSTODY_TRANSFER_PROPOSED)` | Sets `CustodyCurrentState.pendingTransferToUserId`/`pendingTransferEventId`/`pendingTransferProposedAt`; `currentCustodianUserId` is NOT modified | F19 |
+| Custody transfer confirmed *(added Phase 7.1)* | `recordEvent(CUSTODY_TRANSFER_CONFIRMED)` | Updates `CustodyCurrentState.currentCustodianUserId`/`since`/`lastEventId`; clears all pending-transfer fields; re-evaluates `ADMITTED_NO_CUSTODIAN` | F19 → F6 |
+| Custody transfer cancelled *(added Phase 7.1)* | `recordEvent(CUSTODY_TRANSFER_CANCELLED)` | Clears all pending-transfer fields only; `currentCustodianUserId` unaffected | F19 |
 
 All triggers execute synchronously within the same service-layer call that appends the ledger event — there is no async job queue or eventual-consistency window between a ledger write and its projection/discrepancy update, which is required for F5's finalization gate to be trustworthy (re-evaluating discrepancies "fresh" per F5 §Process step 5 means the projection is never behind the ledger).
 
 ### Admission Gate (F12 — Pre-Write Check, Not a Post-Write Trigger)
 
-Added Phase 7. Unlike the triggers above, which run *after* a ledger event is appended, F12's two admission-integrity checks (unresolved objection present; no custodian of record) run *before* the `STATUS_CHANGE` event for a `toStatus = ADMITTED` transition is ever appended. If either check fails, the service layer rejects the request with `ADMISSION_BLOCKED` (422) and **no `ExhibitEvent` row is created** — this is a hard precondition gate inside the same service function used by every caller (UI, API, seed loader), not a downstream reaction to a write that already happened. See F12 §Process for the full sequence.
+Added Phase 7. Unlike the triggers above, which run *after* a ledger event is appended, F12's two admission-integrity checks (unresolved objection present; no custodian of record) run *before* the `STATUS_CHANGE` event for a `toStatus = ADMITTED` transition is ever appended. If either check fails, the service layer rejects the request with `ADMISSION_BLOCKED` (422) and **no `ExhibitEvent` row is created** — this is a hard precondition gate inside the same service function used by every caller (UI, API, seed loader), not a downstream reaction to a write that already happened. See F12 §Process for the full sequence. **Phase 7.1's F17 adds no new gate here** — it formalizes, and adds regression test coverage for, the already-sufficient guarantee that this gate provides (see `F17-objection-admission-state-machine-hardening.md`).
+
+### Intake Custody Gate (F18 — Pre-Write Check, Same Transaction as MARKED)
+
+Added Phase 7.1. Analogous in spirit to F12's admission gate but earlier in the lifecycle: the exhibit's first-ever `STATUS_CHANGE` event (`(none) → MARKED`) now requires a non-null `custodianUserId`, validated and written in the **same transaction** as the status event itself (not a downstream trigger reacting to the status write, and not a separate manual step a caller could skip). See `F18-custodian-required-at-intake.md` §Process.
+
+### Server-Side Role Resolution (F20 — Pre-Write Check on Every Gated Action)
+
+Added Phase 7.1. Every write action listed in `F20-server-side-role-enforcement-matrix.md`'s permission matrix now runs a role-resolution check (`assertRole(actorUserId, allowedRoles, actionLabel)`) before any other validation or write — resolving the acting user's role from the `User.role` database column via `actorUserId`, never from a client-supplied role claim. This generalizes the pattern already used, prior to Phase 7.1, only by `recordRuling`'s judge-check and `assertJuryWriteRole`. If the resolved role is not permitted, the request is rejected with `403 ROLE_NOT_PERMITTED` before any field-level validation, state-machine check, or ledger write occurs.
+
+### Case Scoping (F22 — Explicit, Stateless, Per-Request)
+
+Added Phase 7.1. Prior to this feature, every service-layer query implicitly scoped to a single case via the `DEMO_CASE_NUMBER` constant. As of F22, `caseId` is carried explicitly on every request — identically to how `requestingUserRole` is already carried per-request rather than server-side-session-stored (`Y1-api.md` §intro note). The server remains stateless with respect to "which case is active": there is no server-side "current case" session value, only a client-selected `caseId` passed with each call. This requires no new integration mechanism — it is the same per-request-parameter pattern already in use for role, now extended to case. See `F22-multi-case-support-case-selector.md` §Process.
 
 ### Live Multi-Screen Sync
 
@@ -1569,5 +2159,6 @@ The seed data loader (F0) is not an external integration but is documented here 
 |---|---|---|
 | Neon Postgres | Primary datastore | Serverless Postgres, zero-ops, pairs natively with Vercel hosting (see `STACK.md`) |
 | Vercel (or equivalent Next.js hosting) | Hosting for the full-stack Next.js 16 app | Single deployable artifact — UI, API routes, and assistant route all ship together |
+| `@react-pdf/renderer` *(added Phase 7.1, F23 — new dependency)* | Server-side PDF generation for finalized jury package export | Pure-JS, component-based (`<Document>`/`<Page>`/`<View>`/`<Text>`) PDF generation with no headless-Chromium binary required — selected specifically because this system runs on Vercel serverless functions, where a Puppeteer/Playwright-style HTML-to-PDF approach would require bundling and cold-starting a full browser binary per invocation. This is the first new runtime dependency added since the original tech-stack lock-in; F16–F22 introduce no new dependencies. |
 
-No message queues, caches, or background job runners are part of this architecture — all writes are synchronous request/response cycles, appropriate for single-case demo scale (see `ARCHITECTURE.md` §Scaling Considerations).
+No message queues, caches, or background job runners are part of this architecture — all writes are synchronous request/response cycles, appropriate for single-case demo scale (see `ARCHITECTURE.md` §Scaling Considerations). **As of Phase 7.1 (F22), "single-case" no longer describes the data model** (see §Case Scoping above) but the synchronous, queue-free write model itself is unaffected — multi-case support adds a query-scoping dimension, not a new write pathway or async mechanism. F19's custody-handoff "no-confirm" path (indefinite pending, no auto-expiry) is deliberately consistent with this same queue-free constraint — see `F19-custody-handoff-confirmation.md` §Design Decisions.

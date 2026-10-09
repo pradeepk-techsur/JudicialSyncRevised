@@ -3,7 +3,7 @@
 **Project Acronym:** JudicialSync
 **Document Type:** PRD (Product Requirements Document)
 **Status:** Draft
-**Last Updated:** 2026-10-06
+**Last Updated:** 2026-10-09
 
 ---
 
@@ -271,6 +271,118 @@ Specific pain points this demo targets:
 
 ---
 
+### F16: Exhibit Classification Taxonomy
+**Description:** A formal, intake-time classification scheme — Trial / Chambers-Ex-Parte / Sealed — that replaces the current single `isSealed` boolean as the system's model of exhibit sensitivity. Classification is captured when an exhibit is first marked, not inferred or back-filled later, and becomes the authoritative input to every downstream visibility and eligibility rule (role-scoped assistant/UI visibility, and the jury-package exclusion Phase 7's F13 implemented against the boolean).
+
+**Capabilities:**
+- Three-value classification (`TRIAL`, `CHAMBERS_EX_PARTE`, `SEALED`) required at intake/marking time — no exhibit can exist in an unclassified state
+- Migration path from the existing `isSealed` boolean to the new taxonomy preserves the exclusion behavior F13 already enforces (sealed → excluded), re-expressed as `SEALED` and `CHAMBERS_EX_PARTE` both triggering the same hard jury-package exclusion
+- Classification is immutable after intake except via an explicit, audited reclassification event (not a silent field edit) — reclassification itself is logged to the ledger
+- Role-scoped visibility (assistant and UI) is re-evaluated against the three-value classification, not the retired boolean, so chambers-ex-parte material is treated with the same rigor as sealed material everywhere the boolean previously governed
+
+**Priority:** P0 (Critical — product-owner-flagged gap: a boolean cannot distinguish chambers-ex-parte from sealed material, and F13's exclusion logic must be driven by the real taxonomy, not a proxy)
+
+---
+
+### F17: Objection-to-Admission State-Machine Hardening
+**Description:** Closes a state-machine gap that Phase 7's F12 does not fully close: F12 blocks admission while any objection is *currently* unresolved, but does not guarantee that the OBJECTED status was ever legitimately cleared. This feature makes a recorded judge ruling the only legal transition out of OBJECTED — there is no path, direct or incidental, by which an exhibit can reach ADMITTED from OBJECTED without an intervening ruling event in the ledger.
+
+**Capabilities:**
+- The state machine itself (not just a point-in-time admission check) refuses any OBJECTED → ADMITTED transition that is not immediately preceded by a RULING event tied to that objection thread
+- Eliminates the edge case where an objection is bypassed or its unresolved flag is cleared by means other than a recorded ruling (e.g., a direct status overwrite), which F12's "check current unresolved count" gate alone cannot detect
+- Applies at the shared service layer, so no UI, API, or future automation path can construct a valid OBJECTED → ADMITTED transition without a ruling
+- Regression coverage specifically exercises a skipped/bypassed-ruling attempt to confirm the transition is rejected, not merely flagged after the fact
+
+**Priority:** P0 (Critical — hardens F12's intent against a bypass path F12 alone does not close)
+
+---
+
+### F18: Custodian Required at Intake (MARKED)
+**Description:** Moves the custodian requirement earlier in the exhibit lifecycle. Phase 7's F12 requires a custodian only at the ADMITTED transition; this feature requires every exhibit to have a custodian of record the moment it is marked into evidence, closing the window during which an exhibit exists in the system with no chain-of-custody starting point.
+
+**Capabilities:**
+- The MARKED transition (exhibit intake) is rejected if no custodian is supplied, using the same reject-with-reason pattern F12 established for ADMITTED
+- Chain-of-custody history (F3) therefore always has a defined starting link for every exhibit, with no gap between intake and first custody record
+- Enforced at the shared service layer so no entry point (UI, API, seed loader, future automation) can create a custodian-less exhibit at any lifecycle stage
+- Existing F12 admission-time custodian check is retained unchanged — this feature adds an earlier gate, it does not replace the later one
+
+**Priority:** P0 (Critical — closes a custody-gap window F12 leaves open between intake and admission)
+
+---
+
+### F19: Custody Handoff Confirmation
+**Description:** Converts the current unilateral `recordCustodyTransfer` action into a two-phase propose/accept flow, so a custody record reflects that the receiving party actually took possession rather than merely that someone asserted a transfer occurred.
+
+**Capabilities:**
+- A custody transfer is initiated as a PROPOSED event naming the sending and intended receiving custodian — it does not change current custody by itself
+- The named receiving custodian must explicitly acknowledge/accept the transfer before custody of record changes; acceptance is itself a discrete, timestamped ledger event
+- A proposed-but-not-yet-accepted transfer is visibly distinguished from a confirmed transfer on Custody Tracking (F3) and the Exhibit Detail View (F10) — "who currently has custody" always reflects the last *accepted* transfer, never a pending proposal
+- A proposed transfer can be rejected or left pending by the intended receiver, and the system clearly surfaces transfers awaiting acceptance so they are not silently lost
+- Existing wrong-holder-rejection validation from F3/Phase 1 is preserved: only the current custodian of record can propose a transfer
+
+**Priority:** P0 (Critical — product-owner-flagged gap: a unilateral custody record cannot support a credible chain-of-custody claim)
+
+---
+
+### F20: Server-Side Role Enforcement Matrix (Full RBAC)
+**Description:** Extends server-side role checking — already applied to rulings, jury-package finalization, and discrepancy acknowledgment — to every write action in the system, under a single, explicit permission matrix: Judges record rulings; Deputies/Clerks handle marking, custody, and jury-package operations; Attorneys raise objections and view. Every write validates the ACTING user's actual server-side role against this matrix; no write path relies on client-side role-switcher state alone.
+
+**Note — scope reversal:** This feature explicitly reverses a v1 scope exclusion. Both the PRD's Technical Architecture section and `TechArch/00-overview.md` / `TechArch/05-tech-stack.md` / `TechArch/04-security.md` §5.5 previously recorded "full OAuth/production-grade auth hardening" as out of scope for this demo, relying on a client-side role switcher with partial server-side checks (rulings, finalize, acknowledge only). The product owner has now requested full server-side enforcement across all write actions. This is recorded here, in the PRD, so the reversal is traceable rather than silently superseding the prior architectural decision; TechArch and FRD must be updated in this phase's planning to reflect the new permission matrix in place of the prior "seeded users + role switcher, partial checks" model.
+
+**Capabilities:**
+- A single, explicit permission matrix governs every write endpoint: status transitions (mark/offer/admit/exclude/withdraw), objection raising, custody propose/accept (F19), and jury-package operations, in addition to the rulings/finalize/acknowledge checks that already exist
+- Every write handler resolves the ACTING user's role from server-side session/identity state (not a client-supplied value) and rejects any action outside that role's permitted set, with a clear "role not permitted for this action" reason
+- Judges: record rulings (and any judge-reserved actions). Deputies/Clerks: marking, custody operations, jury-package build/finalize. Attorneys: raise objections, read/view only — no write access outside objections
+- Permission matrix is enforced at the shared service layer, so UI, API, and assistant tool-call paths cannot diverge in what they allow
+- Does not introduce full production authentication (OAuth/OIDC/session hardening remains explicitly out of scope) — this feature hardens *authorization* (what a known, seeded role may do), not *authentication* (proving who the user is)
+
+**Priority:** P0 (Critical — product-owner-flagged gap, and a direct reversal of a recorded v1 exclusion; partial server-side role checks were assessed as insufficient after the live demo review)
+
+---
+
+### F21: Pending-Ruling Queue
+**Description:** A new judge-facing view listing every currently open objection across the case, ordered by elapsed wait time, so a judge can immediately see which objections have been waiting longest for a ruling rather than discovering them exhibit-by-exhibit.
+
+**Capabilities:**
+- Lists all open (unresolved) objection threads case-wide, each showing the associated exhibit, objecting party, grounds, and elapsed time since the objection was raised
+- Default sort is elapsed wait time descending (longest-waiting first), so the queue itself prioritizes judicial attention without manual sorting
+- Entries link directly into the ruling-recording action for that objection (and into the Exhibit Detail View, F10, for full context)
+- Reads through the same service layer as F2 (Objection and Ruling Tracking) and F6 (Discrepancy Identification) — no parallel query path that could diverge from what Exhibit Detail or Case Workspace shows for the same objection
+- Role-restricted to Judges per the F20 permission matrix (Deputies/Clerks/Attorneys do not get a ruling-recording entry point from this queue)
+
+**Priority:** P1 (High — directly supports judicial workflow and complements F17's state-machine hardening, but the case can still function without a dedicated queue view in the short term)
+
+---
+
+### F22: Multi-Case Support with Case Selector
+**Description:** Replaces the current hardcoded single-demo-case assumption with the ability to list active cases and switch between them, so the product can be demonstrated against more than one case without a redeploy or data reset.
+
+**Note — scope reversal:** This feature explicitly reverses a v1 scope exclusion. `TechArch/04-security.md` §5.5 previously recorded "Multi-tenant data isolation (single-case scope — `case_id` exists in the schema for future partitioning but no tenant-isolation enforcement is implemented)" as out of scope, and the Technical Architecture / NFR sections of this PRD assumed single-case scale throughout (see NFRs and the F4/F9 descriptions). The product owner has now requested multi-case support as a follow-on to the live demo. This is recorded here so the reversal is traceable; TechArch, FRD, and the NFR section's "single case" scale assumptions must be revisited in this phase's planning rather than left silently inconsistent with the new capability.
+
+**Capabilities:**
+- A case selector lists all active cases available to the current user and allows switching the active case context for every screen (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) and the assistant
+- `case_id` scoping — already present in the schema per the prior TechArch note but not enforced — becomes an enforced isolation boundary: all queries, writes, and assistant tool calls are scoped to the currently selected case, with no cross-case data leakage
+- Switching cases updates all open screens and the assistant's working context consistently, with no stale single-case assumptions remaining in any service-layer query
+- Seed data is extended to include at least a second case so multi-case switching is demonstrable, not just structurally possible
+
+**Priority:** P1 (High — a genuine scope expansion the product owner requested; important for broader sales demos but not a correctness/integrity defect in the existing single-case scenario)
+
+---
+
+### F23: Versioned Jury Packages with PDF Export
+**Description:** Replaces the current `window.print()`-based export on the Jury Package Workspace (F11) with real, generated PDF export, and adds version history so every finalization produces a permanent, retrievable record of exactly what the jury received at that point in time.
+
+**Capabilities:**
+- Finalizing a jury package generates an actual PDF document (not a browser print dialog), suitable for formal handoff and archival
+- Each finalization is recorded as a new, immutable version — re-finalizing after changes (e.g., a late exclusion per F13) produces a new version rather than overwriting the prior one
+- Full version history is retrievable per case: which exhibits were included, in what classification/status state, at each finalization timestamp
+- The currently-active/most-recent version is clearly distinguished from historical versions on the Jury Package Workspace
+- Generated PDFs reflect the same discrepancy-gated, classification-excluded exhibit set (F6, F13, F16) that the live workspace view shows — no divergence between what is displayed and what is exported
+
+**Priority:** P1 (High — strengthens the "permanent, authoritative record" value proposition and directly supports the named jury-package demo scenario, but the existing print-based export remains functional in the interim)
+
+---
+
 ## 6. Non-Functional Requirements
 
 - **Trustworthiness over fluency:** Every assistant answer must be traceable to a specific ledger record; the system must never generate a plausible-sounding but unsupported claim (analogous to real-world sanctions over fabricated AI legal citations).
@@ -331,10 +443,18 @@ Specific pain points this demo targets:
 | F13 | Jury Package Ex Parte / Sealed Exclusion | Differentiator | P0 |
 | F14 | Discrepancy Acknowledgment Transparency | Differentiator | P1 |
 | F15 | Courtroom Usability Fixes | Usability | P1 |
+| F16 | Exhibit Classification Taxonomy | Status Tracking | P0 |
+| F17 | Objection-to-Admission State-Machine Hardening | Status Tracking | P0 |
+| F18 | Custodian Required at Intake (MARKED) | Status Tracking | P0 |
+| F19 | Custody Handoff Confirmation | Status Tracking | P0 |
+| F20 | Server-Side Role Enforcement Matrix (Full RBAC) | Security / Scope Reversal | P0 |
+| F21 | Pending-Ruling Queue | UI Screen | P1 |
+| F22 | Multi-Case Support with Case Selector | Scope Reversal | P1 |
+| F23 | Versioned Jury Packages with PDF Export | Differentiator | P1 |
 
 **Priority Summary:**
-- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11, F12, F13 — 12 features
-- **P1 (High):** F4, F8, F14, F15 — 4 features
+- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11, F12, F13, F16, F17, F18, F19, F20 — 17 features
+- **P1 (High):** F4, F8, F14, F15, F21, F22, F23 — 7 features
 - **P2 / P3:** None at this stage — all defined features are considered necessary for a credible end-to-end demo
 
 ---

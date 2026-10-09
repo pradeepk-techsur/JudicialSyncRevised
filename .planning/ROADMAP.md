@@ -19,6 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens (completed 2026-10-08)
 - [x] **Phase 6: Carbon Design System UI Upgrade** - Replace the Tailwind/shadcn visual foundation and every screen's components with IBM Carbon Design System, across all 5 shipped phases (completed 2026-10-08)
 - [ ] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues
+- [ ] **Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export** (INSERTED) - Chambers/sealed classification enforced at intake, full state-machine + server-side role enforcement, custody handoff confirmation, pending-ruling queue, multi-case support, and versioned jury packages with PDF export
 
 ## Phase Details
 
@@ -160,10 +161,20 @@ Plans:
 - [ ] 07-06-PLAN.md — F14 discrepancy acknowledgment transparency: read-time justification join + always-visible disclosure + full audit record rendering
 - [ ] 07-07-PLAN.md — F13 exclude workflow: excludeJuryPackageExhibit service/route + Jury Package Workspace CRITICAL row + Remove-from-Package UI
 
+### Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /pivota_spec-plan-phase 7.1 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -174,4 +185,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
 | 7. Fix admission integrity and UI usability issues | 0/7 | In progress | — |
-**Status**: In progress
+| 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |

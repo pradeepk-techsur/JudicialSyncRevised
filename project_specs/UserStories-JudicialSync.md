@@ -617,6 +617,332 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+## Epic 16: Exhibit Classification Taxonomy (F16)
+
+### US-16.1: Classify an Exhibit at Intake
+**As a** Courtroom Deputy Dana Reyes, **I want to** assign a mandatory TRIAL/CHAMBERS_EX_PARTE/SEALED classification when I create an exhibit, **so that** every exhibit's sensitivity is captured accurately from the moment it enters the record, not inferred or corrected later.
+
+**Acceptance Criteria:**
+- [ ] `classification` is required on `POST /api/exhibits`; a missing value is rejected with 422 `CLASSIFICATION_REQUIRED`
+- [ ] `classification` must be one of `TRIAL`, `CHAMBERS_EX_PARTE`, `SEALED`; any other value is rejected with 422 `INVALID_CLASSIFICATION`
+- [ ] `Exhibit.isSealed` is computed server-side as `(classification !== 'TRIAL')` within the same transaction; a client-supplied `isSealed` value in the request body is ignored
+- [ ] No endpoint accepts a `classification` update after creation — classification is immutable for the life of the exhibit, enforced by omission (no such route exists)
+
+**Priority:** P0 | **Feature Ref:** F16
+
+---
+
+### US-16.2: Trust Chambers-Ex-Parte and Sealed Exhibits Are Hard-Excluded From Jury Candidacy
+**As a** Clerk of Court, **I want to** have chambers-ex-parte and sealed exhibits be structurally impossible to include in a jury package, **so that** I never have to remember to manually filter them out myself.
+
+**Acceptance Criteria:**
+- [ ] `computeJuryCandidates` filters `classification = 'TRIAL'` in the same query as the `ADMITTED`-status filter — `CHAMBERS_EX_PARTE` and `SEALED` are excluded identically, not via a later filtering pass
+- [ ] A `CHAMBERS_EX_PARTE` exhibit is never passed into `evaluateDiscrepancies` for jury-package purposes and can never be assigned `CLEAN` or `FLAGGED`
+- [ ] Seed data includes at least one `CHAMBERS_EX_PARTE` exhibit and one `SEALED` exhibit, each admitted, and both are confirmed independently absent from `computeJuryCandidates`'s result set
+- [ ] Role-based visibility continues to read the now-classification-derived `isSealed` value unchanged — no separate visibility-table change was required or made
+
+**Priority:** P0 | **Feature Ref:** F16
+
+---
+
+## Epic 17: Objection-to-Admission State-Machine Hardening (F17)
+
+### US-17.1: Trust the Admission Gate Already Blocks Admission Over an Unruled Objection
+**As a** Administrator Priya Nair, **I want to** have a dedicated regression test confirming F12's existing Admission Gate rejects `OBJECTED → ADMITTED` whenever any objection thread has had no ruling recorded, **so that** I can trust this guarantee holds permanently rather than being an untested emergent property of two unrelated features.
+
+**Acceptance Criteria:**
+- [ ] Regression test: objection raised, no ruling yet recorded, attempt `toStatus = ADMITTED` is rejected with the existing 422 `ADMISSION_BLOCKED` / `UNRESOLVED_OBJECTION` response, unchanged from F12
+- [ ] No new runtime validation mechanism, error code, or API surface is introduced by this feature — F12's existing gate is the sole enforcement point
+- [ ] Test confirms that once a `SUSTAINED` or `OVERRULED` ruling is recorded against every open thread, a subsequent `ADMITTED` attempt succeeds via F12's existing, unchanged success path
+- [ ] The test suite is positioned to catch any future code change that bypasses `recordEvent` and mutates `ObjectionCurrentState` directly
+
+**Priority:** P0 | **Feature Ref:** F17
+
+---
+
+### US-17.2: Confirm Direct OFFERED → ADMITTED Remains Legal When No Objection Was Ever Raised
+**As a** Courtroom Deputy Dana Reyes, **I want to** have an exhibit that was never objected to move directly from `OFFERED` to `ADMITTED`, **so that** I am not forced through a meaningless `OBJECTED` detour for exhibits no attorney ever challenged.
+
+**Acceptance Criteria:**
+- [ ] Regression test: exhibit with zero `ObjectionCurrentState` rows attempts `OFFERED → ADMITTED` directly and succeeds, unaffected by F12's gate
+- [ ] F12's `UNRESOLVED_OBJECTION` blocking reason does not apply when no objection thread exists for the exhibit at all — the gate's query returns zero rows, not an error
+- [ ] This transition's behavior, inputs, and outputs are identical to F12's pre-existing specification — no new validation rule governs it
+
+**Priority:** P1 | **Feature Ref:** F17
+
+---
+
+## Epic 18: Custodian Required at Intake (F18)
+
+### US-18.1: Establish a Custodian Atomically When an Exhibit Is First Marked Into Evidence
+**As a** Courtroom Deputy Dana Reyes, **I want to** have the system require and record a custodian in the same transaction as an exhibit's first `MARKED` status transition, **so that** no exhibit can ever exist having entered the evidence lifecycle with no custody chain started.
+
+**Acceptance Criteria:**
+- [ ] The first-ever `STATUS_CHANGE` event for an exhibit (`toStatus = MARKED`, zero prior events) requires `custodianUserId` in the same request
+- [ ] The `STATUS_CHANGE` event and a `CUSTODY_TRANSFER_CONFIRMED` event (`fromCustodianUserId: null`) are appended within a single database transaction — both succeed or both fail, with no intermediate state
+- [ ] `custodianUserId` must reference an existing, active `User` — invalid values rejected with 422 `INVALID_CUSTODIAN` (reused from F03)
+- [ ] All transitions after the first (`MARKED → OFFERED`, etc.) do not require or accept `custodianUserId` — this gate applies only to the exhibit's first-ever `STATUS_CHANGE` event
+
+**Priority:** P0 | **Feature Ref:** F18
+
+---
+
+### US-18.2: Be Blocked From Marking an Exhibit Into Evidence Without a Custodian
+**As a** Administrator Priya Nair, **I want to** have the first `MARKED` transition rejected outright when no custodian is supplied, **so that** this requirement is enforced structurally rather than relying on a deputy remembering a separate manual step.
+
+**Acceptance Criteria:**
+- [ ] A first-ever `toStatus = MARKED` request with no `custodianUserId` is rejected with 422 `CUSTODIAN_REQUIRED_AT_INTAKE` before any write occurs
+- [ ] F12's existing admission-time custodian check continues to run independently and unchanged at the later `ADMITTED` transition — this feature does not replace or weaken it
+- [ ] The seed loader is subject to the identical gate — a seed assertion fails fast if any seeded exhibit's `MARKED` transition was recorded without a custodian
+- [ ] All other existing status-transition error scenarios (invalid transition, finalized status, stale-state conflict) are returned unchanged from their F1/F12-defined behavior
+
+**Priority:** P0 | **Feature Ref:** F18
+
+---
+
+## Epic 19: Custody Handoff Confirmation (F19)
+
+### US-19.1: Propose a Custody Transfer
+**As a** Courtroom Deputy Dana Reyes, **I want to** propose handing an exhibit to a named receiving custodian without immediately changing who the system considers the current custodian, **so that** custody only changes once the receiver has actually acknowledged taking it.
+
+**Acceptance Criteria:**
+- [ ] Propose requires `fromCustodianUserId` to exactly match `CustodyCurrentState.currentCustodianUserId` — mismatches rejected with 409 `CUSTODY_CHAIN_BROKEN` (F03, unchanged)
+- [ ] Propose is rejected with 409 `CUSTODY_TRANSFER_ALREADY_PENDING` if a transfer is already pending for the exhibit
+- [ ] `toCustodianUserId` must reference a valid active user and differ from `fromCustodianUserId`, reusing F03's `INVALID_CUSTODIAN` / `NO_OP_TRANSFER` checks
+- [ ] A successful propose appends an immutable `CUSTODY_TRANSFER_PROPOSED` event and populates `CustodyCurrentState`'s `pendingTransferToUserId`/`pendingTransferEventId`/`pendingTransferProposedAt` fields — `currentCustodianUserId` is not modified
+
+**Priority:** P0 | **Feature Ref:** F19
+
+---
+
+### US-19.2: Confirm Receipt of a Proposed Custody Transfer
+**As a** Clerk of Court, **I want to** have only the specific person named as the intended receiver able to confirm a pending custody transfer, **so that** custody can never be recorded as transferred to someone who never actually acknowledged receiving it.
+
+**Acceptance Criteria:**
+- [ ] Confirm is rejected with 403 `CUSTODY_CONFIRM_WRONG_USER` unless `actorUserId` exactly equals the pending transfer's `toCustodianUserId` — an identity match, not merely a role check; no other user, including the original proposer, may confirm
+- [ ] Confirm is rejected with 404 `CUSTODY_CONFIRMATION_NOT_PENDING` if no transfer is currently pending for the exhibit, or if the supplied `proposedEventId` does not match the pending proposal
+- [ ] A successful confirm appends a `CUSTODY_TRANSFER_CONFIRMED` event, sets `currentCustodianUserId` to the receiver, updates `since`/`lastEventId`, and clears all three pending fields to null
+- [ ] `getCustodian(exhibitId)` and `getCustodyHistory(exhibitId)` reflect the confirmed transfer identically across Custody Tracking, Exhibit Detail, and the assistant's `getCustodian` tool
+
+**Priority:** P0 | **Feature Ref:** F19
+
+---
+
+### US-19.3: Cancel a Pending Custody Transfer
+**As a** Courtroom Deputy Dana Reyes, **I want to** cancel a custody transfer I proposed if it's no longer going to happen, **so that** the exhibit isn't left in a permanently "pending" state with no way to clear it.
+
+**Acceptance Criteria:**
+- [ ] Cancel is only available while a transfer is currently pending for the exhibit — rejected with 404 `CUSTODY_CONFIRMATION_NOT_PENDING` otherwise
+- [ ] Cancel may be performed by the original proposer or any user holding an F20-authorized propose role
+- [ ] A successful cancel appends an immutable `CUSTODY_TRANSFER_CANCELLED` event and clears the three pending fields to null; `currentCustodianUserId` is unaffected since it was never changed by the proposal
+- [ ] The cancelled proposal remains visible in `getCustodyHistory`'s ordered timeline rather than disappearing — a superseded proposal is never erased from the record
+
+**Priority:** P1 | **Feature Ref:** F19
+
+---
+
+### US-19.4: Trust the Exhibit's First-Ever Custody Assignment Bypasses the Two-Phase Flow
+**As a** Administrator Priya Nair, **I want to** have the exhibit's very first custody link (established at intake) recorded as a single, immediately-effective event rather than requiring a propose/confirm round-trip, **so that** the two-phase model only applies where there is an actual predecessor custodian to formalize a handoff from.
+
+**Acceptance Criteria:**
+- [ ] At the `(none) → MARKED` transition, the service layer appends a `CUSTODY_TRANSFER_CONFIRMED` event directly (`fromCustodianUserId: null`) with no preceding `CUSTODY_TRANSFER_PROPOSED` event, and no pending-transfer fields are ever populated for this specific event
+- [ ] The legacy unilateral custody endpoint is retained only for this first-transfer (`fromCustodianUserId: null`) case; calling it with a non-null `fromCustodianUserId` (any transfer after the first) is rejected with 409 `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION`, directing the caller to propose/confirm instead
+- [ ] Every custody transfer after the first-ever assignment is subject to the full two-phase propose/confirm/cancel flow with no exception
+- [ ] This bootstrap behavior is exercised identically whether triggered by the live UI or the seed loader — no seed-only bypass exists
+
+**Priority:** P0 | **Feature Ref:** F19, F18
+
+---
+
+## Epic 20: Server-Side Role Enforcement Matrix (F20)
+
+### US-20.1: Be Blocked From Creating an Exhibit Outside My Role's Permission
+**As a** Administrator Priya Nair, **I want to** have exhibit creation rejected server-side for any role other than DEPUTY, CLERK, or ADMIN, **so that** only operationally authorized roles can introduce new exhibits into the record, regardless of what the client UI renders.
+
+**Acceptance Criteria:**
+- [ ] `POST /api/exhibits` resolves the acting user's role from the `User.role` database column via `actorUserId` — never from a client-supplied role claim
+- [ ] A request from a `JUDGE`, `CHAMBERS_STAFF`, or `ATTORNEY` role is rejected with 403 `ROLE_NOT_PERMITTED` ("Only a courtroom deputy, clerk, or admin may create an exhibit") before any field-level validation runs
+- [ ] A request from `DEPUTY`, `CLERK`, or `ADMIN` proceeds exactly as F0 already specifies — this gate adds only a precondition, no downstream behavior changes
+- [ ] The gate is enforced inside the shared service function, not duplicated per route, consistent with F12's established enforcement pattern
+
+**Priority:** P0 | **Feature Ref:** F20
+
+---
+
+### US-20.2: Be Blocked From Recording a Status Transition Outside My Role's Permission
+**As a** Administrator Priya Nair, **I want to** have every status-transition endpoint (mark/offer/withdraw and admit/exclude alike) reject any role other than DEPUTY, CLERK, or ADMIN, **so that** only operational roles can move an exhibit through its lifecycle.
+
+**Acceptance Criteria:**
+- [ ] A mark/offer/withdraw transition from a `JUDGE`, `CHAMBERS_STAFF`, or `ATTORNEY` role is rejected with 403 `ROLE_NOT_PERMITTED` ("Only a courtroom deputy, clerk, or admin may record this status transition")
+- [ ] An admit/exclude transition is rejected identically for the same disallowed roles, reusing the same `ROLE_NOT_PERMITTED` message
+- [ ] `assertRole` is evaluated before F1/F12/F18's existing field-level, state-machine, and admission-gate validations — a disallowed-role request never reaches those checks
+- [ ] A request from `DEPUTY`, `CLERK`, or `ADMIN` is unaffected and proceeds through F1/F12/F18's existing logic unchanged
+
+**Priority:** P0 | **Feature Ref:** F20
+
+---
+
+### US-20.3: Be Blocked From Raising an Objection Outside My Role's Permission
+**As a** Attorney Marcus Webb, **I want to** have objection-raising restricted server-side to ATTORNEY, DEPUTY, CLERK, and ADMIN roles, **so that** I can trust that only parties and court staff with a legitimate reason to object can create an objection thread.
+
+**Acceptance Criteria:**
+- [ ] A raise-objection request from a `JUDGE` or `CHAMBERS_STAFF` role is rejected with 403 `ROLE_NOT_PERMITTED` ("Only an attorney, courtroom deputy, clerk, or admin may raise an objection")
+- [ ] A request from `ATTORNEY`, `DEPUTY`, `CLERK`, or `ADMIN` proceeds through F02's existing validation (grounds required, exhibit must be `OFFERED`/`OBJECTED`) unchanged
+- [ ] The role check runs before F02's field-level validation — a malformed request from a disallowed role returns `ROLE_NOT_PERMITTED`, not a validation error, leaking no information about request validity
+- [ ] Ruling disposition (`SUSTAINED`/`OVERRULED`/`RESERVED`) remains strictly JUDGE-only, unchanged from F02 — this feature does not alter that existing gate
+
+**Priority:** P0 | **Feature Ref:** F20
+
+---
+
+### US-20.4: Be Blocked From Proposing a Custody Transfer Outside My Role's Permission
+**As a** Administrator Priya Nair, **I want to** have custody-transfer proposals restricted server-side to DEPUTY, CLERK, and ADMIN roles, **so that** only operational roles can initiate a handoff.
+
+**Acceptance Criteria:**
+- [ ] A propose request from a `JUDGE`, `CHAMBERS_STAFF`, or `ATTORNEY` role is rejected with 403 `ROLE_NOT_PERMITTED` ("Only a courtroom deputy, clerk, or admin may propose a custody transfer")
+- [ ] A request from `DEPUTY`, `CLERK`, or `ADMIN` proceeds through F19's existing propose validation (current-custodian match, no-pending-transfer check) unchanged
+- [ ] The cancel action (proposer, or any user holding an F20-authorized propose role) is unaffected by this story and continues per F19 §Validation
+
+**Priority:** P0 | **Feature Ref:** F20
+
+---
+
+### US-20.5: Be Blocked From Confirming a Custody Transfer Outside My Role's Permission
+**As a** Administrator Priya Nair, **I want to** have custody-transfer confirmation restricted server-side to DEPUTY, CLERK, and ADMIN roles in addition to F19's exact-identity check, **so that** both "is this role generally allowed" and "is this specifically the named receiver" are independently enforced.
+
+**Acceptance Criteria:**
+- [ ] A confirm request from a `JUDGE`, `CHAMBERS_STAFF`, or `ATTORNEY` role is rejected with 403 `ROLE_NOT_PERMITTED` ("Only a courtroom deputy, clerk, or admin may confirm custody receipt"), evaluated before F19's identity check
+- [ ] A `DEPUTY` who is role-permitted but is not the pending transfer's named receiver is still rejected, but with F19's 403 `CUSTODY_CONFIRM_WRONG_USER` rather than `ROLE_NOT_PERMITTED` — the two checks are independent and both must pass
+- [ ] An `ADMIN` confirming on behalf of someone else is likewise rejected with `CUSTODY_CONFIRM_WRONG_USER` if they are not the named receiver — no role, including `ADMIN`, overrides the identity match
+- [ ] Only a `DEPUTY`, `CLERK`, or `ADMIN` who is also the exact named receiver can successfully confirm
+
+**Priority:** P0 | **Feature Ref:** F20, F19
+
+---
+
+### US-20.6: Trust Every Role Check Resolves From the Database, Never From a Client Claim
+**As a** Administrator Priya Nair, **I want to** have every one of the matrix's role checks resolve the acting user's role via a server-side `User.role` lookup rather than trusting any client-supplied role value, **so that** no request can claim a higher-privileged role than the seeded user actually holds.
+
+**Acceptance Criteria:**
+- [ ] `assertRole(actorUserId, allowedRoles, actionLabel)` always performs a database lookup of `actorUserId`'s `User.role` column — a role value present in a request body or header is never read or trusted
+- [ ] Every one of the 10 matrix actions (create exhibit, mark/offer/withdraw, admit/exclude, raise objection, record ruling, propose custody, confirm custody, acknowledge discrepancy, initiate/finalize jury package, exclude jury package exhibit) calls this single shared helper rather than a re-implemented per-feature check
+- [ ] `ADMIN` is permitted for every action in the matrix except ruling disposition, which remains strictly JUDGE-only with no override, including for `ADMIN`
+- [ ] The assistant's tool wrappers remain read-only and unaffected by this matrix in this version, since none of the 8 tools perform a write
+
+**Priority:** P1 | **Feature Ref:** F20
+
+---
+
+## Epic 21: Pending-Ruling Queue (F21)
+
+### US-21.1: View All Unresolved Objections Sorted by Longest Wait
+**As a** Judge Elena Marsh, **I want to** see a dedicated queue listing every currently-unresolved objection case-wide, sorted with the longest-waiting objection first, **so that** I can address the oldest outstanding objections before newer ones, without hunting exhibit-by-exhibit.
+
+**Acceptance Criteria:**
+- [ ] The queue screen is reachable only via a `JUDGE`-role navigation entry point, per F20's permission matrix
+- [ ] Rows are sorted by elapsed wait time (`now() − raisedAt`) descending — the objection that has been unresolved longest appears first
+- [ ] Each row displays exhibit label, objecting party, grounds, and a live-updating elapsed-time value, recomputed on every live-sync poll tick
+- [ ] The queue reuses F02's existing `getUnresolvedObjections(caseId)` response, additively widened with `exhibitLabel` via a read-time join — no new endpoint or schema change
+
+**Priority:** P1 | **Feature Ref:** F21
+
+---
+
+### US-21.2: Act on a Queue Entry Without Losing Context
+**As a** Judge Elena Marsh, **I want to** click directly from a pending-ruling queue entry into recording my ruling or into that exhibit's full history, **so that** I can resolve an objection in the same flow I spotted it in.
+
+**Acceptance Criteria:**
+- [ ] Each row links into the existing ruling-recording action (`POST /api/objections/:id/ruling`, F02) for that specific objection thread
+- [ ] Each row also links into the Exhibit Detail View (F10) for the concerned exhibit, for full context before ruling
+- [ ] Once a ruling is recorded against a thread (from this screen or any other), the thread disappears from the queue on its next poll tick with no special-case removal logic
+- [ ] A row whose underlying exhibit is not visible to the requesting role (e.g., a sealed/chambers-ex-parte exhibit's objection) is omitted entirely from the queue, never rendered with a blank or placeholder label
+
+**Priority:** P1 | **Feature Ref:** F21
+
+---
+
+## Epic 22: Multi-Case Support (F22)
+
+### US-22.1: List All Cases Available to Me
+**As a** Clerk of Court, **I want to** see a list of every case in the system, **so that** I can find and open the specific case I need to work in rather than being locked into a single hardcoded trial.
+
+**Acceptance Criteria:**
+- [ ] `GET /api/cases` returns every `Case` row (`{ id, caseNumber, title, court, createdAt }`) with no role restriction — case existence itself is not sensitive
+- [ ] On first load with no previously-selected case, the client defaults to the first case by `createdAt` ascending (the original seeded demo case), preserving today's zero-interaction behavior
+- [ ] Seed data includes a second, independent `Case` with its own exhibits and history, so switching between two populated cases is demonstrable
+- [ ] The case list is independent of exhibit-level sealed/classification visibility (F16), which remains governed entirely by role, not by case selection
+
+**Priority:** P1 | **Feature Ref:** F22
+
+---
+
+### US-22.2: Switch My Active Case via a Selector
+**As a** Courtroom Deputy Dana Reyes, **I want to** use a case selector in the app header, alongside the role switcher, to change which case I'm actively working in, **so that** I can move between cases without reloading the application or losing my place.
+
+**Acceptance Criteria:**
+- [ ] Selecting a different case in the Case Selector updates client-side active-case state (modeled on the existing role-switcher store) and is immediately reflected in the header
+- [ ] Every open screen (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) and the assistant refetch against the newly-selected `caseId` using the same refetch mechanism already used on a role switch
+- [ ] `GET /api/cases/:id` (replacing the prior no-argument `GET /api/case`) returns the identical case+roster shape as before, now explicitly parameterized
+- [ ] A request for a nonexistent `caseId` is rejected with the existing 404 `CASE_NOT_FOUND`
+
+**Priority:** P1 | **Feature Ref:** F22
+
+---
+
+### US-22.3: Trust No Screen or Query Ever Leaks Data Across Cases
+**As a** Administrator Priya Nair, **I want to** have every read and write scoped to exactly the currently-selected case, with zero exceptions, **so that** switching cases can never cause one case's data to bleed into another's view, even transiently.
+
+**Acceptance Criteria:**
+- [ ] Every amended service function (exhibit list/search, activity feed, discrepancies, jury package, assistant tool calls) filters explicitly on the caller-supplied `caseId` — a query scoped to `caseId = A` never returns rows belonging to `caseId = B`
+- [ ] No screen continues displaying data scoped to a previously-selected case after a switch — every open screen's next refetch reflects the newly-selected case with no stale carryover frame
+- [ ] The assistant's tool wrappers receive `caseId` as part of the same per-turn context as `userId`/`role` — an assistant conversation started under one case never answers using another case's records
+- [ ] Role-based visibility rules (sealed/classification exclusion) continue to apply exactly as before, now additionally scoped by the selected case — a user's role permissions do not change per case, only the exhibit set they're evaluated against
+
+**Priority:** P0 | **Feature Ref:** F22
+
+---
+
+## Epic 23: Versioned Jury Packages + PDF Export (F23)
+
+### US-23.1: Have Every Finalization Create a Permanent, Numbered Version
+**As a** Clerk of Court, **I want to** have each jury package finalization produce an immutable, sequentially-numbered version, **so that** I have a permanent record of exactly what the jury received at that specific point in the trial, even if a new package is prepared later.
+
+**Acceptance Criteria:**
+- [ ] Finalization computes `version` as the case's highest prior `FINALIZED` version + 1 (or 1 if none exists), assigned atomically in the same transaction as `status = 'FINALIZED'`/`finalizedAt`/`finalizedBy`
+- [ ] `(caseId, version)` is unique at the database level — two packages for the same case can never share a version number
+- [ ] A new `DRAFT` package may be created after a prior version was finalized, per F05's existing rule — the new draft has `version = null` until it, too, is finalized
+- [ ] Once a version is assigned, it is never reassigned or recomputed — it is part of the immutable finalized snapshot, exactly like `finalizedAt`/`finalizedBy`
+
+**Priority:** P0 | **Feature Ref:** F23
+
+---
+
+### US-23.2: Export a Finalized Jury Package as a Real PDF
+**As a** Courtroom Deputy Dana Reyes, **I want to** export a finalized jury package as an actual downloadable PDF file, **so that** I can hand off a document that behaves reliably across printers and devices instead of relying on a browser's print dialog.
+
+**Acceptance Criteria:**
+- [ ] `GET /api/jury-package/:id/export` generates a PDF server-side (via `@react-pdf/renderer`) and streams it back as `application/pdf` — a real downloadable file, not a `window.print()` dialog
+- [ ] Export is rejected with 422 `JURY_PACKAGE_EXPORT_NOT_FINALIZED` when attempted against a `DRAFT` package — only a `FINALIZED` package can be exported
+- [ ] The exported PDF includes case identification, finalization timestamp, finalizing user, and one entry per `INCLUDED` exhibit (label, description, classification, status at finalization) — F13-excluded rows are never rendered into the export
+- [ ] Export of a nonexistent package id is rejected with 404 `JURY_PACKAGE_VERSION_NOT_FOUND`; a render-time failure is rejected with 500 `PDF_GENERATION_FAILED`
+
+**Priority:** P0 | **Feature Ref:** F23
+
+---
+
+### US-23.3: Locate and Export Any Prior Finalized Version
+**As a** Clerk of Court, **I want to** see the full version history for a case's jury packages and export any prior finalized version independently, **so that** I can retrieve exactly what a specific version of the jury package contained, not only the most recent one.
+
+**Acceptance Criteria:**
+- [ ] `GET /api/cases/:id/jury-package/versions` lists every `JuryPackage` for the case (every `FINALIZED` version plus the current `DRAFT` if one exists), each annotated with `isMostRecent` (`true` only for the highest-`version` `FINALIZED` row)
+- [ ] The Jury Package Workspace surfaces the most-recent version prominently and the full version history as a secondary view, so a user can locate and act on any prior version
+- [ ] Re-exporting the same version at a later date always produces an identical PDF — the export is deterministic per version, reflecting the exhibit set and classification/status snapshot at that finalization time, never the exhibits' current live state
+- [ ] Each historical `FINALIZED` version remains independently exportable via `GET /api/jury-package/:id/export` using that version's own id — exporting an older version never requires or depends on the most-recent version still existing in `DRAFT` form
+
+**Priority:** P1 | **Feature Ref:** F23
+
+---
+
 ## Summary Table
 
 | Epic | Story Count | P0 | P1 | P2 |
@@ -637,7 +963,15 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 | Epic 13: Jury Package Ex Parte / Sealed Exclusion (F13) | 3 | 3 | 0 | 0 |
 | Epic 14: Discrepancy Acknowledgment Transparency (F14) | 3 | 0 | 3 | 0 |
 | Epic 15: Courtroom Usability Fixes (F15) | 5 | 1 | 2 | 2 |
-| **Total** | **45** | **30** | **13** | **2** |
+| Epic 16: Exhibit Classification Taxonomy (F16) | 2 | 2 | 0 | 0 |
+| Epic 17: Objection-to-Admission State-Machine Hardening (F17) | 2 | 1 | 1 | 0 |
+| Epic 18: Custodian Required at Intake (F18) | 2 | 2 | 0 | 0 |
+| Epic 19: Custody Handoff Confirmation (F19) | 4 | 3 | 1 | 0 |
+| Epic 20: Server-Side Role Enforcement Matrix (F20) | 6 | 5 | 1 | 0 |
+| Epic 21: Pending-Ruling Queue (F21) | 2 | 0 | 2 | 0 |
+| Epic 22: Multi-Case Support (F22) | 3 | 1 | 2 | 0 |
+| Epic 23: Versioned Jury Packages + PDF Export (F23) | 3 | 2 | 1 | 0 |
+| **Total** | **69** | **46** | **21** | **2** |
 
 ---
 
@@ -653,4 +987,4 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-08 (added Epics 12–15 for Phase 7: admission integrity + UI usability fixes)*
+*Last updated: 2026-10-09 (added Epics 16–23 for Phase 7.1: exhibit classification, state-machine hardening, custody handoff confirmation, server-side RBAC, pending-ruling queue, multi-case support, jury-package versioning/PDF export)*

@@ -67,11 +67,31 @@ CREATE TYPE objection_status AS ENUM (
 
 CREATE TYPE event_type AS ENUM (
     'STATUS_CHANGE', 'OBJECTION_RAISED', 'RULING_RECORDED',
-    'CUSTODY_TRANSFER', 'DISCREPANCY_ACKNOWLEDGED',
-    'JURY_PACKAGE_EXHIBIT_EXCLUDED'  -- added Phase 7 (F13); existing deployments
+    'CUSTODY_TRANSFER',  -- legacy unilateral transfer; retained ONLY for the
+                          -- F18 intake-bootstrap path as of Phase 7.1 (F19) —
+                          -- rejected for any non-first transfer
+    'DISCREPANCY_ACKNOWLEDGED',
+    'JURY_PACKAGE_EXHIBIT_EXCLUDED',  -- added Phase 7 (F13); existing deployments
                                       -- apply this via ALTER TYPE event_type
                                       -- ADD VALUE 'JURY_PACKAGE_EXHIBIT_EXCLUDED'
                                       -- (see §3.9 Phase 7 Schema Changes)
+    'CUSTODY_TRANSFER_PROPOSED',     -- added Phase 7.1 (F19): two-phase handoff, phase 1
+    'CUSTODY_TRANSFER_CONFIRMED',    -- added Phase 7.1 (F19): two-phase handoff, phase 2
+                                      -- (also used directly, with no preceding
+                                      -- PROPOSED event, for F18's intake-bootstrap link)
+    'CUSTODY_TRANSFER_CANCELLED'     -- added Phase 7.1 (F19): reverts a pending
+                                      -- proposal; current_custodian_user_id unaffected
+                                      -- (see §3.10 Phase 7.1 Schema Changes)
+);
+
+-- Added Phase 7.1 (F16). Required at intake, immutable thereafter — no
+-- reclassification endpoint exists in this version. Supersedes is_sealed as
+-- the authoritative sensitivity input to jury-package exclusion (F13) and
+-- role-based visibility; is_sealed is retained as a write-once mirror (see
+-- exhibits.is_sealed below) rather than removed, so visibility.ts's existing
+-- read paths require no change. See §3.10 Phase 7.1 Schema Changes.
+CREATE TYPE exhibit_classification AS ENUM (
+    'TRIAL', 'CHAMBERS_EX_PARTE', 'SEALED'
 );
 
 CREATE TYPE discrepancy_status AS ENUM (
@@ -136,7 +156,8 @@ CREATE TABLE exhibits (
     source             TEXT,
     offering_party     offering_party NOT NULL,
     associated_witness TEXT,
-    is_sealed          BOOLEAN NOT NULL DEFAULT false,
+    classification     exhibit_classification NOT NULL,  -- added Phase 7.1 (F16): required at creation, immutable — no update path exists
+    is_sealed          BOOLEAN NOT NULL DEFAULT false,    -- Phase 7.1 (F16): now WRITE-ONCE, derived at creation as (classification != 'TRIAL') — never independently set again; see §3.10
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT uq_exhibits_case_label UNIQUE (case_id, exhibit_label)
@@ -186,9 +207,12 @@ CREATE INDEX idx_exhibit_events_case_type_time ON exhibit_events (case_id, event
 | `STATUS_CHANGE` | `{ fromStatus: exhibit_status \| null, toStatus: exhibit_status, notes?: string }` |
 | `OBJECTION_RAISED` | `{ objectionId: uuid, objectingParty: offering_party, grounds: string }` |
 | `RULING_RECORDED` | `{ objectionId: uuid, disposition: 'SUSTAINED' \| 'OVERRULED' \| 'RESERVED' }` |
-| `CUSTODY_TRANSFER` | `{ fromCustodianUserId: uuid \| null, toCustodianUserId: uuid, reason?: string }` |
+| `CUSTODY_TRANSFER` | `{ fromCustodianUserId: uuid \| null, toCustodianUserId: uuid, reason?: string }` — legacy unilateral shape; retained only for F18's intake-bootstrap link in historical/prior-version data |
 | `DISCREPANCY_ACKNOWLEDGED` | `{ discrepancyFlagId: uuid, ruleCode: string, justification: string }` |
 | `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)* | `{ juryPackageId: uuid, exhibitId: uuid, reason: 'SEALED_EXPARTE' \| 'MANUAL_REMOVAL', note?: string }` |
+| `CUSTODY_TRANSFER_PROPOSED` *(added Phase 7.1, F19)* | `{ fromCustodianUserId: uuid, toCustodianUserId: uuid, reason?: string }` — `fromCustodianUserId` must match the exhibit's current custodian; does not change `custody_current_state.current_custodian_user_id` |
+| `CUSTODY_TRANSFER_CONFIRMED` *(added Phase 7.1, F19)* | `{ proposedEventId: uuid \| null, fromCustodianUserId: uuid \| null, toCustodianUserId: uuid }` — `proposedEventId` references the resolved `CUSTODY_TRANSFER_PROPOSED` event, or `null` for F18's intake-bootstrap case (where `fromCustodianUserId` is also `null`) |
+| `CUSTODY_TRANSFER_CANCELLED` *(added Phase 7.1, F19)* | `{ proposedEventId: uuid, reason?: string }` — references the pending proposal being cancelled |
 
 ### 3.4 Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -230,7 +254,17 @@ CREATE TABLE custody_current_state (
     exhibit_id               UUID PRIMARY KEY REFERENCES exhibits(id),
     current_custodian_user_id UUID NOT NULL REFERENCES users(id),
     since                    TIMESTAMPTZ NOT NULL,
-    last_event_id            UUID NOT NULL REFERENCES exhibit_events(id)
+    last_event_id            UUID NOT NULL REFERENCES exhibit_events(id),
+
+    -- Added Phase 7.1 (F19): two-phase custody handoff pending state.
+    -- Populated by a CUSTODY_TRANSFER_PROPOSED event; cleared by the
+    -- resolving CUSTODY_TRANSFER_CONFIRMED or CUSTODY_TRANSFER_CANCELLED
+    -- event. current_custodian_user_id is NEVER modified while these are
+    -- non-null — "who currently has it" always reflects the last CONFIRMED
+    -- transfer, never a pending proposal. See §3.10.
+    pending_transfer_to_user_id   UUID REFERENCES users(id),
+    pending_transfer_event_id     UUID REFERENCES exhibit_events(id),
+    pending_transfer_proposed_at  TIMESTAMPTZ
 );
 ```
 
@@ -278,7 +312,16 @@ CREATE TABLE jury_packages (
     status        jury_package_status NOT NULL DEFAULT 'DRAFT',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     finalized_at  TIMESTAMPTZ,
-    finalized_by  UUID REFERENCES users(id)
+    finalized_by  UUID REFERENCES users(id),
+    version       INTEGER,  -- added Phase 7.1 (F23): assigned ONLY at finalization
+                             -- (MAX(version) WHERE case_id = :id AND status = 'FINALIZED') + 1,
+                             -- or 1 if none exists; never reassigned afterward; NULL while DRAFT
+
+    CONSTRAINT uq_jury_packages_case_version UNIQUE (case_id, version)
+    -- Postgres treats NULL as distinct from NULL in a UNIQUE constraint, so
+    -- any number of DRAFT (version IS NULL) rows coexist per case without
+    -- violating this constraint — the sparse/partial uniqueness F23 requires
+    -- falls out of standard Postgres NULL semantics, no partial index needed.
 );
 
 CREATE INDEX idx_jury_packages_case_status ON jury_packages (case_id, status);
@@ -317,7 +360,9 @@ CREATE INDEX idx_jury_package_exhibits_package_status
     ON jury_package_exhibits (jury_package_id, status);
 ```
 
-**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates`'s candidate query (`services/juryPackage.ts`, see `01-components.md` §2.2) is amended to filter `exhibits.is_sealed = false` in the *same* query as `exhibit_current_state.current_status = 'ADMITTED'` — a sealed/ex-parte exhibit's row is never created as `INCLUDED` via the normal computation path, and is never passed into `evaluateDiscrepancies` for jury-package purposes (so it can never acquire `CLEAN`/`FLAGGED`). The `status`/`excluded_*` columns above exist solely for the remediation/audit path (legacy or regression rows, or any future manual removal) — they are a safety net, not the primary mechanism. `EXCLUDED` rows are retained (never deleted) and are omitted from `GET /api/cases/:id/jury-package`'s default response but remain queryable for audit.
+**Jury Package Exclusion note (Phase 7, F13; amended Phase 7.1, F16):** `computeJuryCandidates`'s candidate query (`services/juryPackage.ts`, see `01-components.md` §2.2) originally filtered `exhibits.is_sealed = false` in the *same* query as `exhibit_current_state.current_status = 'ADMITTED'`. **As of Phase 7.1, this filter reads `exhibits.classification = 'TRIAL'` instead** — both `CHAMBERS_EX_PARTE` and `SEALED` are hard-excluded identically, driven by the three-value taxonomy rather than the boolean, so a chambers-ex-parte or sealed exhibit's row is never created as `INCLUDED` via the normal computation path, and is never passed into `evaluateDiscrepancies` for jury-package purposes (so it can never acquire `CLEAN`/`FLAGGED`). The `status`/`excluded_*` columns above exist solely for the remediation/audit path (legacy or regression rows, or any future manual removal) — they are a safety net, not the primary mechanism. `EXCLUDED` rows are retained (never deleted) and are omitted from `GET /api/cases/:id/jury-package`'s default response but remain queryable for audit.
+
+**Jury Package Versioning note (Phase 7.1, F23):** `version` is assigned only at finalization (see column comment above) and never reassigned afterward. No separate snapshot table is introduced — the existing `jury_package_exhibits` rows, already immutable once their parent package is `FINALIZED` (§3.6, enforced at the service layer), serve directly as each version's permanent record. "Most-recent version" (`isMostRecent` in `GET /api/cases/:id/jury-package/versions`'s response) is computed at read time as `MAX(version)` per case — never stored as an independent flag, consistent with this project's existing principle that derived facts are computed, not independently maintained state that could drift.
 
 ### 3.7 Assistant Audit Trail
 
@@ -378,3 +423,23 @@ F12–F15 (Phase 7) are predominantly service-layer validation and client-render
 | *(no schema change)* | — | F15 (usability fixes) | **No** — client-rendering only; no table, column, or enum is touched |
 
 All four F13 schema changes land in a single Prisma migration (e.g. `add_jury_package_exhibit_exclusion`). No other table in this document is touched by Phase 7.
+
+### 3.10 Phase 7.1 Schema Changes (Migration Required)
+
+F16–F23 (Phase 7.1) are predominantly service-layer, state-machine, and API-surface work. Four features — F16, F18 (indirectly, via F19's event types), F19, and F23 — require schema changes; F17, F21, and F22 require **none**, and each is listed explicitly below so that absence is a confirmed fact, not an omission:
+
+| Change | Table/Enum | Required by | Migration? |
+|---|---|---|---|
+| New enum `exhibit_classification` (`TRIAL` \| `CHAMBERS_EX_PARTE` \| `SEALED`) | — | F16 | **Yes** — `CREATE TYPE` |
+| New column `classification` (`NOT NULL`) | `exhibits` | F16 | **Yes** — `ALTER TABLE ... ADD COLUMN`; existing demo rows are backfilled from their current `is_sealed` value (`'SEALED'` if `is_sealed = true`, else `'TRIAL'`) **before** the `NOT NULL` constraint is applied, in the same migration |
+| `is_sealed` semantics change (now write-once, derived from `classification` at creation) | `exhibits` | F16 | **No new column** — `is_sealed` itself is untouched at the schema level; this is a write-path/documentation amendment only (see `services/exhibits.ts`, `01-components.md` §2.2) |
+| Three new enum values: `CUSTODY_TRANSFER_PROPOSED`, `CUSTODY_TRANSFER_CONFIRMED`, `CUSTODY_TRANSFER_CANCELLED` | `event_type` | F19 (and F18, which writes `CUSTODY_TRANSFER_CONFIRMED` for its intake-bootstrap link) | **Yes** — three separate `ALTER TYPE event_type ADD VALUE` statements (Postgres requires one value per statement; each runs outside the transaction that first uses the new value, per standard Postgres `ADD VALUE` semantics) |
+| Three new nullable columns `pending_transfer_to_user_id`, `pending_transfer_event_id`, `pending_transfer_proposed_at` | `custody_current_state` | F19 | **Yes** — `ALTER TABLE ... ADD COLUMN` ×3, all nullable, no backfill needed (existing rows correctly have no pending transfer) |
+| New nullable column `version` (`INTEGER`) + `UNIQUE (case_id, version)` constraint | `jury_packages` | F23 | **Yes** — `ALTER TABLE ... ADD COLUMN`, `ADD CONSTRAINT`; no backfill needed (existing `FINALIZED` rows remain `version = NULL` — this is a known, accepted gap: only packages finalized **after** this migration receive a version number; see Rollout Note below) |
+| *(no schema change)* | — | F17 (admission state-machine hardening) | **No** — F17 adds zero new runtime mechanism; F12's existing gate, reading only the pre-existing `objection_current_state` projection, already and unconditionally provides the guarantee F17 formalizes. This row is deliberately listed, not omitted, to make that "no mechanism" determination auditable rather than silent. |
+| *(no schema change)* | — | F21 (pending-ruling queue) | **No** — `raised_at` already exists on `objection_current_state`; the only backend change is an additive read-time join of `exhibits.exhibit_label` inside `getUnresolvedObjections`, not a schema change. Sorting and live elapsed-time recomputation are entirely client-side. |
+| *(no schema change)* | — | F22 (multi-case support) | **No** — `case_id` foreign keys already exist on every table requiring case-scoping (`cases`, `users`, `exhibits`, `jury_packages`, `assistant_conversations`); this feature adds explicit `WHERE case_id = :selectedCaseId` plumbing to service functions that previously scoped implicitly via a `DEMO_CASE_NUMBER` constant, and a second seeded `Case` row with its own exhibits — no table, column, index, or constraint is added |
+
+**Rollout note (F23 sparse versioning):** because `version` is only assigned going forward, any `jury_packages` row already `FINALIZED` before this migration lands retains `version = NULL` permanently — it was never assigned one and this feature does not retroactively backfill version numbers for pre-existing finalized packages (doing so would require an arbitrary ordering decision for history that predates the feature). `GET /api/cases/:id/jury-package/versions` lists such a row with `version: null` and `isMostRecent: false` (since `isMostRecent` is computed only over non-null versions) — this is accepted, documented behavior, not a defect, given the project's single-case-then-newly-multi-case demo data is seeded fresh rather than migrated from real pre-existing production history.
+
+**Combined migration:** all eight schema changes above (one enum, one new column + backfill + `NOT NULL` on `exhibits`; three enum values + three new nullable columns on `custody_current_state`; one new column + one constraint on `jury_packages`) land in a single Prisma migration for Phase 7.1 (e.g. `phase_7_1_classification_custody_handoff_jury_versioning`). No table outside this list is touched by Phase 7.1 — `objection_current_state`, `discrepancy_flags`, `assistant_conversations`/`assistant_messages`/`assistant_citations`, and `jury_package_exhibits` (Phase 7's F13 columns) are all unchanged.

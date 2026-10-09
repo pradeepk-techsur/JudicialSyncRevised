@@ -1,7 +1,7 @@
 ### Flow 4: Assembling, Verifying, and Accepting the Jury Package
 
 **Trigger:** At the close of evidence, the deputy/clerk must assemble a jury package that is provably free of discrepancies; the judge must accept it with confidence; an attorney may independently verify it first.
-**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2
+**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-16.2, US-23.1, US-23.2, US-23.3
 **Journeys:** JRN-02.1 (Assemble the Jury Package), JRN-01.2 (Jury Package Presented → Accept), JRN-03.1 (Verify Jury Package Integrity)
 
 ```
@@ -42,12 +42,20 @@
     │     [Rejected, specific blocking exhibits listed inline,
     │      button re-disables]
     │
-    └── Zero open discrepancies ──▶ [Package → FINALIZED,
-          screen becomes read-only, export-ready]
+    └── Zero open discrepancies ──▶ [Package → FINALIZED as a new,
+          immutable, numbered Version N; screen becomes read-only;
+          prior versions (if any) remain independently retrievable]
     │
     ▼
 [Judge reviews finalized package — "zero discrepancies" confirmation
- stamped prominently] ──▶ [Accepts with confidence]
+ stamped prominently, with its version number] ──▶ [Accepts with confidence]
+    │
+    ▼
+[Deputy exports Version N as a real PDF (⬇) — not window.print()]
+    │
+    ▼
+[Deputy optionally "Starts New Draft" for the next version, without
+ touching Version N, which stays exportable from Version History]
     │
     ▼
 [Attorney independently reviews same finalized screen, or asks
@@ -60,8 +68,11 @@
 3. **Two resolution paths, both visible from the row.** (a) Navigate to the exhibit to fix the underlying condition (e.g., log the missing custody transfer), after which the flag auto-resolves on the next poll with zero extra action; or (b) acknowledge the risk directly with a required justification field, which is recorded as an immutable ledger event and remains permanently visible as "Acknowledged" — never silently cleared (US-6.3).
 4. **The Finalize control is physically disabled, not just error-prone.** While ANY included exhibit has an `OPEN` + `FLAGGED` discrepancy, the "Finalize Jury Package" button renders disabled with a tooltip/caption explaining why ("2 exhibits have unresolved discrepancies") — this is the literal "cannot ship a discrepant package by mistake" requirement (US-11.2).
 5. **Server re-validates at the moment of truth.** Even if the button were somehow enabled against stale client state, the finalize action re-runs discrepancy evaluation fresh server-side and blocks with a specific list of blocking exhibits if anything reopened (US-5.2).
-6. **Finalized state is visually and functionally different.** Once `FINALIZED`, the screen switches to a read-only, print/export-friendly presentation — all acknowledge/resolve/remove controls disappear entirely, not just disable (US-11.2).
-7. **The judge's acceptance moment is explicit.** The finalized view carries an unmissable "Zero discrepancies — package clean" confirmation banner, so accepting the package is a fast, confident action rather than requiring independent re-verification (JRN-01.2).
+6. **Finalized state is visually and functionally different.** Once `FINALIZED`, the screen switches to a read-only, export-ready presentation — all acknowledge/resolve/remove controls disappear entirely, not just disable (US-11.2).
+7. **The judge's acceptance moment is explicit.** The finalized view carries an unmissable "FINALIZED · Version N (most recent) · Zero discrepancies" confirmation banner, so accepting the package is a fast, confident action rather than requiring independent re-verification (JRN-01.2).
 8. **The attorney's verification path is identical, not separate.** Marcus doesn't need a special "audit view" — the same Jury Package Workspace (view-only for his role) and the same assistant answer serve his independent-verification need (JRN-03.1).
+9. **Finalizing mints a version, it does not replace anything (F23).** Each successful finalization is assigned the case's next sequential version number and becomes a permanent, independently-retrievable snapshot — a "Start New Draft" action (role-gated identically to Finalize) begins the next package's lifecycle without touching the version that was just created. Every prior version remains independently viewable and exportable from "View Version History," never superseded or hidden by a later one (US-23.1, US-23.3).
+10. **Export is a real file, not a print dialog (F23).** "Export as PDF" streams a server-generated `application/pdf` file via `@react-pdf/renderer` and triggers an actual download — replacing the prior `window.print()` control, which behaved inconsistently printer-to-printer and device-to-device. Re-exporting the same version at any later date reproduces an identical file, since a `FINALIZED` package's exhibit rows are immutable (US-23.2).
+11. **Chambers-ex-parte material is excluded identically to sealed material (F16).** The candidate-query exclusion that keeps sealed exhibits out of a jury package now runs against the full three-value `classification` field, not just the `isSealed` boolean — a `CHAMBERS_EX_PARTE` exhibit is hard-excluded exactly as a `SEALED` one always was, with the same "Remove from Package" remediation path available for any legacy/regression case (US-16.2).
 
 **Key UX Risk Guarded Against:** This flow is identified in JOURNEYS as the single highest-stakes moment in the entire product — a discrepancy surfaced incorrectly here breaks trust for three personas simultaneously (deputy, judge, attorney). The hard-disabled button plus mandatory server re-validation is a deliberate belt-and-suspenders design, not redundant engineering.
