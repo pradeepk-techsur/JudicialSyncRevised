@@ -1,0 +1,36 @@
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/breakpoint' as *;
+
+// F8 — stat card row. Four equal cards in a responsive grid: a single column on
+// the narrowest viewports collapsing up to four across at the `md` breakpoint,
+// matching the Screenshot-1 horizontal row of four.
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-05;
+  margin-bottom: $spacing-05;
+
+  @include breakpoint('md') {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.value {
+  @include type-style('heading-04');
+  color: $text-primary;
+  line-height: 1.1;
+}
+
+.label {
+  @include type-style('label-01');
+  color: $text-secondary;
+  margin-top: $spacing-02;
+}
+
+.subCaption {
+  @include type-style('helper-text-01');
+  color: $text-helper;
+  margin-top: $spacing-02;
+}

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Tile, SkeletonText, ActionableNotification } from '@carbon/react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { RecentActivityEntry } from '@/services/activity';
+import type { ActivityResponse } from '@/hooks/useRecentActivity';
 import styles from './RecentActivityPanel.module.scss';
 
 // F8 Command Center — Recent Activity panel. The full-width TOP panel (UX
@@ -37,10 +37,12 @@ function formatTime(iso: string): string {
 export function RecentActivityPanel({
   query,
 }: {
-  query: UseQueryResult<RecentActivityEntry[]>;
+  query: UseQueryResult<ActivityResponse>;
 }) {
   const { data, isLoading, isError, refetch } = query;
-  const entries = data ?? [];
+  // 08-10: the activity query now returns `{ recentActivity, statusCounts }` —
+  // the feed reads the recentActivity array.
+  const entries = data?.recentActivity ?? [];
 
   // New-row fade-in (CONTEXT locked default, Command-Center-only this phase):
   // track the eventIds seen on the previous render; any eventId not in that set

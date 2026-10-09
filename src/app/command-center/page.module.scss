@@ -1,6 +1,7 @@
 // F8 — Trial Command Center page composition styles. Carbon typography/spacing
 // tokens + a simple CSS-grid 2-column lower row (matching the former Tailwind
 // `md:grid-cols-2` breakpoint) for Objections / Discrepancies.
+@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
@@ -13,9 +14,61 @@
   margin-bottom: $spacing-05;
 }
 
+// Page-local screen header (Screenshot 1): title + subtitle on the left; a green
+// live-status dot + freshness indicator on the right. This is page content —
+// the SHARED app Header (role dropdown + Ask Pivota) from 08-04 is untouched.
+.screenHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-05;
+  margin-bottom: $spacing-06;
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.headerStatus {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  flex-shrink: 0;
+}
+
 .title {
   @include type-style('heading-03');
   color: $text-primary;
+}
+
+.subtitle {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+  margin-top: $spacing-02;
+}
+
+// Small green "live" dot with a gentle pulse, matching the Screenshot-1
+// "Live · updated Xs ago" treatment.
+.liveDot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: colors.$green-50;
+  box-shadow: 0 0 0 0 rgba(colors.$green-50, 0.6);
+  animation: livePulse 2s ease-out infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(colors.$green-50, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 0.375rem rgba(colors.$green-50, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(colors.$green-50, 0);
+  }
 }
 
 .lowerRow {
