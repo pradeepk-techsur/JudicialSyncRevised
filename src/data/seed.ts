@@ -3,10 +3,13 @@ import type { Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { DEMO_CASE_NUMBER } from '@/lib/constants';
 import { AppError } from '@/lib/errors';
+import { advisoryLockKey } from '@/lib/advisoryLock';
 import { createExhibit } from '@/services/exhibits';
 import { recordStatusChange } from '@/services/status';
 import { getUnresolvedObjections, recordObjection, recordRuling } from '@/services/objections';
 import { recordCustodyTransfer } from '@/services/custody';
+import { recordEvent } from '@/services/events';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // F0a — Deterministic seed/demo-data loader.
 //
@@ -53,6 +56,58 @@ const PERSONAS: Array<{ role: Role; name: string }> = [
   { role: 'ATTORNEY', name: 'Attorney Marcus Webb' },
   { role: 'ADMIN', name: 'Court Administrator Sofia Lang' },
 ];
+
+/**
+ * SEED-ONLY narrative device: performs the exact same ledger-write +
+ * projection-upsert + advisory-lock pattern recordStatusChange (status.ts)
+ * uses for an ADMITTED transition, but DELIBERATELY SKIPS F12's gate-check
+ * step (step 5b: the two precondition reads). This represents an exhibit that
+ * predates the admission-gate rollout — a narrative device for the demo, NOT
+ * a live capability. It is NOT a copy-paste of forceAdmitBypassingGate (which
+ * is test-only, confined to *.test.ts via grep, T-07-05) — this is a
+ * DIFFERENT, separately-justified mechanism confined to seed.ts instead,
+ * verified by the SAME kind of grep check (see seed.test.ts).
+ *
+ * MUST NEVER be imported by any route, any service a route calls, or any
+ * component. If you are reading this because you want to reuse it outside
+ * seed.ts: don't — add a real endpoint/service function instead.
+ */
+async function legacyAdmitForDemo(args: {
+  exhibitId: string;
+  fromStatus: 'OFFERED' | 'OBJECTED';
+  actorUserId: string;
+  recordedAt: Date;
+}): Promise<void> {
+  const { exhibitId, fromStatus, actorUserId, recordedAt } = args;
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${advisoryLockKey(exhibitId)})`;
+    const event = await recordEvent(
+      {
+        exhibitId,
+        eventType: 'STATUS_CHANGE',
+        payload: { fromStatus, toStatus: 'ADMITTED' },
+        actorUserId,
+        recordedAt,
+      },
+      tx,
+    );
+    await tx.exhibitCurrentState.upsert({
+      where: { exhibitId },
+      create: {
+        exhibitId,
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: event.id,
+        lastStatusAt: event.recordedAt,
+      },
+      update: {
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: event.id,
+        lastStatusAt: event.recordedAt,
+      },
+    });
+    await evaluateDiscrepancies(exhibitId, tx, event.id);
+  });
+}
 
 /**
  * Delete every row belonging to the fixed-caseNumber demo case, in dependency
@@ -418,10 +473,84 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
       fromCustodianUserId: null,
       toCustodianUserId: users.CHAMBERS_STAFF,
       reason: 'chambers intake',
-      actorUserId: users.CHAMBERS_STAFF,
+      // A deputy performs the chambers intake custody assignment; the custodian
+      // of record stays CHAMBERS_STAFF (toCustodianUserId unchanged). This keeps
+      // the actor within 08-02's custody-write role gate (DEPUTY/CLERK/ADMIN),
+      // which CHAMBERS_STAFF is not, regardless of plan execution order.
+      actorUserId: deputy,
       recordedAt: nextRecordedAt(),
     });
     await recordStatusChange({ exhibitId: exSealed, toStatus: 'ADMITTED', actorUserId: judge });
+
+    // --- Planted edge case D: "Legacy admit, no custodian" (F08 attention feed
+    // MEDIUM tier; F24 'Assign custodian' remediation target) ---
+    // MARKED -> OFFERED -> ADMITTED (legacy-admit, skips F12), zero custody
+    // transfers ever. Fires ADMITTED_NO_CUSTODIAN through the LIVE engine
+    // (evaluateDiscrepancies runs inside legacyAdmitForDemo) — a genuinely real
+    // flag, not a synthetic row.
+    await sleep(1200);
+    const exLegacyNoCustody = await makeExhibit(
+      'P-6',
+      'Chain-of-custody log, pre-digitization era',
+      'PROSECUTION',
+      'Records Clerk Mia Torres',
+    );
+    await recordStatusChange({ exhibitId: exLegacyNoCustody, toStatus: 'MARKED', actorUserId: deputy });
+    await recordStatusChange({ exhibitId: exLegacyNoCustody, toStatus: 'OFFERED', actorUserId: deputy });
+    await legacyAdmitForDemo({
+      exhibitId: exLegacyNoCustody,
+      fromStatus: 'OFFERED',
+      actorUserId: judge,
+      recordedAt: nextRecordedAt(),
+    });
+
+    // --- Planted edge case E: "Legacy admit, unresolved objection" (F08
+    // attention feed HIGH tier; F24 'Record ruling' remediation target) ---
+    // MARKED -> OFFERED -> OBJECTED (objection raised, deliberately NO ruling —
+    // thread stays UNRESOLVED), full custody chain established (deputy -> clerk,
+    // so the custody condition is clean and only the objection rule fires), then
+    // ADMITTED via legacyAdmitForDemo despite the unresolved objection. Fires
+    // UNRESOLVED_OBJECTION_JURY_ELIGIBLE through the LIVE engine.
+    await sleep(1200);
+    const exLegacyObjected = await makeExhibit(
+      'P-7',
+      'Witness photo lineup packet',
+      'PROSECUTION',
+      'Det. Raymond Cole',
+    );
+    await recordStatusChange({ exhibitId: exLegacyObjected, toStatus: 'MARKED', actorUserId: deputy });
+    await recordStatusChange({ exhibitId: exLegacyObjected, toStatus: 'OFFERED', actorUserId: deputy });
+    await recordObjection({
+      exhibitId: exLegacyObjected,
+      objectingParty: 'DEFENSE',
+      grounds: 'Suggestive lineup procedure — moved to suppress identification',
+      actorUserId: attorney,
+      recordedAt: nextRecordedAt(),
+    });
+    await recordStatusChange({ exhibitId: exLegacyObjected, toStatus: 'OBJECTED', actorUserId: clerk });
+    await recordCustodyTransfer({
+      exhibitId: exLegacyObjected,
+      fromCustodianUserId: null,
+      toCustodianUserId: deputy,
+      reason: 'intake',
+      actorUserId: deputy,
+      recordedAt: nextRecordedAt(),
+    });
+    await recordCustodyTransfer({
+      exhibitId: exLegacyObjected,
+      fromCustodianUserId: deputy,
+      toCustodianUserId: clerk,
+      reason: 'to clerk for jury package prep',
+      actorUserId: clerk,
+      recordedAt: nextRecordedAt(),
+    });
+    // Deliberately NO recordRuling — thread remains UNRESOLVED.
+    await legacyAdmitForDemo({
+      exhibitId: exLegacyObjected,
+      fromStatus: 'OBJECTED',
+      actorUserId: judge,
+      recordedAt: nextRecordedAt(),
+    });
 
     const exhibitCount = await prisma.exhibit.count({ where: { caseId } });
 
@@ -511,12 +640,52 @@ async function assertSeedIntegrity(caseId: string): Promise<void> {
     );
   }
 
-  // 5. (REMOVED — see the function doc-comment above.) The former "both F6 rule
-  //    codes OPEN" check is permanently unsatisfiable post-F12: the admission
-  //    gate makes it structurally impossible for a fresh seed exhibit to reach
-  //    ADMITTED while either ADMITTED_NO_CUSTODIAN or
-  //    UNRESOLVED_OBJECTION_JURY_ELIGIBLE precondition holds. F6's logic remains
-  //    covered by discrepancies.test.ts's direct-projection fixtures.
+  // 5. P-6: a legacy-admitted exhibit with zero custody must carry an OPEN
+  //    ADMITTED_NO_CUSTODIAN flag, produced by the LIVE engine inside
+  //    legacyAdmitForDemo — not a synthetic row. Depends on the seed-only
+  //    legacy-admit helper, NOT the live F12 gate (which would block this
+  //    exact state for any non-seed caller).
+  const p6Flag = await prisma.discrepancyFlag.findFirst({
+    where: {
+      caseId,
+      ruleCode: 'ADMITTED_NO_CUSTODIAN',
+      status: 'OPEN',
+      exhibit: { exhibitLabel: 'P-6' },
+    },
+  });
+  if (!p6Flag) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected P-6 to carry an OPEN ADMITTED_NO_CUSTODIAN flag via legacyAdmitForDemo, found none',
+    );
+  }
+
+  // 6. P-7: a legacy-admitted exhibit with an unresolved objection must carry
+  //    an OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag, produced by the LIVE
+  //    engine inside legacyAdmitForDemo. Same caveat as #5.
+  const p7Flag = await prisma.discrepancyFlag.findFirst({
+    where: {
+      caseId,
+      ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+      status: 'OPEN',
+      exhibit: { exhibitLabel: 'P-7' },
+    },
+  });
+  if (!p7Flag) {
+    throw new SeedIntegrityError(
+      'Seed integrity check failed: expected P-7 to carry an OPEN UNRESOLVED_OBJECTION_JURY_ELIGIBLE flag via legacyAdmitForDemo, found none',
+    );
+  }
+
+  // 7. (REMOVED — see the function doc-comment above.) The former "both F6 rule
+  //    codes OPEN against P-1/P-2/P-3" check is permanently unsatisfiable
+  //    post-F12: the admission gate makes it structurally impossible for a fresh
+  //    seed exhibit to reach ADMITTED through recordStatusChange while either
+  //    ADMITTED_NO_CUSTODIAN or UNRESOLVED_OBJECTION_JURY_ELIGIBLE precondition
+  //    holds. Checks #5/#6 restore the "both rule codes OPEN" guarantee HONESTLY
+  //    via the new P-6/P-7 legacy-admit fixtures (which skip the gate the same
+  //    way a genuine pre-rollout exhibit would have), NOT via a synthetic flag.
+  //    F6's engine logic also stays covered by discrepancies.test.ts's
+  //    direct-projection fixtures.
 }
 
 // CLI entry point: `tsx src/data/seed.ts` (npm run seed / Docker boot) runs the
