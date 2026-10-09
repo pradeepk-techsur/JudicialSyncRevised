@@ -22,7 +22,16 @@ import styles from './RecentActivityPanel.module.scss';
 // the hook itself, so the screen never runs a duplicate activity query.
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // Render BOTH date and time (e.g. "Oct 8, 2026, 2:14 PM") — never a time-only
+  // stamp, so two events on different days are distinguishable across a day
+  // boundary / multi-day recess (UX-Mockup §Activity Feed Row Format).
+  return new Date(iso).toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export function RecentActivityPanel({
@@ -146,7 +155,14 @@ export function RecentActivityPanel({
                 <span className={styles.bullet} aria-hidden="true">
                   ●
                 </span>
-                <span className={styles.summary}>{e.summary}</span>
+                {/* Prefix each row with its exhibit label so even a raw
+                    STATUS_CHANGE row is attributed to an exhibit (UX-Mockup:
+                    "Exhibit 3 — MARKED → OFFERED, …"). Two separate spans kept
+                    (summary + time) since layout/styling depend on the structure;
+                    the label is prepended into the summary span only. */}
+                <span className={styles.summary}>
+                  {e.exhibitLabel} — {e.summary}
+                </span>
                 <span className={styles.time}>{formatTime(e.recordedAt)}</span>
               </Link>
             </li>

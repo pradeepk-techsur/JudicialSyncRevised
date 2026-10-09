@@ -212,6 +212,24 @@ test.describe('Trial Command Center', () => {
     ).toBeVisible();
   });
 
+  // F15 — every Recent Activity row shows a full date+time and its exhibit label.
+  test('every Recent Activity row shows a full date+time and its exhibit label', async ({ page }) => {
+    await page.goto('/command-center');
+    const rows = page.getByTestId('recent-activity-row');
+    await expect(rows.first()).toBeVisible();
+    const count = await rows.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+    for (let i = 0; i < count; i++) {
+      const text = await rows.nth(i).innerText();
+      // A full date+time stamp includes a 4-digit year — a time-only stamp
+      // ("2:14 PM") does not. This is the discriminating assertion.
+      expect(text).toMatch(/\b\d{4}\b/);
+      // Every row's rendered text includes a seeded exhibit label prefix
+      // (P-/D-/S- followed by a digit).
+      expect(text).toMatch(/\b[PDS]-\d+\b/);
+    }
+  });
+
   // Link-through (Phase 4 deep-link) — a Recent Activity row navigates to Exhibit
   // Detail with the timeline rendered.
   test('a Recent Activity row links through to Exhibit Detail with the timeline', async ({
