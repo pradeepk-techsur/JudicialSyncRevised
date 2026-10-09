@@ -88,4 +88,91 @@ test.describe('Case Workspace', () => {
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/exhibit\/[0-9a-f-]+/);
   });
+
+  // ---- Phase 8 (08-11) Case Workspace redesign ----
+
+  // Jury Package column (F09 §Process step 3): server-computed, plain-language
+  // colored text. P-6 is legacy-ADMITTED with no custodian — it has a jury
+  // package row but is flagged, so its eligibility is a definite value. We assert
+  // the column renders a recognized plain-language value for a known fixture.
+  test('Jury Package column renders server-computed plain-language text', async ({ page }) => {
+    await page.goto('/case');
+    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-6"]');
+    await expect(row).toBeVisible();
+    const cell = row.locator('[data-testid="jury-package-eligibility"]');
+    await expect(cell).toBeVisible();
+    await expect(cell).toHaveText(/Included|Not eligible|Blocked/);
+    // The value is carried by a data attribute reflecting the server verbatim.
+    await expect(cell).toHaveAttribute('data-eligibility', /INCLUDED|NOT_ELIGIBLE|BLOCKED/);
+  });
+
+  // Unassigned custodian → red "Unassigned" text, never a blank cell
+  // (Screenshot 5). P-6 (legacy admit, zero custody) is the canonical fixture.
+  test('an exhibit with no custodian shows red "Unassigned" text, not a blank cell', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-6"]');
+    await expect(row).toBeVisible();
+    await expect(row.getByText('Unassigned', { exact: true })).toBeVisible();
+  });
+
+  // Quick-filter chips narrow the rendered rows client-side with live counts.
+  test('quick-filter chips narrow the rendered rows and carry live counts', async ({ page }) => {
+    await page.goto('/case');
+    await expect(page.getByText('P-1')).toBeVisible();
+
+    const all = page.getByTestId('quick-filter-all');
+    const needs = page.getByTestId('quick-filter-needs-attention');
+    await expect(all).toBeVisible();
+    await expect(needs).toBeVisible();
+
+    // "All" is active by default.
+    await expect(all).toHaveAttribute('aria-pressed', 'true');
+
+    // Each chip shows a numeric count; "All" counts every loaded row.
+    await expect(all).toContainText(/\d/);
+    await expect(needs).toContainText(/\d/);
+
+    const allRows = page.locator('[data-testid="exhibit-row"]');
+    const totalBefore = await allRows.count();
+    expect(totalBefore).toBeGreaterThan(0);
+
+    // Narrow to "Needs attention": P-6/P-7 (flagged) remain; the clean P-4 drops.
+    await needs.click();
+    await expect(needs).toHaveAttribute('aria-pressed', 'true');
+    await expect(all).toHaveAttribute('aria-pressed', 'false');
+    await expect(
+      page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-6"]'),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-4"]'),
+    ).toHaveCount(0);
+    const totalNeeds = await page.locator('[data-testid="exhibit-row"]').count();
+    expect(totalNeeds).toBeLessThan(totalBefore);
+
+    // Back to "All" restores the full list.
+    await all.click();
+    await expect(page.locator('[data-testid="exhibit-row"]')).toHaveCount(totalBefore);
+  });
+
+  // Footer caption (Screenshot 5).
+  test('footer caption is present below the table', async ({ page }) => {
+    await page.goto('/case');
+    await expect(
+      page.getByText('Tinted rows need attention. Select any row to open the exhibit.'),
+    ).toBeVisible();
+  });
+
+  // "Add exhibit" is a deliberate, documented, present-but-disabled placeholder —
+  // distinct from the absent-not-disabled role-gating pattern (this is a scope
+  // boundary, not a permission boundary). It must be VISIBLE and DISABLED.
+  test('"Add exhibit" button is visibly present but disabled (scope-boundary placeholder)', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    const addBtn = page.getByTestId('add-exhibit-button');
+    await expect(addBtn).toBeVisible();
+    await expect(addBtn).toBeDisabled();
+  });
 });

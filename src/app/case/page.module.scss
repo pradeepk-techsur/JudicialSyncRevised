@@ -5,11 +5,35 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 
-// Page heading (was: mb-4 text-xl font-semibold).
+// Page header row (Screenshot 5): title + subtitle on the left, right-aligned
+// "Add exhibit" button.
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-05;
+  margin-bottom: $spacing-05;
+}
+
+// Page heading (was: mb-4 text-xl font-semibold). Bottom margin now owned by the
+// header row + subtitle, so drop the heading's own margin.
 .heading {
   @include type-style('heading-03');
-  margin-bottom: $spacing-05;
   color: $text-primary;
+}
+
+// Subtitle count + case name (Screenshot 5: "{N} exhibits · {case name}").
+.subtitle {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+  margin-top: $spacing-02;
+}
+
+// Footer caption below the table (Screenshot 5).
+.footerCaption {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+  margin-top: $spacing-05;
 }
 
 // Muted empty-state caption (was: text-sm text-gray-500).

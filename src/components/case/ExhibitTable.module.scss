@@ -35,9 +35,17 @@
   }
 }
 
-// Truncated description cell (was: max-w-xs truncate).
+// Truncated description cell (was: max-w-xs truncate). Phase 8 (08-11) narrows
+// this from 20rem to 10rem: the redesign adds the Flags, Jury Package, and
+// trailing-chevron columns, and at the old width the 8-column table overflowed
+// the app-shell <main>'s content box (main has 1.5rem padding on every side).
+// When the table's right edge spills past main's content box, a click in that
+// trailing strip lands on <main>, not the row — breaking F15's "entire row area
+// is clickable" guarantee at the far-right edge. The tighter description keeps
+// the whole table (and therefore the whole clickable row) inside main's content
+// box so every cell, edge-to-edge, stays clickable.
 .descriptionCell {
-  max-width: 20rem;
+  max-width: 10rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
