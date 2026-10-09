@@ -46,3 +46,31 @@ discovering plan.
 ## 08-13 shared-working-tree observations (out of scope — NOT fixed by 08-13)
 - `src/components/exhibit/ExhibitHeader.tsx` (sibling 08-12 WIP, uncommitted): tsc error TS2322 — passes an `objections` prop to `DiscrepancyBanner` that the committed DiscrepancyBanner signature does not yet accept. 08-12 owns both files; converging their own two edits resolves it. 08-13 did not touch either file.
 - `src/app/command-center/page.tsx` (sibling WIP, uncommitted): tsc errors present. Out of 08-13 scope (right-rail cards + Timeline + exhibit page.tsx only).
+
+## 08-11 shared-working-tree observations (out of scope — NOT fixed by 08-11)
+- **`src/app/command-center/page.tsx:33` — TS2322**: `useRecentActivity()` now returns
+  `UseQueryResult<ActivityResponse>` (the `{recentActivity, statusCounts}` shape 08-10
+  is wiring in), but `command-center/page.tsx` still consumes it as
+  `RecentActivityEntry[]`. The mismatch comes entirely from uncommitted sibling-plan
+  drift in `src/hooks/useRecentActivity.ts` + `src/app/api/cases/[id]/activity/route.ts`
+  (08-10's statusCounts wiring, deliberately deferred there per STATE.md). 08-11 touches
+  ONLY `src/components/case/*`, `src/app/case/*`, and the two case-workspace e2e specs —
+  none of the files in this error path. `npx tsc --noEmit` passes clean over the whole tree
+  (including all 08-11 files); only `next build`'s stricter Turbopack type-check surfaces
+  the sibling page/hook mismatch. Left for 08-10 / the phase post-plan gate to converge —
+  the recurring shared-working-tree hazard documented throughout STATE.md.
+
+## 08-12 (Exhibit Detail header + discrepancy banner)
+- **`src/app/command-center/page.tsx:33` — TS2322: `UseQueryResult<ActivityResponse>` not assignable to `UseQueryResult<RecentActivityEntry[]>`.**
+  Surfaced running `npx tsc --noEmit` as 08-12's Task 1/2 gate. The failing file is
+  the Command Center page — 08-10's scope (the deferred activity-route
+  `statusCounts` amendment STATE.md recorded under 08-06 Task 3 as "route wiring
+  into the activity response deliberately DEFERRED to 08-10", which changes the
+  activity response from a bare array to `{recentActivity, statusCounts}`). The
+  error pre-exists at HEAD (verified: `git stash` my three files → tsc still reports
+  exactly 1 error, in `command-center/page.tsx`). 08-12 touches ONLY
+  `src/components/exhibit/ExhibitHeader.tsx(.scss)`,
+  `src/components/exhibit/DiscrepancyBanner.tsx(.scss)`, and
+  `e2e/exhibit-detail.spec.ts`; those files are tsc-clean in isolation and add zero
+  new errors. Left for 08-10 / the phase post-plan gate to converge — recurring
+  shared-working-tree hazard documented throughout STATE.md.

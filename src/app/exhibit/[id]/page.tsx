@@ -7,6 +7,9 @@ import { InlineLoading, InlineNotification } from '@carbon/react';
 import { useExhibitHistory, NotFoundError } from '@/hooks/useExhibitHistory';
 import { ExhibitHeader } from '@/components/exhibit/ExhibitHeader';
 import { Timeline } from '@/components/exhibit/Timeline';
+import { ObjectionCard } from '@/components/exhibit/ObjectionCard';
+import { CustodyCard } from '@/components/exhibit/CustodyCard';
+import { JuryPackageChecklistCard } from '@/components/exhibit/JuryPackageChecklistCard';
 import { ExhibitNotFound } from '@/components/exhibit/ExhibitNotFound';
 import styles from './page.module.scss';
 
@@ -63,11 +66,20 @@ function ExhibitDetail({ id }: { id: string }) {
   return (
     <div>
       <Link href="/case" className={styles.backLink}>
-        ← Back to Case Workspace
+        ‹ Case Workspace
       </Link>
       <ExhibitHeader data={data} />
-      <h2 className={styles.historyHeading}>History</h2>
-      <Timeline entries={data.timeline} highlightEventId={highlightEventId} />
+      <div className={styles.twoColumn}>
+        <div className={styles.timelineColumn}>
+          <h2 className={styles.historyHeading}>History</h2>
+          <Timeline entries={data.timeline} highlightEventId={highlightEventId} />
+        </div>
+        <div className={styles.rightRail}>
+          <ObjectionCard objections={data.objections} />
+          <CustodyCard custodyCard={data.custodyCard} />
+          <JuryPackageChecklistCard checklist={data.juryPackageChecklist} exhibitId={id} />
+        </div>
+      </div>
     </div>
   );
 }

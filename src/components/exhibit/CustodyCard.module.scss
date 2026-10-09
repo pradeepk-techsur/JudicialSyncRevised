@@ -1,0 +1,52 @@
+// Exhibit Detail right-rail Chain-of-Custody card. Carbon tokens; the ordered
+// chain renders as a connected list with a "(current)" marker on the active
+// custodian and a green "No gaps in the chain" confirmation line.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.card {
+  margin-bottom: $spacing-05;
+}
+
+.heading {
+  @include type-style('heading-compact-02');
+  margin-bottom: $spacing-03;
+  color: $text-primary;
+}
+
+.current {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  margin-bottom: $spacing-03;
+}
+
+// Ordered custody chain with a connecting line down the left edge.
+.chain {
+  list-style: none;
+  margin: 0 0 $spacing-03;
+  padding-left: $spacing-05;
+  border-left: 2px solid $border-subtle;
+
+  li {
+    @include type-style('body-compact-01');
+    color: $text-secondary;
+    padding: $spacing-02 0;
+    position: relative;
+  }
+}
+
+.currentLink {
+  color: $text-primary;
+  font-weight: 600;
+}
+
+.currentLabel {
+  @include type-style('label-01');
+  color: $text-secondary;
+}
+
+.noGaps {
+  @include type-style('label-01');
+  color: $support-success;
+}
