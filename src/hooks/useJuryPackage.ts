@@ -15,9 +15,13 @@ export { JuryPackageError, type BlockingExhibit };
 // Serialized JuryPackage as it crosses the wire (NextResponse.json turns the
 // Date fields into ISO strings). We keep the Prisma JuryPackage shape but relax
 // the date fields to the string | null they actually arrive as.
-export interface JuryPackageDto extends Omit<JuryPackage, 'createdAt' | 'finalizedAt'> {
+export interface JuryPackageDto
+  extends Omit<JuryPackage, 'createdAt' | 'finalizedAt' | 'finalizationRequestedAt'> {
   createdAt: string;
   finalizedAt: string | null;
+  // Serialized over the wire as an ISO string (NextResponse.json), nullable until
+  // a non-finalize-authorized role requests finalization (F11 §Process step 7).
+  finalizationRequestedAt: string | null;
 }
 
 export interface JuryPackageResponse {
