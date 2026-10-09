@@ -5,6 +5,7 @@ import {
   finalizeJuryPackage,
   getJuryPackage,
   initiateJuryPackage,
+  requestFinalization,
 } from '@/services/juryPackage';
 import { recordStatusChange } from '@/services/status';
 import { recordObjection } from '@/services/objections';
@@ -372,6 +373,56 @@ describe('jury package service', () => {
 
     // Re-finalize → ALREADY_FINALIZED 409.
     await expect(finalizeJuryPackage(juryPackage.id, deputyId)).rejects.toMatchObject({
+      code: 'JURY_PACKAGE_ALREADY_FINALIZED',
+      httpStatus: 409,
+    });
+  });
+
+  it('finalizeJuryPackage clears a previously-set finalizationRequestedAt/By on success (F11)', async () => {
+    const { caseId, deputyId } = fx;
+    const clean = await makeExhibit(caseId, `A-${fx.suffix}`);
+    await admitClean(clean, deputyId);
+    const { juryPackage } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
+
+    // Stamp an outstanding finalization request (as requestFinalization would).
+    await prisma.juryPackage.update({
+      where: { id: juryPackage.id },
+      data: { finalizationRequestedAt: new Date(), finalizationRequestedBy: deputyId },
+    });
+
+    const result = await finalizeJuryPackage(juryPackage.id, deputyId);
+    expect(result.juryPackage.status).toBe('FINALIZED');
+    // The request it answered is now fulfilled → both fields cleared atomically.
+    expect(result.juryPackage.finalizationRequestedAt).toBeNull();
+    expect(result.juryPackage.finalizationRequestedBy).toBeNull();
+
+    const persisted = await prisma.juryPackage.findUniqueOrThrow({
+      where: { id: juryPackage.id },
+    });
+    expect(persisted.finalizationRequestedAt).toBeNull();
+    expect(persisted.finalizationRequestedBy).toBeNull();
+  });
+
+  it('requestFinalization: non-authorized role stamps, authorized role is rejected, already-finalized 409 (F11)', async () => {
+    const { caseId, deputyId, judgeId } = fx;
+    const clean = await makeExhibit(caseId, `A-${fx.suffix}`);
+    await admitClean(clean, deputyId);
+    const { juryPackage } = await initiateJuryPackage(caseId, deputyId, 'DEPUTY');
+
+    // A JUDGE (cannot finalize directly) successfully requests.
+    const { juryPackage: requested } = await requestFinalization(juryPackage.id, judgeId);
+    expect(requested.finalizationRequestedBy).toBe(judgeId);
+    expect(requested.finalizationRequestedAt).not.toBeNull();
+
+    // A DEPUTY (already finalize-authorized) is rejected.
+    await expect(requestFinalization(juryPackage.id, deputyId)).rejects.toMatchObject({
+      code: 'ROLE_NOT_PERMITTED',
+      httpStatus: 403,
+    });
+
+    // Once finalized, further requests 409.
+    await finalizeJuryPackage(juryPackage.id, deputyId);
+    await expect(requestFinalization(juryPackage.id, judgeId)).rejects.toMatchObject({
       code: 'JURY_PACKAGE_ALREADY_FINALIZED',
       httpStatus: 409,
     });
