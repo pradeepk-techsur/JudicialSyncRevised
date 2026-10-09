@@ -1,7 +1,7 @@
 ### Screen: Pivota Assistant (Conversational UI)
 
 **Purpose:** The universal, natural-language entry point to every fact in the system — the single feature the entire demo's success depends on (PRD F7). Available two ways: as a slide-over panel from any screen, and as a dedicated full-page view for sustained, longer review sessions (e.g., the administrator's evaluation walkthrough, JRN-04.1).
-**User Stories:** US-7.1, US-7.2, US-7.3, US-7.4
+**User Stories:** US-7.1, US-7.2, US-7.3, US-7.4, US-15.2
 **Journeys:** JRN-01.1, JRN-02.1, JRN-02.2, JRN-03.1, JRN-04.1 — the Assistant is the one touchpoint common to every journey in the product.
 **Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask ✦" button (slide-over, present on every screen)
 
@@ -13,20 +13,20 @@
 │                                │ Pivota Assistant  ✕ ││
 │                                ├─────────────────────┤│
 │                                │                      ││
-│                                │  You: Is Exhibit 14  ││
-│                                │  in the jury package?││
+│                                │  You: Is P-3 in the  ││
+│                                │  jury package?        ││
 │                                │                      ││
-│                                │  Pivota: Yes — Ex.   ││
-│                                │  14 is ADMITTED and  ││
+│                                │  Pivota: Yes — P-3   ││
+│                                │  is ADMITTED and     ││
 │                                │  flagged as part of  ││
 │                                │  the DRAFT jury       ││
 │                                │  package.             ││
-│                                │  [Ex.14·JuryPkgRow·   ││
+│                                │  [P-3·JuryPkgRow·     ││
 │                                │   2:41 PM]  ⚠ also has││
 │                                │  an open discrepancy: ││
 │                                │  no custodian of      ││
 │                                │  record.              ││
-│                                │  [Ex.14·DiscFlag·     ││
+│                                │  [P-3·DiscFlag·       ││
 │                                │   2:41 PM]            ││
 │                                │                      ││
 │                                ├─────────────────────┤│
@@ -46,8 +46,8 @@
 │ Jury Pkg      │  │ Try asking:                                 │  │
 │ ▸ Assistant   │  │ "What exhibits were admitted yesterday?"    │  │
 │               │  │ "What objections remain unresolved?"        │  │
-│               │  │ "Who has custody of Exhibit 7?"              │  │
-│               │  │ "What happened to Exhibit 14?"               │  │
+│               │  │ "Is P-3 in the jury package?"                │  │
+│               │  │ "Who currently has custody of P-5?"          │  │
 │               │  └────────────────────────────────────────────┘  │
 │               │  ┌────────────────────────────────────────────┐  │
 │               │  │  [conversation thread — same rendering as   │  │
@@ -75,7 +75,7 @@
 
 | State | Appearance | User Feedback |
 |-------|------------|----------------|
-| Empty (no conversation yet) | Example-question prompts shown as tappable suggestion chips | Lowers the barrier for a first-time or non-technical user — tap instead of type |
+| Empty (no conversation yet) | Example-question prompts shown as tappable suggestion chips, generated against the case's actual seeded `exhibitLabel` values (e.g., "P-3," "P-5" — offering-party-prefixed, matching this case's real labeling scheme) rather than a hardcoded placeholder scheme | Lowers the barrier for a first-time or non-technical user — tap instead of type; tapping a chip is guaranteed to produce a grounded answer, never a decline about a nonexistent exhibit (US-15.2) |
 | User message sent | Right-aligned message bubble, immediately visible | Instant local echo, no round-trip wait to see your own question |
 | Assistant thinking/streaming | Left-aligned bubble with a typing indicator, then tokens appear incrementally as they stream | Feels "alive" within ~1s of submit — critical for the "live, on-the-bench" use case (US-7.1) |
 | Grounded answer complete | Full answer text with one or more citation pills rendered inline, in the same color treatment used for status badges elsewhere in the app | Visual consistency with Case Workspace/Exhibit Detail reinforces "one source of truth" |
@@ -100,3 +100,5 @@
 - Answers are written as a confident colleague would state them — "Exhibit 14 is currently Admitted" — never hedged ("it appears that...", "it looks like...") when grounded (FRD F07 §System Prompt Requirements).
 - Declines are equally confident and equally brief — "I don't have that information about Exhibit 22's custody record" — never apologetic padding that could read as uncertainty about *everything else* the assistant says.
 - No emoji, no exclamation points, no "Great question!" filler — the tone is that of a courtroom clerk, not a consumer chatbot, consistent with the legal/compliance audience (PER-04 evaluation lens).
+
+**Example-chip label-source rule (US-15.2, fixes F15 regression):** example/suggested-question chips must reference exhibit labels that actually exist in the active case, sourced from (or validated at render time against) the same `getExhibits` service function the Case Workspace uses — never a hardcoded placeholder scheme (e.g., "Exhibit 14," "Exhibit 7") that doesn't correspond to any seeded exhibit. If the assistant is temporarily unavailable, chips still render from the last-known exhibit list rather than disappearing or reverting to placeholder text.

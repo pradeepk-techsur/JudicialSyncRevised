@@ -2,6 +2,7 @@
 
 **Project:** JudicialSync
 **Generated:** 2026-10-06
+**Last Updated:** 2026-10-08 (Phase 7: admission-rejection error, sealed/ex-parte jury package blocker, discrepancy-acknowledgment role/audit visibility, Case Workspace row clickability, assistant example labels, header indicator, activity-feed date+label fixes — US-12.1–US-12.2, US-13.1–US-13.3, US-14.1–US-14.3, US-15.1–US-15.5)
 **Based on:** UserStories-JudicialSync.md, JOURNEYS-JudicialSync.md, PRD-JudicialSync.md, FRD-JudicialSync.md, PROJECT.md
 
 ---
@@ -36,7 +37,7 @@ All five screens live inside one persistent shell:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync   [Case: 2026-CR-0142]      [Role: Judge ▾] [Ask ✦] │ ← global header
+│ JudicialSync   [Case: 2026-CR-0142]  [⚠ 1]  [Role: Judge ▾] [Ask ✦]│ ← global header
 ├───────────────┬──────────────────────────────────────────────────┤
 │ ▸ Command Ctr │                                                  │
 │   Case        │              [ Active Screen Content ]          │
@@ -48,6 +49,7 @@ All five screens live inside one persistent shell:
 
 - **Sidebar** (persistent, 4 items): Command Center, Case Workspace, Jury Package, Pivota Assistant. This is the entire navigable surface — intentionally small, reinforcing low adoption burden (JTBD-04.4).
 - **"Ask ✦" header button**: opens the Pivota Assistant as a slide-over panel from *any* screen without navigating away — the single most important affordance in the product, since F7 is the universal touchpoint across every journey (JOURNEYS §Convergence Points).
+- **Header discrepancy-count indicator ("`[⚠ 1]`")**: resolves a Phase 7 usability defect (US-15.3) in which a numeric element rendered near the role selector carried no label or explanation of any kind. It now shows the case-wide count of `OPEN` discrepancy flags, paired with a visible `aria-label="N open discrepancies"` (readable without a hover/tooltip) and, when tapped, navigates to the Command Center's Discrepancies panel. If the count is zero, the element is omitted entirely rather than showing a bare, unexplained "0." This treatment is identical on every screen (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) since it lives in the one shared header component — see `Y0-patterns.md` §Pattern: Labeled Header Indicator. "Present and unexplained" is not an acceptable end state for any header element.
 - **Role switcher**: demo-only affordance (no production auth per PROJECT.md scope) letting the presenter switch personas live to show role-scoped visibility (US-7.4, US-10.2).
 - **Exhibit Detail View has no sidebar entry** — it is only reached by drilling into a specific exhibit (row click, activity item, citation link), never browsed to directly, consistent with it being a "zoom-in," not a top-level destination.
 

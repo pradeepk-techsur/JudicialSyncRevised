@@ -110,33 +110,35 @@ Elena identifies trial status and any discrepancy within 10 seconds of glancing 
 
 | Stage | Action | Touchpoint | Thinking | Feeling | Pain Point | Opportunity |
 |-------|--------|------------|----------|---------|------------|-------------|
-| Log Exhibit Activity | Marks Exhibit 14 as offered, then admitted, the moment it happens on the floor | Exhibit Workspace / Case Workspace (F0, F1, F9) | "This needs to be right the instant I log it — three people will rely on this before lunch" | Focused, steady | Today this same information would be split across a spreadsheet, a paper log, and a sticky note, trusted by no one simultaneously | Single log action updates every screen and the assistant at once — no second system to update |
+| Log Exhibit Activity | Marks Exhibit 14 as offered, then attempts to record it admitted the moment it happens on the floor | Exhibit Workspace / Case Workspace (F0, F1, F9, F12) | "This needs to be right the instant I log it — and if something's still open on this exhibit, I need the system to stop me now, not flag it after the fact" | Focused, steady — briefly caught short on the rare attempt the system rejects | Previously, an exhibit with a still-unresolved objection or no custodian on record could be marked admitted anyway, with the gap only surfacing afterward as something someone had to notice and fix | The admission gate rejects an invalid `ADMITTED` transition outright, naming every blocking reason at once ("unresolved objection," "no custodian of record") — Dana resolves it on the spot and retries, instead of a bad admission ever entering the record |
 | Field "What Was Admitted Yesterday?" | Judge Marsh asks the question live from the bench; Dana isn't even the one who answers — the assistant does, directly | Pivota Assistant (F7, F1) | "I didn't have to drop what I'm doing to go find that" | Relieved | Normally this interrupts Dana mid-task to manually flip through yesterday's log | Assistant answers directly from the bench, removing Dana as a forced intermediary |
 | Field "What Objections Remain Unresolved?" | Attorney presses the point; the judge asks the assistant case-wide instead of waiting on Dana to recall from notes | Pivota Assistant (F7, F2) | "That's one less interruption during a moment I can't afford to lose focus" | Confident | Previously, unresolved-objection status lived only in the clerk's running notes, fragile under time pressure | Case-wide "unresolved objections" query available to anyone authorized, not gated through Dana |
 | Answer a Custody Question | Counsel asks "who currently has custody of Exhibit 7?" — Dana answers in seconds via a single lookup | Custody Tracking (F3) | "I know this instantly now — no more flipping the paper log" | Confident | Previously required checking a physical custody log or relying on memory of the last handoff | Instant custodian lookup, no cross-referencing required |
 | Search Mid-Testimony | Bench requests a specific exhibit by description while testimony is moving fast; Dana filters by witness and keyword | Exhibit Search / Case Workspace (F4, F9) | "I need this in seconds, not after scrolling the whole list" | Slight urgency, then relief | Scanning a paper log or spreadsheet under this kind of time pressure risks a visible stumble in open court | Combinable filters (witness + keyword + status) surface the right exhibit almost immediately |
 | Field "Is Exhibit 14 in the Jury Package?" | Judge asks directly; the assistant answers with the exhibit's current admission and objection status | Pivota Assistant (F7, F5, F6) | "This is exactly the kind of question that used to take minutes to run down" | Satisfied | Previously this required manually cross-referencing admission status against objection records | Assistant resolves jury-eligibility in real time from the same computed projection the screens use |
-| Assemble the Jury Package | At close of evidence, Dana generates the jury-ready list; the system runs discrepancy detection before allowing finalization | Jury Package Workspace (F5, F6, F11) | "I need to know, not hope, that nothing discrepant is in here" | Determined, then relieved | Today this is slow, manual cross-referencing against three sources with no guarantee nothing was missed | Discrepancy check is a hard gate — finalization is blocked until every flag is resolved or acknowledged |
+| Assemble the Jury Package | At close of evidence, Dana generates the jury-ready list; the system runs discrepancy detection before allowing finalization, and any sealed/ex-parte exhibit is structurally barred from ever rendering as eligible | Jury Package Workspace (F5, F6, F11, F13, F14) | "I need to know, not hope, that nothing discrepant — or sealed — is in here" | Determined, then briefly vigilant if a sealed row surfaces, then relieved | Previously, slow manual cross-referencing against three sources gave no guarantee nothing was missed, and a sealed/chambers-only exhibit could still be mistaken for a clean, jury-eligible row if it had been marked admitted | Discrepancy check is a hard gate — finalization is blocked until every flag is resolved or acknowledged; a sealed exhibit can never render as clean, and if one is present Dana uses "Remove from Package" to exclude it with a recorded reason; acknowledging any other flag now visibly states who may act and that the action is permanently audited |
 
 #### Key Moments
 - **Decision Point:** Assemble the Jury Package — Dana decides whether to resolve or formally acknowledge each flagged discrepancy before finalization can proceed; this is the single highest-stakes moment in the trial.
+- **Decision Point:** Log Exhibit Activity — when the admission gate rejects a transition, Dana decides on the spot whether to resolve the unresolved objection or missing custodian herself before retrying, rather than letting an invalid admission stand and surface only as a later flag.
 - **Risk of Abandonment:** Log Exhibit Activity — if logging requires more steps than the paper process it replaces, Dana reverts to the sticky note and spreadsheet habit under time pressure.
 - **Delight Opportunity:** Field "What Was Admitted Yesterday?" and the two questions that follow — Dana experiences the judge getting answers *without her having to be the bottleneck*, which is the core "assistant, not another system" promise made tangible.
+- **Delight Opportunity:** Assemble the Jury Package — discovering that a sealed exhibit is structurally blocked (never just flagged) and removable in one clearly-audited action reinforces that the system protects against the single most damaging failure mode in this domain.
 
 #### Success Outcome
-Dana answers 100% of status, objection, and custody queries directly from the live record with zero reliance on memory or notes (JTBD-02.1); answers a custody question in under 5 seconds with zero paper-log lookup (JTBD-02.2); locates a requested exhibit in under 10 seconds during live testimony (JTBD-02.4); and finalizes a jury package with zero manual cross-referencing, with 100% of seeded discrepancies caught before finalization (JTBD-02.3).
+Dana answers 100% of status, objection, and custody queries directly from the live record with zero reliance on memory or notes (JTBD-02.1); answers a custody question in under 5 seconds with zero paper-log lookup (JTBD-02.2); locates a requested exhibit in under 10 seconds during live testimony (JTBD-02.4); and finalizes a jury package with zero manual cross-referencing, with 100% of seeded discrepancies caught before finalization and zero sealed/ex-parte exhibits ever reaching eligible/clean status (JTBD-02.3). No invalid `ADMITTED` transition is ever recorded against an exhibit with an unresolved objection or missing custodian (JTBD-02.1).
 
 #### Feature Touchpoints
 
 | Stage | Features |
 |-------|----------|
-| Log Exhibit Activity | F0, F1, F9 |
+| Log Exhibit Activity | F0, F1, F9, F12 |
 | Field "What Was Admitted Yesterday?" | F7, F1 |
 | Field "What Objections Remain Unresolved?" | F7, F2 |
 | Answer a Custody Question | F3 |
 | Search Mid-Testimony | F4, F9 |
 | Field "Is Exhibit 14 in the Jury Package?" | F7, F5, F6 |
-| Assemble the Jury Package | F5, F6, F11 |
+| Assemble the Jury Package | F5, F6, F11, F13, F14 |
 
 ---
 
@@ -285,13 +287,13 @@ Priya confirms 100% of reviewed exhibit events are traceable to an immutable led
 | JRN-01.2:Request History | JTBD-01.4 | Judge reconstructs full exhibit history instantly, with zero manual assembly |
 | JRN-01.2:Jury Package Presented | JTBD-01.3 | Discrepancy gate visible on the same screen as the jury package |
 | JRN-01.2:Accept with Confidence | JTBD-01.3 | Judge accepts jury packages with zero undetected discrepancies |
-| JRN-02.1:Log Exhibit Activity | JTBD-02.1 | Deputy/clerk maintains one trustworthy record with zero reliance on memory or notes |
+| JRN-02.1:Log Exhibit Activity | JTBD-02.1 | Deputy/clerk maintains one trustworthy record with zero reliance on memory or notes, and the admission gate (F12) rejects any `ADMITTED` transition with an unresolved objection or no custodian of record before it can be written, naming every blocking reason at once |
 | JRN-02.1:Field "What Was Admitted Yesterday?" | JTBD-01.1 | Judge gets a cited live answer in seconds, with the deputy freed from being the lookup path |
 | JRN-02.1:Field "What Objections Remain Unresolved?" | JTBD-02.1 | Objection status answered directly from the live record, not fragile notes |
 | JRN-02.1:Answer a Custody Question | JTBD-02.2 | Deputy/clerk answers custody questions instantly with zero paper-log lookups |
 | JRN-02.1:Search Mid-Testimony | JTBD-02.4 | Deputy/clerk locates any exhibit in under 10 seconds during live testimony |
 | JRN-02.1:Field "Is Exhibit 14 in the Jury Package?" | JTBD-02.3 | Jury-eligibility answered instantly from the current-state projection |
-| JRN-02.1:Assemble the Jury Package | JTBD-02.3 | Deputy/clerk assembles a provably clean jury package with zero manual cross-referencing |
+| JRN-02.1:Assemble the Jury Package | JTBD-02.3 | Deputy/clerk assembles a provably clean jury package with zero manual cross-referencing; a sealed/ex-parte exhibit can never render as eligible/clean (F13) and, if present, is removable via an authorized, reason-recorded "Remove from Package" action; acknowledging any other discrepancy visibly surfaces who may act and that the action is audited (F14) |
 | JRN-02.2:Open Exhibit Detail | JTBD-01.4 | Full chronological exhibit history available on demand, reconstructed from the ledger |
 | JRN-02.2:Walk Through the Timeline | JTBD-02.1 | Status, objection, ruling, and custody events all visible as one trustworthy record |
 | JRN-02.2:Confirm via Assistant | JTBD-01.4 | History accessible via both direct screen view and natural-language assistant query |
@@ -308,4 +310,4 @@ Priya confirms 100% of reviewed exhibit events are traceable to an immutable led
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-06*
+*Last updated: 2026-10-08 (JRN-02.1 updated for Phase 7: admission gate at Log Exhibit Activity (F12), sealed-exclusion remediation + acknowledgment transparency at Assemble the Jury Package (F13, F14))*

@@ -67,7 +67,11 @@ CREATE TYPE objection_status AS ENUM (
 
 CREATE TYPE event_type AS ENUM (
     'STATUS_CHANGE', 'OBJECTION_RAISED', 'RULING_RECORDED',
-    'CUSTODY_TRANSFER', 'DISCREPANCY_ACKNOWLEDGED'
+    'CUSTODY_TRANSFER', 'DISCREPANCY_ACKNOWLEDGED',
+    'JURY_PACKAGE_EXHIBIT_EXCLUDED'  -- added Phase 7 (F13); existing deployments
+                                      -- apply this via ALTER TYPE event_type
+                                      -- ADD VALUE 'JURY_PACKAGE_EXHIBIT_EXCLUDED'
+                                      -- (see §3.9 Phase 7 Schema Changes)
 );
 
 CREATE TYPE discrepancy_status AS ENUM (
@@ -80,6 +84,15 @@ CREATE TYPE jury_package_status AS ENUM (
 
 CREATE TYPE jury_exhibit_discrepancy_status AS ENUM (
     'CLEAN', 'FLAGGED'
+);
+
+-- Added Phase 7 (F13). Tracks whether a jury_package_exhibits row is
+-- currently part of the active/included package set, or has been excluded
+-- (automatically, via the is_sealed candidate-query filter — the primary
+-- mechanism — or manually, via the "Remove from Package" remediation
+-- action). EXCLUDED rows are retained, never deleted, for audit.
+CREATE TYPE jury_package_exhibit_status AS ENUM (
+    'INCLUDED', 'EXCLUDED'
 );
 
 CREATE TYPE message_role AS ENUM (
@@ -175,6 +188,7 @@ CREATE INDEX idx_exhibit_events_case_type_time ON exhibit_events (case_id, event
 | `RULING_RECORDED` | `{ objectionId: uuid, disposition: 'SUSTAINED' \| 'OVERRULED' \| 'RESERVED' }` |
 | `CUSTODY_TRANSFER` | `{ fromCustodianUserId: uuid \| null, toCustodianUserId: uuid, reason?: string }` |
 | `DISCREPANCY_ACKNOWLEDGED` | `{ discrepancyFlagId: uuid, ruleCode: string, justification: string }` |
+| `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)* | `{ juryPackageId: uuid, exhibitId: uuid, reason: 'SEALED_EXPARTE' \| 'MANUAL_REMOVAL', note?: string }` |
 
 ### 3.4 Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -273,16 +287,37 @@ CREATE INDEX idx_jury_packages_case_status ON jury_packages (case_id, status);
 -- computation time for display; F5's finalization gate ALWAYS re-queries
 -- discrepancy_flags fresh rather than trusting this cached column — see
 -- 03-api.md §Jury Package.
+--
+-- status / excluded_at / excluded_by / exclusion_reason added Phase 7
+-- (F13) via a new Prisma migration. status defaults to 'INCLUDED' so
+-- existing rows remain valid post-migration with no backfill required.
+-- These four columns back the "Remove from Package" remediation/audit
+-- path only — the PRIMARY defense against sealed exhibits is the
+-- is_sealed = false filter now applied inside computeJuryCandidates's
+-- query (see note below), which means a sealed exhibit never acquires
+-- an INCLUDED row here in the first place going forward.
 CREATE TABLE jury_package_exhibits (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     jury_package_id    UUID NOT NULL REFERENCES jury_packages(id),
     exhibit_id         UUID NOT NULL REFERENCES exhibits(id),
     discrepancy_status jury_exhibit_discrepancy_status NOT NULL,
     added_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status             jury_package_exhibit_status NOT NULL DEFAULT 'INCLUDED',  -- added Phase 7 (F13)
+    excluded_at        TIMESTAMPTZ,                                              -- added Phase 7 (F13)
+    excluded_by        UUID REFERENCES users(id),                                -- added Phase 7 (F13)
+    exclusion_reason   TEXT,                                                     -- added Phase 7 (F13): 'SEALED_EXPARTE' | 'MANUAL_REMOVAL'
 
     CONSTRAINT uq_jury_package_exhibit UNIQUE (jury_package_id, exhibit_id)
 );
+
+-- Added Phase 7 (F13): GET /api/cases/:id/jury-package's default read
+-- returns only status = 'INCLUDED' rows; this index serves that filter
+-- plus the inverse audit-history query.
+CREATE INDEX idx_jury_package_exhibits_package_status
+    ON jury_package_exhibits (jury_package_id, status);
 ```
+
+**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates`'s candidate query (`services/juryPackage.ts`, see `01-components.md` §2.2) is amended to filter `exhibits.is_sealed = false` in the *same* query as `exhibit_current_state.current_status = 'ADMITTED'` — a sealed/ex-parte exhibit's row is never created as `INCLUDED` via the normal computation path, and is never passed into `evaluateDiscrepancies` for jury-package purposes (so it can never acquire `CLEAN`/`FLAGGED`). The `status`/`excluded_*` columns above exist solely for the remediation/audit path (legacy or regression rows, or any future manual removal) — they are a safety net, not the primary mechanism. `EXCLUDED` rows are retained (never deleted) and are omitted from `GET /api/cases/:id/jury-package`'s default response but remain queryable for audit.
 
 ### 3.7 Assistant Audit Trail
 
@@ -327,3 +362,19 @@ CREATE INDEX idx_assistant_citations_message ON assistant_citations (message_id)
 - **Projection integrity is independently verifiable.** All current-state projection tables (§3.4) must be exactly reproducible by replaying `exhibit_events` rows per exhibit in `sequence_no` order via the `rebuildProjections(caseId)` admin utility — this is the mechanism satisfying the PRD's Auditability non-functional requirement, and should be run as a pre-demo sanity check, not relied upon as a live write path.
 - **No further indexing/caching required at demo scale** (dozens–hundreds of exhibits, single case, <10 concurrent users) — see `.planning/research/ARCHITECTURE.md` §Scaling Considerations.
 - **ORM mapping:** This SQL DDL is the canonical Postgres schema; it maps 1:1 to the Prisma schema models (`Case`, `User`, `Exhibit`, `ExhibitEvent`, `ExhibitCurrentState`, `ObjectionCurrentState`, `CustodyCurrentState`, `DiscrepancyFlag`, `JuryPackage`, `JuryPackageExhibit`, `AssistantConversation`, `AssistantMessage`, `AssistantCitation`) used by the application's Prisma client — table/column names above are `snake_case` per SQL convention; Prisma model/field names are `PascalCase`/`camelCase` per FRD `Y0-schema.md` convention, mapped via `@@map`/`@map` directives.
+
+### 3.9 Phase 7 Schema Changes (Migration Required)
+
+F12–F15 (Phase 7) are predominantly service-layer validation and client-rendering work, not schema work. Exactly one feature — F13 — requires a schema change, and it requires a new Prisma migration:
+
+| Change | Table/Enum | Required by | Migration? |
+|---|---|---|---|
+| New enum value `JURY_PACKAGE_EXHIBIT_EXCLUDED` | `event_type` | F13 (exclusion audit event) | **Yes** — `ALTER TYPE event_type ADD VALUE` |
+| New enum | `jury_package_exhibit_status` (`INCLUDED` \| `EXCLUDED`) | F13 | **Yes** — `CREATE TYPE` |
+| New columns `status`, `excluded_at`, `excluded_by`, `exclusion_reason` | `jury_package_exhibits` | F13 | **Yes** — `ALTER TABLE ... ADD COLUMN`, `status` backfilled to `'INCLUDED'` by its `DEFAULT` for existing rows |
+| New index `idx_jury_package_exhibits_package_status` | `jury_package_exhibits` | F13 (default-read filter) | **Yes** — part of the same migration |
+| *(no schema change)* | — | F12 (admission gate) | **No** — reads existing `objection_current_state`/`custody_current_state` projections only; writes nothing beyond the standard `STATUS_CHANGE` event already defined for F1 |
+| *(no schema change)* | — | F14 (acknowledgment justification surfacing) | **No** — the justification text already exists in the `DISCREPANCY_ACKNOWLEDGED` event's `payload`; F14 is a read-time join at the service layer (`services/discrepancies.ts#getDiscrepancies`), not a new column |
+| *(no schema change)* | — | F15 (usability fixes) | **No** — client-rendering only; no table, column, or enum is touched |
+
+All four F13 schema changes land in a single Prisma migration (e.g. `add_jury_package_exhibit_exclusion`). No other table in this document is touched by Phase 7.

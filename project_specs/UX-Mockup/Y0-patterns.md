@@ -71,3 +71,57 @@
 **Behavior:** The sealed exhibit is simply absent — not shown as a redacted row, not referenced in a count, not hinted at via a "1 hidden result" message. An unauthorized direct navigation to its detail URL returns an identical "not found" experience to a genuinely nonexistent ID.
 **Examples:** Case Workspace list (US-9.1), Exhibit Detail View (US-10.2), Assistant decline (US-7.4), search results (US-4.1).
 **Rationale:** The FRD is explicit that revealing *existence* of sealed material to an unauthorized role is itself the harm to prevent — a redacted placeholder row would violate this even though no content leaks.
+
+---
+
+### Pattern: Fully Clickable List Row
+
+**When to use:** Any list row that drills into a detail screen — Case Workspace's exhibit table and Command Center's Recent Activity/Unresolved Objections/Discrepancies rows.
+**Behavior:** The entire row container is the click target and carries a visible hover affordance (background highlight + `cursor: pointer`), not just a nested link, icon, or label span. The row is keyboard-focusable and Enter/Space activates it identically to a click. Nested inline action controls (e.g., "Record Status," "Acknowledge") call `stopPropagation()` so operating them never triggers row navigation, while every other point on the row does.
+**Examples:** Case Workspace exhibit row (fixes a regression against this same guarantee — US-15.1); Command Center's Recent Activity/Unresolved Objections/Discrepancies rows (already correct, used here as the reference implementation).
+**Rationale:** US-15.1 requires a row with zero discrepancy flags and a row with one or more flags to be "both fully, identically clickable across their entire row area" — a shared pattern definition is what keeps Case Workspace from silently drifting out of sync with the Command Center behavior it is meant to match.
+
+---
+
+### Pattern: Multi-Reason Blocking Error (Admission Gate)
+
+**When to use:** Any inline "Record Status" action attempting to transition an exhibit to `ADMITTED` — available on both the Case Workspace row and the Exhibit Detail header.
+**Behavior:** If the attempt is rejected (`422 ADMISSION_BLOCKED`), the inline action renders a specific inline error naming every applicable blocking reason at once — never a generic "failed to update status" message and never only the first reason found. Each reason renders as its own line (e.g., "Unresolved objection on this exhibit," "No custodian of record"), preceded by a count ("Cannot admit: 2 blocking condition(s) present"). No `ExhibitEvent` is recorded and the exhibit's displayed status does not change — the inline action simply re-collapses to its prior, unmodified state once the error is dismissed.
+**Examples:** Case Workspace's inline "Record Status" action; Exhibit Detail View's header "Record Status" action (US-12.1, US-12.2).
+**Rationale:** F12 moves this check to a hard pre-write gate specifically so a deputy never discovers a blocking condition one at a time through repeated failed attempts — the UI's job is to surface every reason the first time, matching the service layer's `reasons[]` array 1:1.
+
+---
+
+### Pattern: Critical Blocker Row (Sealed / Ex Parte)
+
+**When to use:** Any Jury Package Workspace row whose underlying exhibit is `isSealed = true`.
+**Behavior:** Rendered in a distinct, higher-severity treatment than the Discrepancy Flag Treatment pattern above — explicit label ("Critical · ex parte material — must be removed"), a stronger/non-amber critical color, and never the `✓ Clean` or `⚠ Flagged` wording used by ordinary discrepancies. This evaluation runs independently of, and takes precedence over, the row's underlying `discrepancyStatus` — a sealed exhibit's row is structurally incapable of ever reading `Clean`, regardless of what F6's discrepancy engine separately reports for it. Only `DEPUTY`, `CLERK`, or `ADMIN` roles see the row's "Remove from Package" action; `JUDGE`, `CHAMBERS_STAFF`, and `ATTORNEY` see the identical critical-severity row with no action control.
+**Examples:** Jury Package Workspace sealed/ex-parte blocker row (US-13.1, US-13.2, US-13.3).
+**Rationale:** F13 names sealed material reaching a jury package as "the single most damaging failure mode in this domain" — a row that could ever be mistaken for an ordinary flagged-but-tolerable discrepancy would undermine the entire guarantee, so this pattern is deliberately visually incompatible with the Discrepancy Flag Treatment pattern.
+
+---
+
+### Pattern: Permanent-Record Disclosure (Role-Gated Action)
+
+**When to use:** Any control that triggers an auditable, identity-attributed ledger event the user is about to commit to — currently the discrepancy "Acknowledge" action (F6/F14) and the jury package "Remove from Package" action (F13).
+**Behavior:** Two guarantees, both required: (1) if the requesting role is not in the action's permitted set, the control is simply absent — never rendered disabled or greyed-out; (2) if the role is permitted, the control is shown alongside inline, always-visible (not tooltip/hover-only) copy stating the action will be permanently recorded under the acting user's name and role before the action is confirmed — e.g., "Acknowledging will be recorded as a permanent action under your name." Any accompanying free-text input (e.g., acknowledgment justification) is labeled to make clear it becomes part of the permanent record, not an optional comment. Once the action is taken, every screen rendering that record displays the full audit trail (actor, role, timestamp, justification) — never summarized away or hidden behind a secondary click.
+**Examples:** Discrepancy "Acknowledge" button on Case Workspace, Exhibit Detail, and Jury Package Workspace (US-14.1, US-14.2, US-14.3); Jury Package "Remove from Package" button (US-13.2).
+**Rationale:** F14 is explicit that the underlying audit data already exists in full — the gap is purely that a user could take an irreversible, identity-attributed action without being shown, before committing, that it is irreversible and identity-attributed. This pattern closes that gap identically everywhere the action appears, rather than per-screen.
+
+---
+
+### Pattern: Activity Feed Row Format (Full Timestamp + Label)
+
+**When to use:** Command Center's Recent Activity feed (F8) — any row rendering an `ExhibitEvent` as a one-line summary.
+**Behavior:** Every row renders both the date and the time of `recordedAt` (e.g., "Oct 8, 2026, 2:41 PM") — never a time-only stamp — and always includes the event's exhibit label as part of the rendered summary, including rows describing a raw `STATUS_CHANGE` transition (e.g., "Exhibit 3 — MARKED → OFFERED, Oct 8, 2026, 1:58 PM" rather than a summary with no exhibit identified).
+**Examples:** Command Center Recent Activity panel, every `eventType` value (US-15.4, US-15.5).
+**Rationale:** A judge scanning the feed across a day boundary or a multi-day recess cannot tell two events on different days apart from a time-only stamp, and an unattributed raw-transition row forces a drill-in just to learn which exhibit it concerned — both defeat the "glance, don't drill in" promise of US-8.1.
+
+---
+
+### Pattern: Labeled Header Indicator
+
+**When to use:** Any numeric or iconographic element rendered in the shared app header (near the role selector), present identically on all five screens.
+**Behavior:** An element is never shown "present and unexplained." Every header indicator either (a) carries a visible label or an accessible `aria-label`/tooltip explaining what it represents, or (b) is not rendered at all when it has no current user-facing function. The resolved discrepancy-count indicator (see `00-overview.md` §App Shell) is the current example: a small `[⚠ N]` badge showing the case-wide count of `OPEN` discrepancy flags, labeled via `aria-label="N open discrepancies"`, omitted entirely when the count is zero.
+**Examples:** App header discrepancy-count badge, replacing a previously unlabeled numeric element (US-15.3).
+**Rationale:** "Present and unexplained" is explicitly called out as unacceptable for any header element, verified across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace — a single shared header component (not per-screen reimplementation) is what guarantees the fix can't regress on only some screens.

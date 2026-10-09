@@ -19,10 +19,12 @@ type EventType =
   | 'OBJECTION_RAISED'
   | 'RULING_RECORDED'
   | 'CUSTODY_TRANSFER'
-  | 'DISCREPANCY_ACKNOWLEDGED';
+  | 'DISCREPANCY_ACKNOWLEDGED'
+  | 'JURY_PACKAGE_EXHIBIT_EXCLUDED'; // added Phase 7 (F13)
 type DiscrepancyStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
 type JuryPackageStatus = 'DRAFT' | 'FINALIZED';
 type JuryExhibitDiscrepancyStatus = 'CLEAN' | 'FLAGGED';
+type JuryPackageExhibitStatus = 'INCLUDED' | 'EXCLUDED'; // added Phase 7 (F13)
 
 interface Exhibit {
   id: string;
@@ -83,6 +85,10 @@ interface DiscrepancyFlag {
   details: Record<string, unknown>;
   acknowledgedAt?: string;
   acknowledgedBy?: string;
+  // Added Phase 7 (F14): additive read-time join from acknowledgedEventId
+  // to the backing DISCREPANCY_ACKNOWLEDGED event's payload.justification —
+  // present only when status === 'ACKNOWLEDGED'; no schema/write change.
+  justification?: string;
   resolvedAt?: string;
 }
 
@@ -101,12 +107,34 @@ interface JuryPackageExhibit {
   currentStatus: ExhibitStatus;
   discrepancyStatus: JuryExhibitDiscrepancyStatus;
   addedAt: string;
+  // Added Phase 7 (F13) — defaults to INCLUDED for rows predating this
+  // migration; see 02-data-model.md §3.9. GET /api/cases/:id/jury-package's
+  // default response includes only status === 'INCLUDED' rows.
+  status: JuryPackageExhibitStatus;
+  excludedAt?: string;
+  excludedBy?: string;
+  exclusionReason?: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL';
 }
 
 interface ApiError {
   error: {
     code: string;
     message: string;
+  };
+}
+
+// Added Phase 7 (F12) — the ADMISSION_BLOCKED error shape, returned only
+// when a status-transition request attempts toStatus = ADMITTED and at
+// least one blocking condition applies. See 04-security.md and
+// 06-integrations.md §Admission Gate.
+interface AdmissionBlockedError {
+  error: {
+    code: 'ADMISSION_BLOCKED';
+    message: string;
+    reasons: Array<{
+      code: 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN';
+      message: string;
+    }>;
   };
 }
 
@@ -153,7 +181,7 @@ interface ExhibitHistoryResponse {
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes? }` | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState }` | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes? }` | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState }` | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404, `ADMISSION_BLOCKED` 422 *(added Phase 7, F12 — returned as `AdmissionBlockedError` above; evaluated only when `toStatus = ADMITTED`, before any ledger write)* |
 | `GET /api/exhibits/:id/status` | Current derived status | — | `200 ExhibitCurrentState` | `EXHIBIT_NOT_FOUND` 404 |
 
 **Allowed transitions (state machine, enforced server-side):**
@@ -214,17 +242,27 @@ interface SearchExhibitsCriteria {
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
 | `POST /api/cases/:id/jury-package` | Compute/refresh draft jury-eligible set | `{ actorUserId }` | `201 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `NO_ELIGIBLE_EXHIBITS` 422, `ROLE_NOT_PERMITTED` 403 |
-| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `CASE_NOT_FOUND` 404 |
+| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)* | `CASE_NOT_FOUND` 404 |
 | `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`) | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
 
-`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time.
+`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time. Only `status: 'INCLUDED'` rows participate in finalization *(amended Phase 7, F13)* — an `EXCLUDED` row can never block or be counted toward it.
+
+**Amended Phase 7 (F13):** the candidate computation behind `POST /api/cases/:id/jury-package` now also filters `exhibit.isSealed = false` at the query level, in addition to `currentStatus = 'ADMITTED'` — see `01-components.md` §2.2 and `02-data-model.md` §3.6 note. This is a behavior amendment to the existing endpoint, not a new route.
+
+### 4.7a Jury Package Exclusion (F13, added Phase 7)
+
+| Method & Path | Description | Request Body | Response | Errors |
+|---|---|---|---|---|
+| `POST /api/jury-package/:id/exhibits/:exhibitId/exclude` | Explicitly excludes an `INCLUDED` exhibit row from a `DRAFT` jury package (remediation action for sealed/ex-parte material predating the F13 filter, or any other manual-removal need); recorded as an auditable `JURY_PACKAGE_EXHIBIT_EXCLUDED` ledger event | `{ actorUserId, reason: 'SEALED_EXPARTE' \| 'MANUAL_REMOVAL', note? }` | `200 { event: ExhibitEvent, juryPackageExhibit: JuryPackageExhibit }` (status: `EXCLUDED`) | `JURY_PACKAGE_EXHIBIT_NOT_FOUND` 404, `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
+
+`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` — identical to the finalize role gate (`04-security.md` §5.2.2). Available only against a row currently `status: 'INCLUDED'` on a `DRAFT` package — a `FINALIZED` package's rows are immutable and cannot be excluded via this action.
 
 ### 4.8 Discrepancies (F6)
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `GET /api/cases/:id/discrepancies` | All open/acknowledged flags case-wide | — | `200 DiscrepancyFlag[]` | `CASE_NOT_FOUND` 404 |
-| `GET /api/exhibits/:id/discrepancies` | Flags for a single exhibit | — | `200 DiscrepancyFlag[]` | `EXHIBIT_NOT_FOUND` 404 |
+| `GET /api/cases/:id/discrepancies` | All open/acknowledged flags case-wide | — | `200 DiscrepancyFlag[]` — flags with `status: 'ACKNOWLEDGED'` additionally include `justification` *(added Phase 7, F14 — see §4.1)* | `CASE_NOT_FOUND` 404 |
+| `GET /api/exhibits/:id/discrepancies` | Flags for a single exhibit | — | `200 DiscrepancyFlag[]` — same `justification` addition as above *(F14)* | `EXHIBIT_NOT_FOUND` 404 |
 | `POST /api/discrepancies/:id/acknowledge` | Explicitly acknowledge an open flag | `{ actorUserId, justification }` | `200 { event: ExhibitEvent, discrepancyFlag: DiscrepancyFlag }` (idempotent) | `JUSTIFICATION_REQUIRED` 422, `DISCREPANCY_NOT_FOUND` 404, `ROLE_NOT_PERMITTED` 403 |
 
 ### 4.9 Command Center (F8)
@@ -297,7 +335,7 @@ interface AssistantToolSet {
 }
 ```
 
-Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone.
+Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone. Because of this mapping, the Phase 7 amendments above propagate automatically: `getJuryPackageStatus` never returns an `EXCLUDED` row as included/eligible (F13), and `getDiscrepancies` surfaces `justification` on `ACKNOWLEDGED` flags identically to the UI (F14) — no tool definition changed.
 
 ### 4.11 Common Response Envelope
 

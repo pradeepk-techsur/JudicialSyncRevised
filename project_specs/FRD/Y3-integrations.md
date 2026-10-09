@@ -25,8 +25,13 @@ Though not external integrations, these internal event-driven triggers are docum
 | Ruling recorded | `recordEvent(RULING_RECORDED)` | Updates `ObjectionCurrentState`; if the exhibit is `ADMITTED`, re-evaluates `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` | F2 → F6 |
 | Custody transfer | `recordEvent(CUSTODY_TRANSFER)` | Updates `CustodyCurrentState`; re-evaluates `ADMITTED_NO_CUSTODIAN` | F3 → F6 |
 | Discrepancy acknowledged | `recordEvent(DISCREPANCY_ACKNOWLEDGED)` | Updates `DiscrepancyFlag.status` to `ACKNOWLEDGED` | F6 |
+| Jury package exhibit excluded *(added Phase 7)* | `recordEvent(JURY_PACKAGE_EXHIBIT_EXCLUDED)` | Updates `JuryPackageExhibit.status` to `EXCLUDED`, setting `excludedAt`/`excludedBy`/`exclusionReason` | F13 |
 
-All five triggers execute synchronously within the same service-layer call that appends the ledger event — there is no async job queue or eventual-consistency window between a ledger write and its projection/discrepancy update, which is required for F5's finalization gate to be trustworthy (re-evaluating discrepancies "fresh" per F5 §Process step 5 means the projection is never behind the ledger).
+All triggers execute synchronously within the same service-layer call that appends the ledger event — there is no async job queue or eventual-consistency window between a ledger write and its projection/discrepancy update, which is required for F5's finalization gate to be trustworthy (re-evaluating discrepancies "fresh" per F5 §Process step 5 means the projection is never behind the ledger).
+
+### Admission Gate (F12 — Pre-Write Check, Not a Post-Write Trigger)
+
+Added Phase 7. Unlike the triggers above, which run *after* a ledger event is appended, F12's two admission-integrity checks (unresolved objection present; no custodian of record) run *before* the `STATUS_CHANGE` event for a `toStatus = ADMITTED` transition is ever appended. If either check fails, the service layer rejects the request with `ADMISSION_BLOCKED` (422) and **no `ExhibitEvent` row is created** — this is a hard precondition gate inside the same service function used by every caller (UI, API, seed loader), not a downstream reaction to a write that already happened. See F12 §Process for the full sequence.
 
 ### Live Multi-Screen Sync
 

@@ -217,6 +217,60 @@ Specific pain points this demo targets:
 
 ---
 
+### F12: Admission Integrity Gating
+**Description:** State-machine enforcement preventing an exhibit from being marked Admitted while it still has an unresolved objection or no custodian of record, closing the gap where these discrepancies were previously detected only after the fact.
+
+**Capabilities:**
+- Admission transition is rejected (not silently flagged) when the exhibit has an open/unresolved objection thread
+- Admission transition is rejected when the exhibit has no custodian recorded on the chain-of-custody ledger
+- Applies uniformly regardless of entry point (UI action, API call, or any future automation) — the gate lives in the shared service layer, not a single screen
+- Rejection surfaces a clear, actionable reason (e.g., "cannot admit: objection unresolved" / "cannot admit: no custodian on record") rather than a generic error
+- Contested (Objected) exhibits that are correctly excluded from the jury package are also checked for custody completeness, so a custody gap on a still-open exhibit is visible before it ever reaches the admission decision
+
+**Priority:** P0 (Critical — closes a state-model gap that previously allowed invalid admissions to occur silently)
+
+---
+
+### F13: Jury Package Ex Parte / Sealed Exclusion
+**Description:** Hard structural exclusion of ex parte, sealed, or chambers-only material from the jury-eligible exhibit set, so no sidebar or in-camera submission can appear as eligible/clean in a draft jury package regardless of its admission status.
+
+**Capabilities:**
+- Jury-eligibility computation treats sealed/ex-parte classification as an absolute exclusion, independent of and prior to the admitted/objection/custody discrepancy checks in F6
+- An Admitted exhibit flagged as ex parte or chambers-only never appears as eligible, draft-included, or "clean" on the Jury Package Workspace
+- Exclusion is enforced at the same shared service layer the Jury Package Workspace and the assistant both read, so there is no path (UI, export, or assistant answer) that can surface sealed material as jury-eligible
+- Regression coverage specifically exercises the originating case (a sealed chambers sidebar note marked Admitted) to prevent recurrence
+
+**Priority:** P0 (Critical — highest-severity finding; sealed/ex-parte material reaching jurors is the single most damaging failure mode this product must prevent)
+
+---
+
+### F14: Discrepancy Acknowledgment Transparency
+**Description:** Makes the semantics of acknowledging a discrepancy visible to the user at the point of action — who is permitted to acknowledge, and that doing so is recorded as an auditable event rather than a silent dismissal.
+
+**Capabilities:**
+- Acknowledge action visibly indicates (via inline copy, tooltip, or confirmation state) that the acknowledgment will be recorded as a permanent, auditable event tied to the acknowledging user and role
+- Role restrictions on who may acknowledge (per the Phase 3 model: deputy/clerk/judge/admin) are reflected in the UI — an unauthorized role does not see an acknowledge control that will silently fail or is misleadingly enabled
+- Acknowledgment required-justification field is clearly labeled as part of the permanent record, not a throwaway comment
+- No change to the underlying acknowledgment data model or audit trail from F6/F11 — this feature is strictly about making existing semantics legible, not altering them
+
+**Priority:** P1 (High — trust/comprehension issue for a demo audience of judges and court staff, not a data-integrity defect)
+
+---
+
+### F15: Courtroom Usability Fixes
+**Description:** A cluster of interface clarity and consistency fixes identified during review of the shipped milestone — making the Case Workspace, Pivota Assistant, header, and activity feed behave the way a courtroom user would expect without additional explanation.
+
+**Capabilities:**
+- Case Workspace exhibit table rows are directly clickable through to the Exhibit Detail View, matching the existing activity-feed link behavior rather than requiring it as the only entry point
+- Assistant example/suggested-question prompts reference the case's actual exhibit labeling scheme (e.g., P-1, P-3, S-1) instead of a mismatched placeholder scheme (e.g., "Exhibit 14," "Exhibit 7")
+- The unlabeled numeric element displayed near the role selector in the header is either clearly labeled with its purpose or removed if it serves no user-facing function
+- Activity feed entries display both date and time (not time only), so that same-second seeded events and day-boundary crossings remain unambiguous to a reader
+- Activity feed entries display the exhibit's label alongside each state-transition description (e.g., "P-1: MARKED → OFFERED" rather than "from (none) to MARKED"), so a reader can identify which exhibit changed without opening it
+
+**Priority:** P1 (High — usability/clarity defects that undermine the "assistant, not system to learn" positioning but do not affect data integrity)
+
+---
+
 ## 6. Non-Functional Requirements
 
 - **Trustworthiness over fluency:** Every assistant answer must be traceable to a specific ledger record; the system must never generate a plausible-sounding but unsupported claim (analogous to real-world sanctions over fabricated AI legal citations).
@@ -273,10 +327,14 @@ Specific pain points this demo targets:
 | F9 | Case Workspace Screen | UI Screen | P0 |
 | F10 | Exhibit Detail View Screen | UI Screen | P0 |
 | F11 | Jury Package Workspace Screen | UI Screen | P0 |
+| F12 | Admission Integrity Gating | Status Tracking | P0 |
+| F13 | Jury Package Ex Parte / Sealed Exclusion | Differentiator | P0 |
+| F14 | Discrepancy Acknowledgment Transparency | Differentiator | P1 |
+| F15 | Courtroom Usability Fixes | Usability | P1 |
 
 **Priority Summary:**
-- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11 — 10 features
-- **P1 (High):** F4, F8 — 2 features
+- **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11, F12, F13 — 12 features
+- **P1 (High):** F4, F8, F14, F15 — 4 features
 - **P2 / P3:** None at this stage — all defined features are considered necessary for a credible end-to-end demo
 
 ---

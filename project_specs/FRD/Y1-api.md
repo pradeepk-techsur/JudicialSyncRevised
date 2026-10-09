@@ -38,7 +38,7 @@ Full chronological event timeline for one exhibit (F10).
 Records a status transition.
 - Body: `{ toStatus, actorUserId, notes? }`
 - 201: `{ event: ExhibitEvent, currentState: ExhibitCurrentState }`
-- Errors: `INVALID_STATUS_TRANSITION` (422), `STATUS_FINALIZED` (409), `STATUS_CONFLICT` (409), `EXHIBIT_NOT_FOUND` (404)
+- Errors: `INVALID_STATUS_TRANSITION` (422), `STATUS_FINALIZED` (409), `STATUS_CONFLICT` (409), `EXHIBIT_NOT_FOUND` (404), `ADMISSION_BLOCKED` (422 — added Phase 7, F12: only evaluated when `toStatus = ADMITTED`; see F12 §Process)
 
 **`GET /api/exhibits/:id/status`**
 Current derived status.
@@ -108,7 +108,7 @@ Computes/refreshes the draft jury-eligible exhibit set.
 
 **`GET /api/cases/:id/jury-package`**
 Fetches the current (draft or finalized) jury package with live discrepancy status per exhibit.
-- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }`
+- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`POST /api/jury-package/:id/finalize`**
@@ -117,18 +117,30 @@ Attempts finalization — hard-gated by discrepancy re-check.
 - 200: `{ juryPackage: JuryPackage (status: FINALIZED) }`
 - Errors: `JURY_PACKAGE_DISCREPANCIES_OPEN` (409, includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` (409), `ROLE_NOT_PERMITTED` (403)
 
+*(Added Phase 7, F13: the candidate computation behind `POST /api/cases/:id/jury-package` now also filters `exhibit.isSealed = false` at the query level, in addition to the `currentStatus = ADMITTED` filter — see F13 §Process step 1. This is a behavior amendment to the existing endpoint, not a new route.)*
+
+---
+
+### §Jury Package Exclusion (F13)
+
+**`POST /api/jury-package/:id/exhibits/:exhibitId/exclude`**
+Explicitly excludes an `INCLUDED` exhibit row from a `DRAFT` jury package (remediation action for sealed/ex-parte material, or any other manual removal need), recorded as an auditable ledger event.
+- Body: `{ actorUserId, reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL', note? }`
+- 200: `{ event: ExhibitEvent, juryPackageExhibit: JuryPackageExhibit (status: EXCLUDED) }`
+- Errors: `JURY_PACKAGE_EXHIBIT_NOT_FOUND` (404), `JURY_PACKAGE_ALREADY_FINALIZED` (409), `ROLE_NOT_PERMITTED` (403)
+
 ---
 
 ### §Discrepancies (F6)
 
 **`GET /api/cases/:id/discrepancies`**
 All open/acknowledged discrepancy flags case-wide.
-- 200: `Array<DiscrepancyFlag>`
+- 200: `Array<DiscrepancyFlag>` — for any flag with `status: ACKNOWLEDGED`, the response additionally includes `justification` (string, added Phase 7, F14: read-time join from `acknowledgedEventId` to the backing `DISCREPANCY_ACKNOWLEDGED` event's payload — no schema change, see F14 §Outputs)
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`GET /api/exhibits/:id/discrepancies`**
 Discrepancy flags for a single exhibit.
-- 200: `Array<DiscrepancyFlag>`
+- 200: `Array<DiscrepancyFlag>` — same `justification` addition as above for `ACKNOWLEDGED` flags (F14)
 - Errors: `EXHIBIT_NOT_FOUND` (404)
 
 **`POST /api/discrepancies/:id/acknowledge`**

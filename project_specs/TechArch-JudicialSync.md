@@ -2,9 +2,10 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** TechArch (Technical Architecture Document)
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
 **Generated:** 2026-10-06
+**Last Updated:** 2026-10-08 (Phase 7 — F12–F15: admission integrity gate, jury-package sealed exclusion + migration, discrepancy-acknowledgment read-model join, usability fixes confirmed presentation-layer-only)
 **Source Documents:** `PRD-JudicialSync.md`, `FRD-JudicialSync.md`
 **Grounded in:** `.planning/research/SUMMARY.md`, `.planning/research/ARCHITECTURE.md`
 
@@ -177,6 +178,8 @@ All UI screens are **render-only** — they compose service-layer reads, display
 
 **Action-flow components** (status transition form, objection/ruling recorder, custody transfer recorder) are intentionally minimal, conversational-feeling controls rather than heavy data-entry forms — reinforcing the PRD's "assistant, not system" positioning. They call their respective F1/F2/F3 API routes and never touch Prisma or current-state tables directly.
 
+**F15 confirmation (added Phase 7):** all five Courtroom Usability Fixes are client-rendering corrections against existing, already-correct service-layer responses — `ExhibitTable.tsx` (full-row click-through on `CaseWorkspacePage`), `ExampleChips.tsx` (assistant example prompts on `AssistantChatPanel`, sourced from the existing `getExhibits` call), `Header.tsx` (remove/label the unexplained numeric element), and `RecentActivityPanel.tsx` (date-qualified timestamps + exhibit label on every row, backed by `services/activity.ts#getRecentActivity` and staggered `data/seed.ts` timestamps for unambiguous ordering). None of these touch an API contract, the service layer, or the schema — they are listed here only because they amend the rendering behavior of components already documented in this table, not because they introduce new architecture. No row in §2.2–2.4 changes as a result of F15.
+
 ### 2.2 Service Layer Components
 
 The service layer is the **sole entry point** for every read and write in the system — both UI API routes and assistant tool wrappers call these exact functions, in-process. This is the architectural linchpin that makes cross-screen consistency and assistant-citation trust structurally guaranteed rather than merely tested-for.
@@ -185,11 +188,11 @@ The service layer is the **sole entry point** for every read and write in the sy
 |---|---|---|
 | `services/exhibits.ts` | `createExhibit`, `getExhibit`, `getExhibits(caseId)`, `searchExhibits(criteria)` | Exhibit identity CRUD (create/read only — no status fields); role-based visibility filtering (sealed-exhibit exclusion) applied here for every list/search/get call |
 | `services/events.ts` | `recordEvent({ exhibitId, eventType, payload, actorUserId })` | **The only function that writes `ExhibitEvent` rows.** Validates payload shape per `eventType` (zod, discriminated union), stamps `sequenceNo` and `recordedAt`, appends the immutable row, then synchronously triggers the relevant projection update(s) and discrepancy re-evaluation (see `06-integrations.md` §Internal Triggers) |
-| `services/status.ts` | `getExhibitStatus(exhibitId)`, `recordStatusChange(...)` | F1 admission-lifecycle state machine validation (allowed-transitions table), current-status projection read |
+| `services/status.ts` | `getExhibitStatus(exhibitId)`, `recordStatusChange(...)` | F1 admission-lifecycle state machine validation (allowed-transitions table), current-status projection read. **Amended Phase 7 (F12):** when `toStatus = ADMITTED`, `recordStatusChange` additionally runs the **Admission Gate** — two precondition queries (`ObjectionCurrentState WHERE status = 'UNRESOLVED'`, `CustodyCurrentState` row presence/non-null custodian) against existing current-state projections, inside the same transaction as F1's existing `fromStatus` check — before any `ExhibitEvent` row is appended or `ExhibitCurrentState` is updated. Rejects with `ADMISSION_BLOCKED` (422, `reasons[]`) if either condition applies. No new tables are read; no new writes occur on rejection. There is no bypass flag or elevated-role override — every caller (UI, API client, seed loader) is subject to it. |
 | `services/objections.ts` | `getUnresolvedObjections(caseId)`, `recordObjection(...)`, `recordRuling(...)` | F2 objection-thread lifecycle; judge-role enforcement for SUSTAINED/OVERRULED dispositions |
 | `services/custody.ts` | `getCustodian(exhibitId)`, `getCustodyHistory(exhibitId)`, `recordCustodyTransfer(...)` | F3 chain-of-custody validation (from-custodian must match current projection), current-custodian projection read |
-| `services/discrepancies.ts` | `evaluateDiscrepancies(exhibitId)`, `getDiscrepancies(caseId, exhibitId?)`, `acknowledgeDiscrepancy(...)` | F6 rule registry (extensible); fires after every status/objection/ruling/custody write; idempotent acknowledgment |
-| `services/juryPackage.ts` | `computeJuryCandidates(caseId)`, `getJuryPackageStatus(caseId, exhibitId?)`, `finalizeJuryPackage(...)` | F5 jury-eligible computation + hard discrepancy gate re-evaluated fresh at finalization time (never from cached draft-time annotation) |
+| `services/discrepancies.ts` | `evaluateDiscrepancies(exhibitId)`, `getDiscrepancies(caseId, exhibitId?)`, `acknowledgeDiscrepancy(...)` | F6 rule registry (extensible); fires after every status/objection/ruling/custody write; idempotent acknowledgment. **Amended Phase 7 (F14):** `getDiscrepancies` additively joins `acknowledgedEventId → ExhibitEvent.payload.justification` for any flag with `status = 'ACKNOWLEDGED'`, surfacing `justification` in its response — a read-time join only; no schema change, no new write path. |
+| `services/juryPackage.ts` | `computeJuryCandidates(caseId)`, `getJuryPackageStatus(caseId, exhibitId?)`, `finalizeJuryPackage(...)` | F5 jury-eligible computation + hard discrepancy gate re-evaluated fresh at finalization time (never from cached draft-time annotation). **Amended Phase 7 (F13):** `computeJuryCandidates`'s candidate query now filters `exhibit.isSealed = false` in the *same* query as `currentStatus = 'ADMITTED'` — a sealed/ex-parte exhibit's row is never created, is never passed into `evaluateDiscrepancies` for jury-package purposes, and can never acquire `CLEAN`/`FLAGGED`. **New function (F13):** `excludeJuryPackageExhibit({ juryPackageId, exhibitId, actorUserId, reason, note? })` — role-gated (`DEPUTY`/`CLERK`/`ADMIN`, identical to the finalize gate), appends a `JURY_PACKAGE_EXHIBIT_EXCLUDED` ledger event and sets the row's `status = 'EXCLUDED'` (`excludedAt`/`excludedBy`/`exclusionReason` populated, row retained for audit). This is the remediation/regression-safety path for legacy rows; the `isSealed` filter above is the primary exclusion mechanism. |
 | `services/activity.ts` | `getRecentActivity(caseId, { since })` | F8 Command Center's ledger-wide recent-events feed, joined to exhibit labels |
 | `services/visibility.ts` | `applyRoleScoping(query, role)` (internal helper, not directly exported as a tool/route) | Single implementation of the Role-Based Visibility table (FRD `00-header.md`); called by every other service module — the one place sealed-exhibit exclusion logic lives |
 | `services/rebuild.ts` | `rebuildProjections(caseId)` | Admin/dev utility: replays `ExhibitEvent` rows per exhibit in `sequenceNo` order to verify projection/ledger consistency (auditability NFR) — not part of the live write path |
@@ -223,6 +226,8 @@ The service layer is the **sole entry point** for every read and write in the sy
 3. **No current-state table is ever written except by the write-path trigger inside `recordEvent()`.** There is no second code path that mutates `ExhibitCurrentState`, `ObjectionCurrentState`, `CustodyCurrentState`, or `DiscrepancyFlag`.
 4. **Role-based visibility is applied once, in `services/visibility.ts`,** and composed into every other service module's read functions — not re-implemented per route or per tool.
 5. **Discrepancy evaluation is triggered synchronously inside `recordEvent()`**, not polled, not queued, not deferred to page load — see `06-integrations.md` §Internal Triggers for the full trigger table.
+6. **Admission integrity is enforced once, inside `services/status.ts#recordStatusChange()`** (added Phase 7, F12) — the pre-write Admission Gate runs for every caller attempting `toStatus = ADMITTED`; there is no second code path, bypass flag, or elevated-role override that can record an `ADMITTED` status while an unresolved objection or missing custodian is present.
+7. **Sealed/ex-parte exclusion from the jury package is a candidate-query filter, not a UI hide** (added Phase 7, F13) — `services/juryPackage.ts#computeJuryCandidates` excludes `isSealed = true` exhibits at the source query, before `evaluateDiscrepancies` ever runs for jury-package purposes; the `JuryPackageExhibit.status = 'EXCLUDED'` remediation path exists only as an audit-retained backstop for rows that predate this filter.
 
 ## 3. Data Model
 
@@ -292,7 +297,11 @@ CREATE TYPE objection_status AS ENUM (
 
 CREATE TYPE event_type AS ENUM (
     'STATUS_CHANGE', 'OBJECTION_RAISED', 'RULING_RECORDED',
-    'CUSTODY_TRANSFER', 'DISCREPANCY_ACKNOWLEDGED'
+    'CUSTODY_TRANSFER', 'DISCREPANCY_ACKNOWLEDGED',
+    'JURY_PACKAGE_EXHIBIT_EXCLUDED'  -- added Phase 7 (F13); existing deployments
+                                      -- apply this via ALTER TYPE event_type
+                                      -- ADD VALUE 'JURY_PACKAGE_EXHIBIT_EXCLUDED'
+                                      -- (see §3.9 Phase 7 Schema Changes)
 );
 
 CREATE TYPE discrepancy_status AS ENUM (
@@ -305,6 +314,15 @@ CREATE TYPE jury_package_status AS ENUM (
 
 CREATE TYPE jury_exhibit_discrepancy_status AS ENUM (
     'CLEAN', 'FLAGGED'
+);
+
+-- Added Phase 7 (F13). Tracks whether a jury_package_exhibits row is
+-- currently part of the active/included package set, or has been excluded
+-- (automatically, via the is_sealed candidate-query filter — the primary
+-- mechanism — or manually, via the "Remove from Package" remediation
+-- action). EXCLUDED rows are retained, never deleted, for audit.
+CREATE TYPE jury_package_exhibit_status AS ENUM (
+    'INCLUDED', 'EXCLUDED'
 );
 
 CREATE TYPE message_role AS ENUM (
@@ -400,6 +418,7 @@ CREATE INDEX idx_exhibit_events_case_type_time ON exhibit_events (case_id, event
 | `RULING_RECORDED` | `{ objectionId: uuid, disposition: 'SUSTAINED' \| 'OVERRULED' \| 'RESERVED' }` |
 | `CUSTODY_TRANSFER` | `{ fromCustodianUserId: uuid \| null, toCustodianUserId: uuid, reason?: string }` |
 | `DISCREPANCY_ACKNOWLEDGED` | `{ discrepancyFlagId: uuid, ruleCode: string, justification: string }` |
+| `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)* | `{ juryPackageId: uuid, exhibitId: uuid, reason: 'SEALED_EXPARTE' \| 'MANUAL_REMOVAL', note?: string }` |
 
 ### 3.4 Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -498,16 +517,37 @@ CREATE INDEX idx_jury_packages_case_status ON jury_packages (case_id, status);
 -- computation time for display; F5's finalization gate ALWAYS re-queries
 -- discrepancy_flags fresh rather than trusting this cached column — see
 -- 03-api.md §Jury Package.
+--
+-- status / excluded_at / excluded_by / exclusion_reason added Phase 7
+-- (F13) via a new Prisma migration. status defaults to 'INCLUDED' so
+-- existing rows remain valid post-migration with no backfill required.
+-- These four columns back the "Remove from Package" remediation/audit
+-- path only — the PRIMARY defense against sealed exhibits is the
+-- is_sealed = false filter now applied inside computeJuryCandidates's
+-- query (see note below), which means a sealed exhibit never acquires
+-- an INCLUDED row here in the first place going forward.
 CREATE TABLE jury_package_exhibits (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     jury_package_id    UUID NOT NULL REFERENCES jury_packages(id),
     exhibit_id         UUID NOT NULL REFERENCES exhibits(id),
     discrepancy_status jury_exhibit_discrepancy_status NOT NULL,
     added_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status             jury_package_exhibit_status NOT NULL DEFAULT 'INCLUDED',  -- added Phase 7 (F13)
+    excluded_at        TIMESTAMPTZ,                                              -- added Phase 7 (F13)
+    excluded_by        UUID REFERENCES users(id),                                -- added Phase 7 (F13)
+    exclusion_reason   TEXT,                                                     -- added Phase 7 (F13): 'SEALED_EXPARTE' | 'MANUAL_REMOVAL'
 
     CONSTRAINT uq_jury_package_exhibit UNIQUE (jury_package_id, exhibit_id)
 );
+
+-- Added Phase 7 (F13): GET /api/cases/:id/jury-package's default read
+-- returns only status = 'INCLUDED' rows; this index serves that filter
+-- plus the inverse audit-history query.
+CREATE INDEX idx_jury_package_exhibits_package_status
+    ON jury_package_exhibits (jury_package_id, status);
 ```
+
+**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates`'s candidate query (`services/juryPackage.ts`, see `01-components.md` §2.2) is amended to filter `exhibits.is_sealed = false` in the *same* query as `exhibit_current_state.current_status = 'ADMITTED'` — a sealed/ex-parte exhibit's row is never created as `INCLUDED` via the normal computation path, and is never passed into `evaluateDiscrepancies` for jury-package purposes (so it can never acquire `CLEAN`/`FLAGGED`). The `status`/`excluded_*` columns above exist solely for the remediation/audit path (legacy or regression rows, or any future manual removal) — they are a safety net, not the primary mechanism. `EXCLUDED` rows are retained (never deleted) and are omitted from `GET /api/cases/:id/jury-package`'s default response but remain queryable for audit.
 
 ### 3.7 Assistant Audit Trail
 
@@ -553,6 +593,22 @@ CREATE INDEX idx_assistant_citations_message ON assistant_citations (message_id)
 - **No further indexing/caching required at demo scale** (dozens–hundreds of exhibits, single case, <10 concurrent users) — see `.planning/research/ARCHITECTURE.md` §Scaling Considerations.
 - **ORM mapping:** This SQL DDL is the canonical Postgres schema; it maps 1:1 to the Prisma schema models (`Case`, `User`, `Exhibit`, `ExhibitEvent`, `ExhibitCurrentState`, `ObjectionCurrentState`, `CustodyCurrentState`, `DiscrepancyFlag`, `JuryPackage`, `JuryPackageExhibit`, `AssistantConversation`, `AssistantMessage`, `AssistantCitation`) used by the application's Prisma client — table/column names above are `snake_case` per SQL convention; Prisma model/field names are `PascalCase`/`camelCase` per FRD `Y0-schema.md` convention, mapped via `@@map`/`@map` directives.
 
+### 3.9 Phase 7 Schema Changes (Migration Required)
+
+F12–F15 (Phase 7) are predominantly service-layer validation and client-rendering work, not schema work. Exactly one feature — F13 — requires a schema change, and it requires a new Prisma migration:
+
+| Change | Table/Enum | Required by | Migration? |
+|---|---|---|---|
+| New enum value `JURY_PACKAGE_EXHIBIT_EXCLUDED` | `event_type` | F13 (exclusion audit event) | **Yes** — `ALTER TYPE event_type ADD VALUE` |
+| New enum | `jury_package_exhibit_status` (`INCLUDED` \| `EXCLUDED`) | F13 | **Yes** — `CREATE TYPE` |
+| New columns `status`, `excluded_at`, `excluded_by`, `exclusion_reason` | `jury_package_exhibits` | F13 | **Yes** — `ALTER TABLE ... ADD COLUMN`, `status` backfilled to `'INCLUDED'` by its `DEFAULT` for existing rows |
+| New index `idx_jury_package_exhibits_package_status` | `jury_package_exhibits` | F13 (default-read filter) | **Yes** — part of the same migration |
+| *(no schema change)* | — | F12 (admission gate) | **No** — reads existing `objection_current_state`/`custody_current_state` projections only; writes nothing beyond the standard `STATUS_CHANGE` event already defined for F1 |
+| *(no schema change)* | — | F14 (acknowledgment justification surfacing) | **No** — the justification text already exists in the `DISCREPANCY_ACKNOWLEDGED` event's `payload`; F14 is a read-time join at the service layer (`services/discrepancies.ts#getDiscrepancies`), not a new column |
+| *(no schema change)* | — | F15 (usability fixes) | **No** — client-rendering only; no table, column, or enum is touched |
+
+All four F13 schema changes land in a single Prisma migration (e.g. `add_jury_package_exhibit_exclusion`). No other table in this document is touched by Phase 7.
+
 ## 4. API Design
 
 All endpoints are thin REST wrappers around the service layer (`01-components.md` §2.2) — route handlers parse the request, extract `requestingUserRole`/`actorUserId` from the session/role-switcher context, call exactly one service function, and shape the response. No route contains business logic beyond this. The Pivota Assistant's tools call the identical underlying service functions as **in-process function calls**, not HTTP round-trips to these routes — but the request/response shapes below describe the same contract both consumers rely on.
@@ -573,10 +629,12 @@ type EventType =
   | 'OBJECTION_RAISED'
   | 'RULING_RECORDED'
   | 'CUSTODY_TRANSFER'
-  | 'DISCREPANCY_ACKNOWLEDGED';
+  | 'DISCREPANCY_ACKNOWLEDGED'
+  | 'JURY_PACKAGE_EXHIBIT_EXCLUDED'; // added Phase 7 (F13)
 type DiscrepancyStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
 type JuryPackageStatus = 'DRAFT' | 'FINALIZED';
 type JuryExhibitDiscrepancyStatus = 'CLEAN' | 'FLAGGED';
+type JuryPackageExhibitStatus = 'INCLUDED' | 'EXCLUDED'; // added Phase 7 (F13)
 
 interface Exhibit {
   id: string;
@@ -637,6 +695,10 @@ interface DiscrepancyFlag {
   details: Record<string, unknown>;
   acknowledgedAt?: string;
   acknowledgedBy?: string;
+  // Added Phase 7 (F14): additive read-time join from acknowledgedEventId
+  // to the backing DISCREPANCY_ACKNOWLEDGED event's payload.justification —
+  // present only when status === 'ACKNOWLEDGED'; no schema/write change.
+  justification?: string;
   resolvedAt?: string;
 }
 
@@ -655,12 +717,34 @@ interface JuryPackageExhibit {
   currentStatus: ExhibitStatus;
   discrepancyStatus: JuryExhibitDiscrepancyStatus;
   addedAt: string;
+  // Added Phase 7 (F13) — defaults to INCLUDED for rows predating this
+  // migration; see 02-data-model.md §3.9. GET /api/cases/:id/jury-package's
+  // default response includes only status === 'INCLUDED' rows.
+  status: JuryPackageExhibitStatus;
+  excludedAt?: string;
+  excludedBy?: string;
+  exclusionReason?: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL';
 }
 
 interface ApiError {
   error: {
     code: string;
     message: string;
+  };
+}
+
+// Added Phase 7 (F12) — the ADMISSION_BLOCKED error shape, returned only
+// when a status-transition request attempts toStatus = ADMITTED and at
+// least one blocking condition applies. See 04-security.md and
+// 06-integrations.md §Admission Gate.
+interface AdmissionBlockedError {
+  error: {
+    code: 'ADMISSION_BLOCKED';
+    message: string;
+    reasons: Array<{
+      code: 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN';
+      message: string;
+    }>;
   };
 }
 
@@ -707,7 +791,7 @@ interface ExhibitHistoryResponse {
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes? }` | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState }` | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404 |
+| `POST /api/exhibits/:id/events/status` | Record a status transition | `{ toStatus: ExhibitStatus, actorUserId, notes? }` | `201 { event: ExhibitEvent, currentState: ExhibitCurrentState }` | `INVALID_STATUS_TRANSITION` 422, `STATUS_FINALIZED` 409, `STATUS_CONFLICT` 409, `EXHIBIT_NOT_FOUND` 404, `ADMISSION_BLOCKED` 422 *(added Phase 7, F12 — returned as `AdmissionBlockedError` above; evaluated only when `toStatus = ADMITTED`, before any ledger write)* |
 | `GET /api/exhibits/:id/status` | Current derived status | — | `200 ExhibitCurrentState` | `EXHIBIT_NOT_FOUND` 404 |
 
 **Allowed transitions (state machine, enforced server-side):**
@@ -768,17 +852,27 @@ interface SearchExhibitsCriteria {
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
 | `POST /api/cases/:id/jury-package` | Compute/refresh draft jury-eligible set | `{ actorUserId }` | `201 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `NO_ELIGIBLE_EXHIBITS` 422, `ROLE_NOT_PERMITTED` 403 |
-| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` | `CASE_NOT_FOUND` 404 |
+| `GET /api/cases/:id/jury-package` | Fetch current package with live discrepancy status | — | `200 { juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: 'INCLUDED'` rows by default *(amended Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)* | `CASE_NOT_FOUND` 404 |
 | `POST /api/jury-package/:id/finalize` | Attempt finalization — hard-gated, re-evaluated fresh | `{ actorUserId, acknowledgedDiscrepancyIds? }` | `200 { juryPackage: JuryPackage }` (status: `FINALIZED`) | `JURY_PACKAGE_DISCREPANCIES_OPEN` 409 (includes blocking list), `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
 
-`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time.
+`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` to initiate or finalize. Finalization re-runs `evaluateDiscrepancies` fresh for every included exhibit — never trusting the cached `discrepancyStatus` captured at draft-computation time. Only `status: 'INCLUDED'` rows participate in finalization *(amended Phase 7, F13)* — an `EXCLUDED` row can never block or be counted toward it.
+
+**Amended Phase 7 (F13):** the candidate computation behind `POST /api/cases/:id/jury-package` now also filters `exhibit.isSealed = false` at the query level, in addition to `currentStatus = 'ADMITTED'` — see `01-components.md` §2.2 and `02-data-model.md` §3.6 note. This is a behavior amendment to the existing endpoint, not a new route.
+
+### 4.7a Jury Package Exclusion (F13, added Phase 7)
+
+| Method & Path | Description | Request Body | Response | Errors |
+|---|---|---|---|---|
+| `POST /api/jury-package/:id/exhibits/:exhibitId/exclude` | Explicitly excludes an `INCLUDED` exhibit row from a `DRAFT` jury package (remediation action for sealed/ex-parte material predating the F13 filter, or any other manual-removal need); recorded as an auditable `JURY_PACKAGE_EXHIBIT_EXCLUDED` ledger event | `{ actorUserId, reason: 'SEALED_EXPARTE' \| 'MANUAL_REMOVAL', note? }` | `200 { event: ExhibitEvent, juryPackageExhibit: JuryPackageExhibit }` (status: `EXCLUDED`) | `JURY_PACKAGE_EXHIBIT_NOT_FOUND` 404, `JURY_PACKAGE_ALREADY_FINALIZED` 409, `ROLE_NOT_PERMITTED` 403 |
+
+`actorUserId` must resolve to role `DEPUTY`, `CLERK`, or `ADMIN` — identical to the finalize role gate (`04-security.md` §5.2.2). Available only against a row currently `status: 'INCLUDED'` on a `DRAFT` package — a `FINALIZED` package's rows are immutable and cannot be excluded via this action.
 
 ### 4.8 Discrepancies (F6)
 
 | Method & Path | Description | Request Body | Response | Errors |
 |---|---|---|---|---|
-| `GET /api/cases/:id/discrepancies` | All open/acknowledged flags case-wide | — | `200 DiscrepancyFlag[]` | `CASE_NOT_FOUND` 404 |
-| `GET /api/exhibits/:id/discrepancies` | Flags for a single exhibit | — | `200 DiscrepancyFlag[]` | `EXHIBIT_NOT_FOUND` 404 |
+| `GET /api/cases/:id/discrepancies` | All open/acknowledged flags case-wide | — | `200 DiscrepancyFlag[]` — flags with `status: 'ACKNOWLEDGED'` additionally include `justification` *(added Phase 7, F14 — see §4.1)* | `CASE_NOT_FOUND` 404 |
+| `GET /api/exhibits/:id/discrepancies` | Flags for a single exhibit | — | `200 DiscrepancyFlag[]` — same `justification` addition as above *(F14)* | `EXHIBIT_NOT_FOUND` 404 |
 | `POST /api/discrepancies/:id/acknowledge` | Explicitly acknowledge an open flag | `{ actorUserId, justification }` | `200 { event: ExhibitEvent, discrepancyFlag: DiscrepancyFlag }` (idempotent) | `JUSTIFICATION_REQUIRED` 422, `DISCREPANCY_NOT_FOUND` 404, `ROLE_NOT_PERMITTED` 403 |
 
 ### 4.9 Command Center (F8)
@@ -851,7 +945,7 @@ interface AssistantToolSet {
 }
 ```
 
-Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone.
+Each tool in `AssistantToolSet` is implemented against the exact same service-layer function backing the corresponding REST route above — e.g., `getExhibitStatus` the tool and `GET /api/exhibits/:id/status` the route both call `services/status.ts#getExhibitStatus(exhibitId)`. This 1:1 mapping is what structurally guarantees cross-screen/assistant consistency rather than relying on manual testing alone. Because of this mapping, the Phase 7 amendments above propagate automatically: `getJuryPackageStatus` never returns an `EXCLUDED` row as included/eligible (F13), and `getDiscrepancies` surfaces `justification` on `ACKNOWLEDGED` flags identically to the UI (F14) — no tool definition changed.
 
 ### 4.11 Common Response Envelope
 
@@ -924,9 +1018,23 @@ Authorization is **role-based**, enforced in exactly one place (`services/visibi
 | Finalize jury package | `DEPUTY`, `CLERK`, `ADMIN` | `services/juryPackage.ts#finalizeJuryPackage` |
 | Initiate/compute jury package draft | `DEPUTY`, `CLERK`, `ADMIN` | `services/juryPackage.ts#computeJuryCandidates` |
 | Acknowledge a discrepancy flag | `DEPUTY`, `CLERK`, `JUDGE`, `ADMIN` | `services/discrepancies.ts#acknowledgeDiscrepancy` |
-| Record status change, objection, custody transfer | Any authenticated (seeded) user via `actorUserId` | No role restriction beyond being a valid active `users` row — the demo does not gate routine recording actions by role beyond the two cases above |
+| Exclude an exhibit from a jury package (remediation action) *(added Phase 7, F13)* | `DEPUTY`, `CLERK`, `ADMIN` — identical gate to finalize | `services/juryPackage.ts#excludeJuryPackageExhibit` |
+| Record status change, objection, custody transfer | Any authenticated (seeded) user via `actorUserId` | No role restriction beyond being a valid active `users` row — the demo does not gate routine recording actions by role beyond the cases above |
 
 **Rule:** `403 ROLE_NOT_PERMITTED` is reserved exclusively for write/action gating. It is **never** used to signal "this record exists but you can't see it" — that is always the 404-masking pattern above. Conflating the two would leak existence information through the HTTP status code itself.
+
+#### 5.2.3 Admission Integrity Gate — Data Invariant, Not Role-Based (Added Phase 7, F12)
+
+Unlike every control in §5.2.2, the Admission Gate inside `services/status.ts#recordStatusChange` is **not** a role/authorization check — it is a data-integrity precondition that applies identically regardless of the acting user's role. When `toStatus = ADMITTED`, the service layer rejects the request with `422 ADMISSION_BLOCKED` if an unresolved objection or a missing/null custodian is present for the exhibit, evaluated against the existing `ObjectionCurrentState`/`CustodyCurrentState` projections in the same transaction as the write.
+
+| Property | Value |
+|---|---|
+| Who it applies to | Every caller — UI action, direct API client, seed loader. There is no "force admit" parameter, admin override, or elevated-role bypass. |
+| What it returns | `422 ADMISSION_BLOCKED` with a `reasons[]` array (`UNRESOLVED_OBJECTION`, `NO_CUSTODIAN`) — never `403 ROLE_NOT_PERMITTED`, since this is not an authorization failure |
+| Why it is not modeled as a role check | The condition being guarded against (an exhibit improperly admitted) is a fact about the exhibit's state, not a fact about who is acting — a `JUDGE` attempting the same transition is blocked exactly as a `DEPUTY` would be |
+| Relationship to F6 | F6's `ADMITTED_NO_CUSTODIAN` / `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` discrepancy rules remain unchanged and continue to cover conditions that arise *after* a valid admission (e.g., a custody transfer later breaking the chain) — they are no longer the sole backstop for the admission transition itself |
+
+See `01-components.md` §2.2 (`services/status.ts`) and `06-integrations.md` §Admission Gate for the full process sequence.
 
 ### 5.3 Data Protection
 
@@ -1064,8 +1172,13 @@ These synchronous, in-process triggers are the system's actual integration fabri
 | Ruling recorded | `recordEvent(RULING_RECORDED)` | Updates `objection_current_state`; if the exhibit is `ADMITTED`, re-evaluates `UNRESOLVED_OBJECTION_JURY_ELIGIBLE` | F2 → F6 |
 | Custody transfer | `recordEvent(CUSTODY_TRANSFER)` | Updates `custody_current_state`; re-evaluates `ADMITTED_NO_CUSTODIAN` | F3 → F6 |
 | Discrepancy acknowledged | `recordEvent(DISCREPANCY_ACKNOWLEDGED)` | Updates `discrepancy_flags.status` to `ACKNOWLEDGED` | F6 |
+| Jury package exhibit excluded *(added Phase 7)* | `recordEvent(JURY_PACKAGE_EXHIBIT_EXCLUDED)` | Updates `jury_package_exhibits.status` to `'EXCLUDED'`, setting `excluded_at`/`excluded_by`/`exclusion_reason` | F13 |
 
-All five triggers execute **synchronously within the same service-layer call** that appends the ledger event — there is no async job queue or eventual-consistency window between a ledger write and its projection/discrepancy update. This is a hard architectural requirement, not a performance optimization: F5 §Process step 5 (re-evaluating discrepancies "fresh" at finalization time) is only trustworthy if the projection is guaranteed never to lag behind the ledger.
+All triggers execute **synchronously within the same service-layer call** that appends the ledger event — there is no async job queue or eventual-consistency window between a ledger write and its projection/discrepancy update. This is a hard architectural requirement, not a performance optimization: F5 §Process step 5 (re-evaluating discrepancies "fresh" at finalization time) is only trustworthy if the projection is guaranteed never to lag behind the ledger.
+
+### 7.2a Admission Gate (F12, Added Phase 7 — Pre-Write Check, Not a Post-Write Trigger)
+
+Unlike every trigger in §7.2, which runs *after* a ledger event is appended, F12's two admission-integrity checks (unresolved objection present; no custodian of record) run **before** the `STATUS_CHANGE` event for a `toStatus = ADMITTED` transition is ever appended. If either check fails, `services/status.ts#recordStatusChange` rejects the request with `422 ADMISSION_BLOCKED` and **no `ExhibitEvent` row is created** — this is a hard precondition gate inside the same service function used by every caller (UI, API, seed loader), not a downstream reaction to a write that already happened. It reads the existing `objection_current_state`/`custody_current_state` projections only; it introduces no new table and no new trigger wiring. See `01-components.md` §2.2 and `04-security.md` §5.2.3 for the full treatment.
 
 ### 7.3 Live Multi-Screen Sync
 

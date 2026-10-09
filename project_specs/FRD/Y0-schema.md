@@ -79,6 +79,7 @@ enum EventType {
   RULING_RECORDED
   CUSTODY_TRANSFER
   DISCREPANCY_ACKNOWLEDGED
+  JURY_PACKAGE_EXHIBIT_EXCLUDED  // added Phase 7 (F13) — see §Jury Package
 }
 
 /// The single append-only ledger table. Rows are NEVER updated or deleted
@@ -109,6 +110,7 @@ model ExhibitEvent {
 - `RULING_RECORDED`: `{ objectionId: string (uuid), disposition: 'SUSTAINED' | 'OVERRULED' | 'RESERVED' }`
 - `CUSTODY_TRANSFER`: `{ fromCustodianUserId: string | null, toCustodianUserId: string, reason?: string }`
 - `DISCREPANCY_ACKNOWLEDGED`: `{ discrepancyFlagId: string (uuid), ruleCode: string, justification: string }`
+- `JURY_PACKAGE_EXHIBIT_EXCLUDED` *(added Phase 7, F13)*: `{ juryPackageId: string (uuid), exhibitId: string (uuid), reason: 'SEALED_EXPARTE' | 'MANUAL_REMOVAL', note?: string }`
 
 ### Current-State Projections (Derived — Rebuildable, Never Independently Edited)
 
@@ -234,12 +236,27 @@ enum JuryExhibitDiscrepancyStatus {
   FLAGGED
 }
 
+/// Added Phase 7 (F13): tracks whether an exhibit row is currently part of
+/// the active/included package set, or has been excluded (automatically, via
+/// the isSealed candidate-query filter — see §Jury Package Exclusion note
+/// below — or manually, via the remediation action). EXCLUDED rows are
+/// retained, never deleted, as an audit record; they are never rendered as
+/// part of the included list and never participate in finalization.
+enum JuryPackageExhibitStatus {
+  INCLUDED
+  EXCLUDED
+}
+
 model JuryPackageExhibit {
   id                String                       @id @default(uuid())
   juryPackageId     String
   exhibitId         String
   discrepancyStatus JuryExhibitDiscrepancyStatus
   addedAt           DateTime                     @default(now())
+  status            JuryPackageExhibitStatus     @default(INCLUDED) // added Phase 7 (F13)
+  excludedAt        DateTime?                                       // added Phase 7 (F13)
+  excludedBy        String?                                         // added Phase 7 (F13)
+  exclusionReason   String?                                         // added Phase 7 (F13): 'SEALED_EXPARTE' | 'MANUAL_REMOVAL'
 
   juryPackage JuryPackage @relation(fields: [juryPackageId], references: [id])
   exhibit     Exhibit     @relation(fields: [exhibitId], references: [id])
@@ -247,6 +264,8 @@ model JuryPackageExhibit {
   @@unique([juryPackageId, exhibitId])
 }
 ```
+
+**Jury Package Exclusion note (Phase 7, F13):** `computeJuryCandidates` (F5) is amended to filter `exhibit.isSealed = false` in the same query as the `ADMITTED`-status filter, so a sealed/ex-parte exhibit never acquires an `INCLUDED` row here in the first place — see F13 §Process step 1. The `EXCLUDED` status and its three accompanying fields exist solely for the remediation/audit path (legacy rows, or any future manual removal), not as the primary exclusion mechanism.
 
 ### Assistant
 

@@ -2,9 +2,10 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** TechArch (Technical Architecture Document)
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
 **Generated:** 2026-10-06
+**Last Updated:** 2026-10-08 (Phase 7 — F12–F15: admission integrity gate, jury-package sealed exclusion + migration, discrepancy-acknowledgment read-model join, usability fixes confirmed presentation-layer-only)
 **Source Documents:** `PRD-JudicialSync.md`, `FRD-JudicialSync.md`
 **Grounded in:** `.planning/research/SUMMARY.md`, `.planning/research/ARCHITECTURE.md`
 

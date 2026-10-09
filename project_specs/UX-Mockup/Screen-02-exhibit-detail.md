@@ -1,7 +1,7 @@
 ### Screen: Exhibit Detail View
 
 **Purpose:** The complete, single-screen chronological story of one exhibit — answers "what happened to this exhibit" without assembling fragments.
-**User Stories:** US-10.1, US-10.2, US-3.3, US-2.2, US-6.3
+**User Stories:** US-10.1, US-10.2, US-3.3, US-2.2, US-6.3, US-12.1, US-12.2
 **Journey:** JRN-02.2 (full journey), JRN-01.2 (Request History), JRN-03.1 (Challenge a Custody Gap)
 **Route:** `/exhibit/:id` · **Nav:** Row click from Case Workspace, Command Center, or Jury Package Workspace; citation link from Assistant. No sidebar entry (drill-in only).
 
@@ -51,11 +51,12 @@
 |-------|------------|----------------|
 | Default — clean exhibit | Header shows status + custodian, no discrepancy banner; full timeline below | None needed |
 | Default — flagged exhibit | Amber discrepancy banner in header with plain-language rule explanation and action buttons | Impossible to miss; same visual treatment as Case Workspace's ⚠ icon, reinforcing consistency |
-| Discrepancy acknowledged | Banner changes from amber "OPEN" to a muted but still-visible "Acknowledged by C. Chen: [justification text]" badge | Never disappears — remains a permanent, visible risk-acceptance record (US-6.3) |
+| Discrepancy acknowledged | Banner changes from amber "OPEN" to a muted but still-visible "Acknowledged by C. Chen (Clerk) · Oct 8, 2026, 3:10 PM: [full justification text]" badge — actor, role, timestamp, and justification all shown in full, never truncated or hidden behind a secondary click | Never disappears — remains a permanent, visible risk-acceptance record (US-6.3, US-14.3) |
 | Loading | Header + timeline skeletons | Brief, since this is a single-exhibit query |
 | Sealed, unauthorized role | Entire route renders the same "Exhibit not found" page as a nonexistent ID — no distinguishing copy, icon, or status code visible to the user | Confirms US-10.2: existence of sealed material is never revealed |
 | Live update arrives (e.g., custody transfer logged elsewhere) | New timeline entry fades in at the appropriate chronological position; header updates in place | No manual refresh required |
 | Citation deep-link arrival (from Assistant) | Page loads with the specific cited timeline entry highlighted and auto-scrolled into view | Closes the loop promised in Flow 1 ("one-tap view supporting record") |
+| Admission attempt blocked (`ADMISSION_BLOCKED`) | The header's inline "Record Status" action re-opens with a specific error listing every applicable blocking reason at once (e.g., "Cannot admit: 2 blocking condition(s) present — Unresolved objection on this exhibit; No custodian of record.") — never a generic "failed to update status" message | No `ExhibitEvent` is recorded; status/custodian in the header remain exactly as they were before the attempt (US-12.1, US-12.2) — see `Y0-patterns.md` §Pattern: Multi-Reason Blocking Error |
 | Load failure | Inline error: "Unable to load exhibit history — please retry" | Retry button, no partial/broken render |
 
 #### Interactive Elements
@@ -63,7 +64,8 @@
 | Element | Type | Behavior |
 |---------|------|----------|
 | "Resolve →" link (on a discrepancy banner) | Contextual link | Scrolls to / opens the relevant inline action (e.g., "Transfer Custody") directly on this screen |
-| "Acknowledge" button | Action, opens inline justification field | Requires non-empty justification (≤500 chars) before submit; idempotent if already acknowledged (US-6.3) |
+| Inline "Record Status" action (header, authorized roles only) | Compact action, not a modal form | Offers only valid next-transition options (US-1.1); an attempted `ADMITTED` transition is rejected pre-write with every blocking reason named if an unresolved objection or missing custodian applies — status remains unchanged on rejection (US-12.1, US-12.2) |
+| "Acknowledge" button | Action, opens inline justification field | Requires non-empty justification (≤500 chars) before submit; idempotent if already acknowledged (US-6.3); only rendered for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` roles — absent, not disabled, otherwise; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed (US-14.1, US-14.2) |
 | Timeline entry | Static, citable | Each entry carries a stable anchor so Assistant citations and direct links can scroll to it precisely |
 | "← Back to Case Workspace" | Navigation | Returns to the referring list screen (preserves prior scroll/filter state where feasible) |
 | Ruling action (judge role, on an open objection) | Inline action, 1 of 3 options | Sustained / Overruled / Reserved — role-gated (US-2.2) |

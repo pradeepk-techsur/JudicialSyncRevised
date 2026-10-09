@@ -14,7 +14,7 @@
 
 Each story follows: **As a [persona], I want to [action], so that [outcome].**
 
-Acceptance criteria are listed beneath each story. Stories are grouped by epic (matching PRD features F0–F11) and prioritised. Personas (Judge Elena Marsh, Chambers Staff, Courtroom Deputy Dana Reyes, Clerk of Court, Attorney Marcus Webb, Administrator Priya Nair) are drawn directly from `PERSONAS-JudicialSync.md`.
+Acceptance criteria are listed beneath each story. Stories are grouped by epic (matching PRD features F0–F15) and prioritised. Personas (Judge Elena Marsh, Chambers Staff, Courtroom Deputy Dana Reyes, Clerk of Court, Attorney Marcus Webb, Administrator Priya Nair) are drawn directly from `PERSONAS-JudicialSync.md`.
 
 ---
 
@@ -428,6 +428,195 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+## Epic 12: Admission Integrity Gating (F12)
+
+### US-12.1: Be Blocked From Admitting an Exhibit With an Unresolved Objection or No Custodian
+**As a** Courtroom Deputy Dana Reyes, **I want to** have the system reject my attempt to transition an exhibit to `ADMITTED` status when it still has an unresolved objection or no custodian on record, **so that** an invalid admission can never be recorded in the first place, rather than slipping through and only being flagged afterward.
+
+**Acceptance Criteria:**
+- [ ] A `toStatus = ADMITTED` request is rejected with 422 `ADMISSION_BLOCKED` when ≥1 `ObjectionCurrentState` row for the exhibit has `status = 'UNRESOLVED'` at check time
+- [ ] A `toStatus = ADMITTED` request is rejected with 422 `ADMISSION_BLOCKED` when no `CustodyCurrentState` row exists for the exhibit, or its `currentCustodianUserId` is null, at check time
+- [ ] On rejection, no `ExhibitEvent` row is appended and `ExhibitCurrentState` is left completely unchanged — the exhibit's status remains exactly what it was prior to the attempt
+- [ ] Both checks run atomically in the same transaction as the existing `fromStatus`-match check, so a concurrent objection or custody write cannot slip through between validation and ledger append
+- [ ] `EXCLUDED` and `WITHDRAWN` transitions are unaffected by this gate and may still be recorded with an open objection or custody gap present
+- [ ] An exhibit that remains `OBJECTED` (not attempting `ADMITTED`) is unaffected by this gate and continues to be covered only by F6's discrepancy rules
+
+**Priority:** P0 | **Feature Ref:** F12
+
+---
+
+### US-12.2: See Every Blocking Reason at Once, Not Just the First One Found
+**As a** Courtroom Deputy Dana Reyes, **I want to** see all applicable reasons an admission attempt was blocked in a single response, **so that** I can resolve every outstanding issue in one pass instead of discovering them one at a time through repeated failed attempts.
+
+**Acceptance Criteria:**
+- [ ] When both an unresolved objection and a missing custodian apply simultaneously, the rejection response's `reasons[]` array contains both `UNRESOLVED_OBJECTION` and `NO_CUSTODIAN` entries, not just one
+- [ ] Each entry in `reasons[]` carries its own `code` (`UNRESOLVED_OBJECTION` or `NO_CUSTODIAN`) and a human-readable `message`
+- [ ] The top-level error message states the count of blocking conditions present (e.g., "Cannot admit: 2 blocking condition(s) present")
+- [ ] All other existing status-transition error scenarios (invalid transition, finalized status, stale-state conflict, exhibit not found) are returned unchanged from their F1-defined behavior
+
+**Priority:** P0 | **Feature Ref:** F12
+
+---
+
+### US-12.3: Trust the Admission Gate Applies to Every Caller With No Override
+**As a** Administrator Priya Nair, **I want to** confirm the admission gate is enforced inside the shared status-transition service itself rather than in a single screen or route, **so that** no UI action, direct API call, seed-loader path, or future automation can ever bypass it.
+
+**Acceptance Criteria:**
+- [ ] The Admission Gate is enforced inside the same shared service function backing F1's `recordEvent({ eventType: 'STATUS_CHANGE' })` path — not duplicated or re-implemented per screen or route
+- [ ] There is no "force admit" parameter, admin-role override, or alternate code path that bypasses either check in this version
+- [ ] Seed-data loading is subject to the identical gate as any live UI or API caller — no seed-only bypass exists
+- [ ] Attempting to admit via direct API call (bypassing the UI entirely) with an unresolved objection or missing custodian is rejected identically to a UI-driven attempt
+
+**Priority:** P0 | **Feature Ref:** F12
+
+---
+
+## Epic 13: Jury Package Ex Parte / Sealed Exclusion (F13)
+
+### US-13.1: Trust a Sealed Exhibit Can Never Appear Eligible in a Jury Package
+**As a** Clerk of Court, **I want to** have sealed/ex-parte-flagged exhibits excluded from jury package candidate computation at the query level, **so that** sealed material can never be mistaken for a clean, jury-eligible exhibit — the single most damaging failure mode in this domain.
+
+**Acceptance Criteria:**
+- [ ] `computeJuryCandidates(caseId)` queries `ExhibitCurrentState WHERE currentStatus = 'ADMITTED' AND exhibit.isSealed = false` — the sealed filter is applied in the same query as the admitted-status filter, not as a later filtering pass
+- [ ] A sealed exhibit is never passed into F6's `evaluateDiscrepancies` for jury-package purposes, so it can never be assigned `CLEAN` or `FLAGGED` — it is simply absent from the candidate set
+- [ ] A seeded sealed exhibit marked `ADMITTED` (chambers sidebar note regression case) never appears in `computeJuryCandidates`'s result set, is never rendered as `CLEAN` on the Jury Package Workspace, and is never returned by the assistant's `getJuryPackageStatus` tool as eligible/included
+- [ ] Re-running `computeJuryCandidates` for the same case never re-adds a previously `EXCLUDED` sealed exhibit as a new `INCLUDED` row
+
+**Priority:** P0 | **Feature Ref:** F13
+
+---
+
+### US-13.2: Remove a Sealed Exhibit From a Package With an Auditable Record
+**As a** Courtroom Deputy Dana Reyes, **I want to** explicitly remove a sealed exhibit from a jury package if one is somehow present, **so that** I have a deliberate, auditable remediation action rather than a silent fix with no trace.
+
+**Acceptance Criteria:**
+- [ ] Only `DEPUTY`, `CLERK`, or `ADMIN` roles may trigger the "Remove from Package" action — other roles rejected with 403 `ROLE_NOT_PERMITTED`
+- [ ] The action is only available for a `JuryPackageExhibit` row currently `status = 'INCLUDED'` belonging to a `DRAFT` package — attempting it on a `FINALIZED` package is rejected with 409 `JURY_PACKAGE_ALREADY_FINALIZED`
+- [ ] Exclusion appends an immutable `JURY_PACKAGE_EXHIBIT_EXCLUDED` ledger event (`reason: 'SEALED_EXPARTE'`) and sets the row's `status` to `EXCLUDED`, `excludedAt`, and `excludedBy` — the row is retained, never deleted
+- [ ] An `EXCLUDED` row never appears in the active/included exhibit list, never counts toward finalization eligibility, and is never returned by `getJuryPackageStatus` as included
+- [ ] Attempting exclusion on a row that is not currently `INCLUDED` (or does not exist) is rejected with 404 `JURY_PACKAGE_EXHIBIT_NOT_FOUND`
+
+**Priority:** P0 | **Feature Ref:** F13
+
+---
+
+### US-13.3: See a Sealed Row Rendered as a Distinct Warning, Never as Clean
+**As a** Clerk of Court, **I want to** see any sealed exhibit's row on the Jury Package Workspace rendered with a distinct, high-visibility warning state, **so that** I never mistake it for a normal discrepancy-free or merely-flagged row.
+
+**Acceptance Criteria:**
+- [ ] A `JuryPackageExhibit` row for a sealed exhibit is rendered with explicit labeling (e.g., "Sealed material — must be removed") instead of either `CLEAN` or `FLAGGED`
+- [ ] This exclusion takes precedence over and is evaluated independently of F6's `discrepancyStatus` — a sealed exhibit's row never shows `CLEAN` regardless of its underlying discrepancy flag state
+- [ ] `JUDGE`, `CHAMBERS_STAFF`, and `ATTORNEY` roles can view the warning state but cannot perform the removal action
+
+**Priority:** P0 | **Feature Ref:** F13
+
+---
+
+## Epic 14: Discrepancy Acknowledgment Transparency (F14)
+
+### US-14.1: See Who Is Permitted to Acknowledge a Discrepancy Before Acting
+**As a** any courtroom user viewing an open discrepancy, **I want to** see whether my role is permitted to acknowledge it, with no acknowledge control shown at all if it isn't, **so that** I never waste time on an affordance the system will not honor.
+
+**Acceptance Criteria:**
+- [ ] On every screen rendering an `OPEN` `DiscrepancyFlag` (Case Workspace, Jury Package Workspace, Exhibit Detail), the requesting role is checked against F6's role set (`DEPUTY`, `CLERK`, `JUDGE`, `ADMIN`)
+- [ ] If the requesting role is not in that set, no "Acknowledge" control is rendered for that flag — absent, not disabled or greyed-out
+- [ ] If the requesting role is in that set, the "Acknowledge" control is rendered and accompanied by inline, always-visible copy (not tooltip-only, not hover-only) stating the action will be permanently recorded under the user's name and role
+- [ ] The pre-action disclosure copy is visible before the action is confirmed, not only after
+
+**Priority:** P1 | **Feature Ref:** F14
+
+---
+
+### US-14.2: Understand the Justification Field Becomes Part of the Permanent Record
+**As a** Clerk of Court, **I want to** see the justification input clearly labeled as part of the permanent record when I acknowledge a discrepancy, **so that** I treat it as an official statement rather than a throwaway comment.
+
+**Acceptance Criteria:**
+- [ ] The justification input is labeled to make clear it becomes part of the permanent record (e.g., "Justification (recorded permanently)") rather than appearing as an optional/throwaway comment field
+- [ ] No change is made to the field's existing validation rules — still required, non-empty, max 500 characters, rejected with 422 `JUSTIFICATION_REQUIRED` if empty
+- [ ] Acknowledging an already-`RESOLVED` or already-`ACKNOWLEDGED` flag remains idempotent, returning existing state with 200
+
+**Priority:** P1 | **Feature Ref:** F14
+
+---
+
+### US-14.3: View the Full Acknowledgment Audit Record on Any Screen
+**As a** Judge Elena Marsh, **I want to** see the complete acknowledgment record — actor, role, timestamp, and justification — for any already-acknowledged discrepancy on whichever screen I'm viewing, **so that** the permanent audit trail is genuinely visible, not just technically recorded.
+
+**Acceptance Criteria:**
+- [ ] Once a flag's status is `ACKNOWLEDGED`, every screen that renders that flag (Case Workspace, Exhibit Detail, Jury Package Workspace) displays the acknowledging user's name, role, timestamp, and justification text in full — never summarized away, truncated without expansion, or hidden behind a secondary click
+- [ ] The justification text is sourced via a read-time join from `DiscrepancyFlag.acknowledgedEventId` to the referenced ledger event's payload and included in `GET /api/cases/:id/discrepancies` and `GET /api/exhibits/:id/discrepancies` responses for `ACKNOWLEDGED` flags
+- [ ] The assistant's `getDiscrepancies` answer includes the same justification text for an `ACKNOWLEDGED` flag that the UI shows — no screen or assistant answer may show a partial version omitting actor, timestamp, or justification while another shows the full set
+- [ ] No new error codes are introduced — underlying actions continue to use F6's existing `JUSTIFICATION_REQUIRED`, `DISCREPANCY_NOT_FOUND`, and `ROLE_NOT_PERMITTED` codes unchanged
+
+**Priority:** P1 | **Feature Ref:** F14
+
+---
+
+## Epic 15: Courtroom Usability Fixes (F15)
+
+### US-15.1: Click Any Case Workspace Row to Open Its Exhibit Detail
+**As a** Attorney Marcus Webb, **I want to** click anywhere on an exhibit row in the Case Workspace to open its full detail view, **so that** I don't have to hunt for a specific nested link or icon during fast-moving testimony.
+
+**Acceptance Criteria:**
+- [ ] The entire row rendered by the Case Workspace exhibit table — the full row container, not only a nested link, icon, or label span — is clickable and navigates to `/exhibit/:id`
+- [ ] The clickable hit area covers the complete row and includes a visible hover affordance
+- [ ] The row supports keyboard/focus activation — Enter or Space navigates when the row has focus
+- [ ] A row with zero discrepancy flags and a row with one or more flags are both fully, identically clickable across their entire row area
+
+**Priority:** P0 | **Feature Ref:** F15
+
+---
+
+### US-15.2: See Assistant Example Prompts That Reference Real Exhibit Labels
+**As a** Judge Elena Marsh, **I want to** see the Pivota Assistant's example/suggested-question prompts reference exhibit labels that actually exist in this case (e.g., "P-1," "S-2"), **so that** I can try an example and get a real, grounded answer instead of a decline about a nonexistent placeholder exhibit.
+
+**Acceptance Criteria:**
+- [ ] Example/suggested-question chips reference the case's actual exhibit-label scheme as produced by seed data (offering-party-prefixed labels, e.g., `P-1`, `D-4`, `S-2`), not a mismatched placeholder numeric scheme (e.g., "Exhibit 14")
+- [ ] Example prompts are sourced from (or validated at render time against) the active case's actual seeded `exhibitLabel` values via the existing `getExhibits` service function — not hardcoded independently of seed data
+- [ ] An automated test compares rendered chip text against seeded labels and fails if any example prompt references an `exhibitLabel` that does not exist among the current case's seeded exhibits
+- [ ] If the assistant is temporarily unavailable, example prompts still render from the last-known exhibit list (503 `ASSISTANT_UNAVAILABLE` unchanged per F7)
+
+**Priority:** P1 | **Feature Ref:** F15
+
+---
+
+### US-15.3: See No Unexplained Elements in the App Header
+**As a** Administrator Priya Nair, **I want to** have every element in the shared app header either clearly labeled or removed, **so that** no courtroom user is left guessing what an unexplained number or icon means during a live proceeding.
+
+**Acceptance Criteria:**
+- [ ] The numeric element previously rendered near the role selector with no label is evaluated for user-facing purpose
+- [ ] If it serves a real function (e.g., a discrepancy or notification count), it is given a visible label or an accessible tooltip/`aria-label` explaining what the number represents
+- [ ] If it serves no current user-facing function, it is removed entirely from the header rendering
+- [ ] "Present and unexplained" is not an acceptable end state for any header element, verified across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace
+
+**Priority:** P2 | **Feature Ref:** F15
+
+---
+
+### US-15.4: See a Full Date and Time on Every Activity Feed Entry
+**As a** Chambers Staff member, **I want to** see both the date and the time on every activity feed entry, **so that** I can tell events on different days apart instead of seeing an ambiguous time-only stamp.
+
+**Acceptance Criteria:**
+- [ ] Every activity-feed entry — Command Center's `recentActivity` rows and Exhibit Detail's timeline rows — renders both the date and the time of `recordedAt` (e.g., "Oct 8, 2026, 2:14:03 PM")
+- [ ] No activity-feed row renders a time-only timestamp under any circumstance
+- [ ] Two events recorded on different days, or events spanning a day boundary, are visually distinguishable to a reader scanning the feed
+
+**Priority:** P2 | **Feature Ref:** F15
+
+---
+
+### US-15.5: See the Exhibit Name on Every Activity Feed Row
+**As a** Chambers Staff member, **I want to** see which exhibit every activity feed row concerns, including raw state-transition rows, **so that** I never read an unattributed event and have to guess or drill in to find out what it was about.
+
+**Acceptance Criteria:**
+- [ ] Every activity-feed row — including rows describing a raw `STATUS_CHANGE` event — displays the exhibit's label as part of the row's rendered summary (e.g., "P-1: MARKED → OFFERED" rather than a summary with no exhibit identified)
+- [ ] This uses the `exhibitLabel` field already present in the `GET /api/cases/:id/activity` response — no API contract or schema change is required, only row-rendering/summary-formatting logic
+- [ ] No activity-feed row anywhere renders a summary string without that event's associated `exhibitLabel`, for any `eventType` value
+
+**Priority:** P1 | **Feature Ref:** F15
+
+---
+
 ## Summary Table
 
 | Epic | Story Count | P0 | P1 | P2 |
@@ -444,7 +633,11 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 | Epic 9: Case Workspace Screen (F9) | 2 | 2 | 0 | 0 |
 | Epic 10: Exhibit Detail View Screen (F10) | 2 | 1 | 1 | 0 |
 | Epic 11: Jury Package Workspace Screen (F11) | 2 | 2 | 0 | 0 |
-| **Total** | **31** | **23** | **8** | **0** |
+| Epic 12: Admission Integrity Gating (F12) | 3 | 3 | 0 | 0 |
+| Epic 13: Jury Package Ex Parte / Sealed Exclusion (F13) | 3 | 3 | 0 | 0 |
+| Epic 14: Discrepancy Acknowledgment Transparency (F14) | 3 | 0 | 3 | 0 |
+| Epic 15: Courtroom Usability Fixes (F15) | 5 | 1 | 2 | 2 |
+| **Total** | **45** | **30** | **13** | **2** |
 
 ---
 
@@ -460,4 +653,4 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-06*
+*Last updated: 2026-10-08 (added Epics 12–15 for Phase 7: admission integrity + UI usability fixes)*

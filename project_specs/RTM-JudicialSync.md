@@ -2,42 +2,47 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** RTM (Requirements Traceability Matrix)
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
 **Generated:** 2026-10-06
-**Source Documents:** `PRD-JudicialSync.md`, `FRD-JudicialSync.md`, `TechArch-JudicialSync.md`, `UserStories-JudicialSync.md`, `.planning/PROJECT.md`
+**Last Updated:** 2026-10-08 (Phase 7 — Admission Integrity and Courtroom Usability Hardening — F12–F15 added)
+**Source Documents:** `PRD-JudicialSync.md`, `FRD-JudicialSync.md` (+ `FRD/F12`–`F15`, `FRD/Y0`–`Y3`), `TechArch-JudicialSync.md` (+ `TechArch/01`–`06` chunks), `UserStories-JudicialSync.md`, `JOURNEYS-JudicialSync.md` (JRN-02.1), `STORY-MAP-JudicialSync.md` (Release R3), `UX-Mockup-JudicialSync.md` (+ `UX-Mockup/Screen-00`–`Screen-04`), `.planning/PROJECT.md`, `.planning/ROADMAP.md` (Phase 7)
 
 ---
 
 ## 1. Overview
 
-This Requirements Traceability Matrix (RTM) provides bidirectional traceability across every layer of the JudicialSync specification set — from the 12 PRD features (F0–F11), through their corresponding FRD functional chunks (F00–F11), into the TechArch components, data model, and API surface that implement them, and finally into the UserStories epics and acceptance criteria that define how each requirement will be verified. Its purpose is to make certain that every product requirement has a documented implementation path and that every implementation artifact traces back to an approved requirement — nothing is built that wasn't specified, and nothing specified is left unimplemented or untested.
+This Requirements Traceability Matrix (RTM) provides bidirectional traceability across every layer of the JudicialSync specification set — from the 16 PRD features (F0–F15, following the Phase 7 addition of F12–F15), through their corresponding FRD functional chunks (F00–F15), into the TechArch components, data model, and API surface that implement them, and finally into the UserStories epics and acceptance criteria that define how each requirement will be verified. Its purpose is to make certain that every product requirement has a documented implementation path and that every implementation artifact traces back to an approved requirement — nothing is built that wasn't specified, and nothing specified is left unimplemented or untested.
 
 JudicialSync is architecturally simple by design: a single append-only event ledger (`exhibit_events`), a small set of derived current-state projections, one shared service layer, and a fixed (≤8-tool) assistant tool set that wraps that same service layer 1:1. Because of this architecture, traceability in this project is unusually tight — each PRD feature maps to exactly one FRD chunk, which maps to a small, enumerable set of TechArch tables/services/endpoints, which in turn maps to one or two UserStories epics. There are no orphaned requirements and no parallel implementation paths to reconcile. This RTM documents that 1:1 structure explicitly so it can be validated during implementation and QA rather than assumed.
 
-JudicialSync does not yet have a dedicated FIPS (Feature Implementation Plan/Spec), BusinessCase, or CostBenefitAnalysis document generated in `project_specs/` at the time of this RTM's creation; this matrix covers the four documents that exist (PRD, FRD, TechArch, UserStories) and should be regenerated or extended if those documents are produced later.
+JudicialSync does not yet have a dedicated FIPS (Feature Implementation Plan/Spec), BusinessCase, or CostBenefitAnalysis document generated in `project_specs/` at the time of this RTM's creation; this matrix covers the documents that exist (PRD, FRD, TechArch, UserStories, and — as of this Phase 7 update — JOURNEYS, STORY-MAP, and UX-Mockup) and should be regenerated or extended if FIPS/BusinessCase/CostBenefitAnalysis are produced later.
+
+**Phase 7 update (2026-10-08):** This RTM has been extended to cover Phase 7 — "Fix admission integrity and UI usability issues" (`.planning/ROADMAP.md`) — which adds four PRD features (F12–F15), their FRD chunks, their TechArch amendments, and 14 new UserStories (US-12.1–US-15.5, Epics 12–15). Unlike F0–F11, Phase 7's requirements were also explicitly traced into the experience-design layer: JRN-02.1 (the core demo journey) was updated with two new stage-level touchpoints (Log Exhibit Activity → F12; Assemble the Jury Package → F13, F14), STORY-MAP-JudicialSync.md's Release R3 places all 14 new stories against existing backbone activities with no new epics/journeys/JTBD IDs introduced, and UX-Mockup-JudicialSync.md's five screen documents (Screen-00–Screen-04) were amended in place to specify the new UI behavior. §3 below adds a dedicated Phase 7 sub-table (§3a) to carry this additional Journey/UX-Mockup traceability layer, which did not exist for F0–F11's original scope.
 
 Traceability levels covered in this document:
-- **Level 1 — PRD → FRD:** Every PRD feature (F0–F11) maps to exactly one FRD functional chunk of the same number (F00–F11), confirming no feature was dropped or silently re-scoped during functional elaboration.
+- **Level 1 — PRD → FRD:** Every PRD feature (F0–F15) maps to exactly one FRD functional chunk of the same number (F00–F15), confirming no feature was dropped or silently re-scoped during functional elaboration.
 - **Level 2 — FRD → TechArch:** Every FRD chunk's data model, service-layer functions, and API surface are traced to the specific TechArch section (data model §3, component §2, API §4, security §5) that implements it.
 - **Level 3 — TechArch → UserStories:** Every TechArch component/table/endpoint is traced to the UserStories epic(s) whose acceptance criteria exercise it, confirming test coverage exists for every implemented capability.
 - **Level 4 — Test Coverage:** Acceptance criteria within each UserStories epic are treated as the atomic, countable test-case units for this project (no separate TEST-XXX catalog exists yet), and are tallied per feature in §5 below.
+- **Level 5 — UserStories → Journey/UX-Mockup (Phase 7 only):** Each of the 14 new UserStories is additionally traced to its JRN-02.1 journey-stage touchpoint (or, where the UX-Mockup places it outside JRN-02.1, its actual source journey) and its UX-Mockup screen, in §3a below.
 
 ---
 
 ## 2. Requirements Summary
 
-- **12 PRD features (F0–F11)** span four categories: Data Foundation (1), Status Tracking (3), Differentiator (3), and UI Screen (5) — see PRD §9 Feature Index.
-- **10 P0 (Critical/MVP) features:** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11 — these collectively form the minimum viable demo; none can be cut without breaking the core "judge asks a live question" scenario.
-- **2 P1 (High) features:** F4 (Exhibit Search) and F8 (Trial Command Center Screen) — materially improve usability/ambient awareness but are not blocking for the Q&A/status core scenario.
-- **12 FRD functional chunks (F00–F11)** map 1:1 to PRD features, plus **4 cross-cutting FRD chunks (Y0–Y3)** covering schema, API, error catalog, and integrations that are referenced (not duplicated) by every feature chunk.
-- **9 core domain tables + 3 assistant-audit tables** defined in TechArch §3 Data Model: `cases`, `users`, `exhibits`, `exhibit_events` (the ledger), `exhibit_current_state`, `objection_current_state`, `custody_current_state`, `discrepancy_flags`, `jury_packages`, `jury_package_exhibits`, `assistant_conversations`, `assistant_messages`, `assistant_citations`.
+- **16 PRD features (F0–F15)** span five categories: Data Foundation (1), Status Tracking (4, with Phase 7's F12 added), Differentiator (4, with Phase 7's F13/F14 added), UI Screen (5), and Usability (2, with Phase 7's F15 added) — see PRD §9 Feature Index.
+- **12 P0 (Critical/MVP) features:** F0, F1, F2, F3, F5, F6, F7, F9, F10, F11, F12, F13 — these collectively form the minimum viable demo plus the Phase 7 integrity gates (F12, F13); none can be cut without breaking the core "judge asks a live question" scenario or reopening the admission/sealed-exhibit integrity gaps Phase 7 closes.
+- **4 P1 (High) features:** F4 (Exhibit Search), F8 (Trial Command Center Screen), F14 (Discrepancy Acknowledgment Transparency), F15 (Courtroom Usability Fixes) — materially improve usability/trust/ambient awareness but are not blocking for the Q&A/status core scenario.
+- **16 FRD functional chunks (F00–F15)** map 1:1 to PRD features, plus **5 cross-cutting FRD chunks (Y0–Y4)** covering schema, API, error catalog, integrations, and the Phase 6 design-system migration that are referenced (not duplicated) by every feature chunk.
+- **9 core domain tables + 3 assistant-audit tables** defined in TechArch §3 Data Model: `cases`, `users`, `exhibits`, `exhibit_events` (the ledger), `exhibit_current_state`, `objection_current_state`, `custody_current_state`, `discrepancy_flags`, `jury_packages`, `jury_package_exhibits`, `assistant_conversations`, `assistant_messages`, `assistant_citations`. **Phase 7 (F13) amends** `jury_package_exhibits` with `status`/`excluded_at`/`excluded_by`/`exclusion_reason` and adds the `JURY_PACKAGE_EXHIBIT_EXCLUDED` event type — the only schema change in Phase 7; F12, F14, and F15 introduce no new tables, columns, or enums.
 - **1 non-negotiable architectural constraint** underlies every requirement: status, objections/rulings, and custody are modeled exclusively as append-only ledger events, never mutable fields — enforced from PRD §4 through FRD's cross-cutting terminology through TechArch §1.3/§3 and verified by UserStories US-0.3.
-- **~17 REST/streaming API endpoints** documented in TechArch §4, each traced to its originating FRD feature chunk and consumed by exactly one UI screen and/or one assistant tool — never a parallel, divergent access path.
-- **8 assistant tools** (`getExhibitStatus`, `getUnresolvedObjections`, `getCustodian`, `getCustodyHistory`, `getExhibitHistory`, `searchExhibits`, `getJuryPackageStatus`, `getDiscrepancies`) are each a 1:1 pass-through to an identically-named service-layer function — the structural guarantee that the assistant can never state something a UI screen doesn't also show.
-- **12 UserStories epics, 31 user stories total** (23 P0, 8 P1, 0 P2/P3) — see UserStories Summary Table — collectively carrying **107 acceptance criteria**, the atomic test-case units tracked in §5 below.
-- **8 Non-Functional Requirements** (PRD §6) — Trustworthiness over fluency, Single source of truth, Auditability, Role-appropriate visibility, Responsiveness for live use, Demo reliability, Non-technical usability, Realistic seed data complexity — each traced to a specific TechArch enforcement mechanism in §4 below.
-- **2 discrepancy rules required at launch** (`ADMITTED_NO_CUSTODIAN`, `UNRESOLVED_OBJECTION_JURY_ELIGIBLE`), extensible per FRD F06, each independently traced from PRD F6 through TechArch §3.5 to UserStories US-6.1/US-6.2.
+- **~18 REST/streaming API endpoints** documented in TechArch §4 (Phase 7 adds one new route, `POST /api/jury-package/:id/exhibits/:exhibitId/exclude` (F13), and amends two existing ones — `POST /api/exhibits/:id/events/status` (F12, `ADMISSION_BLOCKED`) and `GET /api/cases/:id/jury-package` (F13, `EXCLUDED`-row omission)), each traced to its originating FRD feature chunk and consumed by exactly one UI screen and/or one assistant tool — never a parallel, divergent access path.
+- **8 assistant tools** (`getExhibitStatus`, `getUnresolvedObjections`, `getCustodian`, `getCustodyHistory`, `getExhibitHistory`, `searchExhibits`, `getJuryPackageStatus`, `getDiscrepancies`) are each a 1:1 pass-through to an identically-named service-layer function — the structural guarantee that the assistant can never state something a UI screen doesn't also show. Phase 7's F13/F14 amendments propagate to `getJuryPackageStatus`/`getDiscrepancies` automatically via this same mapping, with no tool definition changed.
+- **16 UserStories epics, 45 user stories total** (30 P0, 13 P1, 2 P2) — see UserStories Summary Table — collectively carrying **162 acceptance criteria**, the atomic test-case units tracked in §5 below. Phase 7 adds **4 epics (12–15), 14 stories (7 P0, 7 P1, 0 P2 at the epic-list level above the story grain — see §5 for the exact per-story priority breakdown), 55 acceptance criteria**.
+- **8 Non-Functional Requirements** (PRD §6) — Trustworthiness over fluency, Single source of truth, Auditability, Role-appropriate visibility, Responsiveness for live use, Demo reliability, Non-technical usability, Realistic seed data complexity, plus the Phase 6-added Design-system foundation NFR — each traced to a specific TechArch enforcement mechanism in §4 below.
+- **2 discrepancy rules required at launch** (`ADMITTED_NO_CUSTODIAN`, `UNRESOLVED_OBJECTION_JURY_ELIGIBLE`), extensible per FRD F06, each independently traced from PRD F6 through TechArch §3.5 to UserStories US-6.1/US-6.2. **Phase 7's F12 closes the gap these two rules left open** by converting both conditions from a post-hoc discrepancy flag into a hard pre-write admission gate — F6's rules remain in force for conditions arising *after* a valid admission.
+- **Phase 7 adds a new Journey/UX-Mockup traceability layer (§3a)** not present for F0–F11: all 14 new stories are traced to their JRN-02.1 (or, where applicable, JRN-01.1/JRN-01.2) journey-stage touchpoint and their UX-Mockup screen (Screen-00 through Screen-04).
 
 ---
 
@@ -57,6 +62,10 @@ Traceability levels covered in this document:
 | F9: Case Workspace Screen | P0 | F09-case-workspace-screen | §2.1 `CaseWorkspacePage`; §4.2 `GET /api/cases/:id/exhibits`; §4.6 search integration; §7.3 Polling live-sync | US-9.1, US-9.2 |
 | F10: Exhibit Detail View Screen | P0 | F10-exhibit-detail-view-screen | §2.1 `ExhibitDetailPage`; §4.2 `GET /api/exhibits/:id/history`; §5.2.1 sealed-exhibit 404-masking | US-10.1, US-10.2 |
 | F11: Jury Package Workspace Screen | P0 | F11-jury-package-workspace-screen | §2.1 `JuryPackageWorkspacePage`; §4.7 `GET /api/cases/:id/jury-package`, `POST /api/jury-package/:id/finalize`; §4.8 acknowledgment action | US-11.1, US-11.2 |
+| F12: Admission Integrity Gating *(Phase 7)* | P0 | F12-admission-integrity-gating | §2.2 `services/status.ts#recordStatusChange` (Admission Gate, amended — two precondition queries against `objection_current_state`/`custody_current_state` run inside the same transaction as F1's `fromStatus` check, before any ledger write); §4.3 `POST /api/exhibits/:id/events/status` (amended — adds `ADMISSION_BLOCKED` 422 with `reasons[]`); §5.2.3 Admission Integrity Gate (data-invariant enforcement, not role-based — no override/bypass for any caller) | US-12.1, US-12.2, US-12.3 |
+| F13: Jury Package Ex Parte / Sealed Exclusion *(Phase 7)* | P0 | F13-jury-package-ex-parte-sealed-exclusion | §2.2 `services/juryPackage.ts#computeJuryCandidates` (amended — `isSealed = false` filter applied in the same query as `currentStatus = 'ADMITTED'`) + new `excludeJuryPackageExhibit(...)`; §3.6 `jury_package_exhibits` (amended: `status`, `excluded_at`, `excluded_by`, `exclusion_reason`) + new `JURY_PACKAGE_EXHIBIT_EXCLUDED` event type; §4.7 `GET /api/cases/:id/jury-package` (amended — `EXCLUDED` rows omitted from default read), §4.7a new `POST /api/jury-package/:id/exhibits/:exhibitId/exclude`; §5.2.2 DEPUTY/CLERK/ADMIN exclusion role gate (identical to finalize gate) | US-13.1, US-13.2, US-13.3 |
+| F14: Discrepancy Acknowledgment Transparency *(Phase 7)* | P1 | F14-discrepancy-acknowledgment-transparency | §2.2 `services/discrepancies.ts#getDiscrepancies` (amended — additive read-time join surfacing `justification` for `ACKNOWLEDGED` flags); §4.1/§4.8 `GET /api/cases/:id/discrepancies`, `GET /api/exhibits/:id/discrepancies` (amended response shape only); no schema change — justification text already exists in the `DISCREPANCY_ACKNOWLEDGED` event's payload | US-14.1, US-14.2, US-14.3 |
+| F15: Courtroom Usability Fixes *(Phase 7)* | P1 | F15-courtroom-usability-fixes | §2.1 `ExhibitTable.tsx` (full-row click-through, amended), `ExampleChips.tsx` (real seeded `exhibitLabel` sourcing, amended), `Header.tsx` (unlabeled numeric element labeled or removed, amended), `RecentActivityPanel.tsx` (date-qualified timestamp + exhibit label on every row, amended) — all five fixes are client-rendering corrections only; no API, service-layer, or schema change | US-15.1, US-15.2, US-15.3, US-15.4, US-15.5 |
 
 **Cross-cutting FRD/TechArch chunks referenced by all rows above (not duplicated per-feature):**
 
@@ -67,6 +76,29 @@ Traceability levels covered in this document:
 | Y2: Cross-Feature Error Catalog | TechArch §4.11 Common Response Envelope; per-feature error tables throughout §4 |
 | Y3: Integrations | TechArch §7 Integration Points (External Services, Internal Triggers, Live Sync, Seed Loader) |
 | Y4: Design System Migration (Phase 6) | TechArch §5 Tech Stack (UI components → IBM Carbon Design System); UX-Mockup Interaction Patterns (Carbon component attribution, Phase 6 design-system note) |
+
+### 3a. Phase 7 Extended Traceability — Journey & UX-Mockup Touchpoints
+
+This sub-table exists only for Phase 7 (F12–F15): it traces each of the 14 new UserStories into the experience-design layer — the specific JRN-02.1 journey stage it was placed against (or, where the UX-Mockup source places it on a different judge-persona journey, that journey instead) and the UX-Mockup screen document that specifies its UI behavior. No equivalent layer exists for F0–F11 in this RTM's original scope.
+
+| PRD Feature | User Story | Journey Touchpoint | UX-Mockup Screen |
+|---|---|---|---|
+| F12: Admission Integrity Gating | US-12.1 | JRN-02.1 — "Log Exhibit Activity" stage | Screen-01 (Case Workspace), Screen-02 (Exhibit Detail) |
+| F12: Admission Integrity Gating | US-12.2 | JRN-02.1 — "Log Exhibit Activity" stage | Screen-01 (Case Workspace), Screen-02 (Exhibit Detail) |
+| F12: Admission Integrity Gating | US-12.3 | JRN-02.1 — "Log Exhibit Activity" stage (no-bypass guarantee; same Record Status action surface as US-12.1/US-12.2) | Screen-01, Screen-02 (no distinct UI — structural service-layer guarantee verified via the same status-transition action) |
+| F13: Jury Package Ex Parte / Sealed Exclusion | US-13.1 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-03 (Jury Package Workspace) |
+| F13: Jury Package Ex Parte / Sealed Exclusion | US-13.2 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-03 (Jury Package Workspace) |
+| F13: Jury Package Ex Parte / Sealed Exclusion | US-13.3 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-03 (Jury Package Workspace) |
+| F14: Discrepancy Acknowledgment Transparency | US-14.1 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-02 (Exhibit Detail), Screen-03 (Jury Package Workspace) |
+| F14: Discrepancy Acknowledgment Transparency | US-14.2 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-02 (Exhibit Detail), Screen-03 (Jury Package Workspace) |
+| F14: Discrepancy Acknowledgment Transparency | US-14.3 | JRN-02.1 — "Assemble the Jury Package" stage | Screen-02 (Exhibit Detail), Screen-03 (Jury Package Workspace) |
+| F15: Courtroom Usability Fixes | US-15.1 | JRN-02.1 — "Search Mid-Testimony" stage (existing stage, reused; not a Phase 7 stage addition) | Screen-01 (Case Workspace) |
+| F15: Courtroom Usability Fixes | US-15.2 | JRN-01.1 — "Query the Assistant" stage *(judge persona journey, not JRN-02.1 — per UX-Mockup/JOURNEYS source)* | Screen-04 (Pivota Assistant) |
+| F15: Courtroom Usability Fixes | US-15.3 | JRN-01.2 — "Glance During Recess" stage *(judge persona journey, not JRN-02.1 — per UX-Mockup/JOURNEYS source)* | All screens (Screen-00–Screen-03; shared `Header.tsx` component) — see UX-Mockup `00-overview.md` §Header and `Y0-patterns.md` §Pattern: Labeled Header Indicator |
+| F15: Courtroom Usability Fixes | US-15.4 | JRN-01.2 — "Glance During Recess" stage *(judge persona journey, not JRN-02.1 — per UX-Mockup/JOURNEYS source)* | Screen-00 (Trial Command Center) |
+| F15: Courtroom Usability Fixes | US-15.5 | JRN-01.2 — "Glance During Recess" stage *(judge persona journey, not JRN-02.1 — per UX-Mockup/JOURNEYS source)* | Screen-00 (Trial Command Center) |
+
+**Note on journey scope:** Per JOURNEYS-JudicialSync.md's own Phase 7 changelog note, only JRN-02.1 was actually amended for Phase 7 (two new stage-level feature references: "Log Exhibit Activity" → +F12, "Assemble the Jury Package" → +F13, +F14). F15's usability fixes land on pre-existing stages of JRN-02.1 (US-15.1) and JRN-01.1/JRN-01.2 (US-15.2–US-15.5) that were not themselves modified — this RTM records the accurate touchpoint in each case rather than attributing all 14 stories to JRN-02.1 uniformly. STORY-MAP-JudicialSync.md's Release R3 independently confirms all 14 stories are placed against existing backbone activities with no new epics, journeys, or JTBD IDs introduced for Phase 7.
 
 ---
 
@@ -84,11 +116,15 @@ Traceability levels covered in this document:
 - **F9 — Case Workspace Screen:** Primary browsing/search surface; render-only (no embedded business logic); inline discrepancy indicators; sealed exhibits simply absent (never shown redacted) for unauthorized roles.
 - **F10 — Exhibit Detail View Screen:** Complete chronological timeline reconstructed from the ledger, one entry per `ExhibitEvent`, no truncation; sealed exhibit for an unauthorized role returns 404 (not 403), identical to a genuinely nonexistent exhibit.
 - **F11 — Jury Package Workspace Screen:** Authoritative handoff view; "Finalize" control is disabled (not just error-returning) while any open discrepancy remains; becomes fully read-only/export-ready once `FINALIZED`.
+- **F12 — Admission Integrity Gating *(Phase 7)*:** Converts F6's two post-hoc discrepancy rules into a hard pre-write gate — an `ADMITTED` transition is rejected (422 `ADMISSION_BLOCKED`, all applicable reasons listed at once) rather than silently recorded, when an unresolved objection or missing custodian is present; enforced once inside the shared status-transition service with no override, bypass flag, or elevated-role exception for any caller (UI, API, or seed loader).
+- **F13 — Jury Package Ex Parte / Sealed Exclusion *(Phase 7)*:** The highest-severity fix in this release — a hard, query-level exclusion ensuring a sealed/ex-parte exhibit can never acquire an `INCLUDED` jury-package row or a `CLEAN` discrepancy status, regardless of its admission status; includes an auditable "Remove from Package" remediation path (`JURY_PACKAGE_EXHIBIT_EXCLUDED` event) for any legacy/regression row found already present.
 
 ### P1 (High) Features
 
 - **F4 — Exhibit Search:** Combinable (AND-semantics) filters by ID, keyword, status, witness, date range; surfaced identically in Case Workspace UI and via the assistant's `searchExhibits` tool.
 - **F8 — Trial Command Center Screen:** Ambient, read-only, passive-monitoring view (Recent Activity / Unresolved Objections / Discrepancies panels); composes existing F2/F3/F6 service functions with zero new business logic; link-through only, no data entry.
+- **F14 — Discrepancy Acknowledgment Transparency *(Phase 7)*:** A pure UI-visibility requirement layered on F6's unchanged acknowledgment data model — makes role-eligibility, the permanent-record framing of the justification field, and the full acknowledgment audit record (actor/role/timestamp/justification) visible at the point of action on every screen that renders a discrepancy flag, with no new data capability, API contract, or schema change.
+- **F15 — Courtroom Usability Fixes *(Phase 7)*:** Five client-rendering corrections against data the service layer already returns correctly — fully clickable Case Workspace rows, assistant example prompts sourced from real seeded exhibit labels, a labeled-or-removed header element, and date-qualified, exhibit-labeled activity-feed rows; none requires an API contract, service-layer, or schema change.
 
 ### Non-Functional Requirements (PRD §6) — Traced to Enforcement Mechanism
 
@@ -121,11 +157,19 @@ No separate `TEST-XXX` catalog exists yet for JudicialSync. In its absence, each
 | F9: Case Workspace Screen | Epic 9 | 2 (US-9.1–9.2) | 5 | 100% |
 | F10: Exhibit Detail View Screen | Epic 10 | 2 (US-10.1–10.2) | 6 | 100% |
 | F11: Jury Package Workspace Screen | Epic 11 | 2 (US-11.1–11.2) | 6 | 100% |
-| **Total** | **12 Epics** | **31** | **107** | **100%** |
+| F12: Admission Integrity Gating *(Phase 7)* | Epic 12 | 3 (US-12.1–12.3) | 14 | 100% |
+| F13: Jury Package Ex Parte / Sealed Exclusion *(Phase 7)* | Epic 13 | 3 (US-13.1–13.3) | 12 | 100% |
+| F14: Discrepancy Acknowledgment Transparency *(Phase 7)* | Epic 14 | 3 (US-14.1–14.3) | 11 | 100% |
+| F15: Courtroom Usability Fixes *(Phase 7)* | Epic 15 | 5 (US-15.1–15.5) | 18 | 100% |
+| **Total** | **16 Epics** | **45** | **162** | **100%** |
+
+**Phase 7 priority breakdown (per UserStories Summary Table):** Epic 12 — 3 stories, all P0; Epic 13 — 3 stories, all P0; Epic 14 — 3 stories, all P1; Epic 15 — 5 stories (1 P0: US-15.1, 2 P1: US-15.2/US-15.5, 2 P2: US-15.3/US-15.4). Combined with the pre-Phase-7 total (23 P0, 8 P1, 0 P2/P3 across 31 stories), the full 45-story set is 30 P0, 13 P1, 2 P2.
 
 **Coverage basis:** "Coverage" above reflects that every acceptance criterion is traceable to a specific FRD process step, validation rule, or error state (§3 above) — i.e., no acceptance criterion exists without a corresponding functional/technical specification behind it. It does **not** yet reflect actual automated-test pass/fail status, since implementation has not started as of this RTM's generation date. This table should be re-validated against a real test-execution report once implementation and QA begin.
 
 **Success-metric cross-reference (PRD §7):** The five PRD-named example assistant questions ("admitted yesterday," "unresolved objections," "Exhibit 14 jury package," "custodian of Exhibit 7," "what happened to Exhibit 14") are specifically covered by US-7.1's first acceptance criterion and FRD F07 §Validation's explicit requirement that all five resolve via the existing ≤8-tool set with no gaps.
+
+**Phase 7 success-metric cross-reference (PRD §7, amended):** "Jury package integrity: 0 discrepant exhibits appear in a finalized jury package" is now additionally backed by F12's admission gate (an exhibit can no longer even reach `ADMITTED` with an unresolved objection or missing custodian) and F13's hard sealed/ex-parte exclusion (US-13.1's acceptance criteria assert a seeded sealed-and-admitted exhibit never appears in `computeJuryCandidates`, is never rendered `CLEAN`, and is never returned by `getJuryPackageStatus` as eligible) — covering the specific originating regression this release exists to prevent. "Cross-screen consistency" is additionally verified for Phase 7 by US-14.3's requirement that the UI and the assistant's `getDiscrepancies` answer show an identical acknowledgment record (actor, role, timestamp, justification) for the same flag.
 
 ---
 
@@ -134,6 +178,7 @@ No separate `TEST-XXX` catalog exists yet for JudicialSync. In its absence, each
 | Version | Date | Change Description | Changed By | Affected Documents |
 |---|---|---|---|---|
 | 1.0 | 2026-10-06 | Initial RTM generated from PRD, FRD, TechArch, and UserStories (all v1.0/Draft) for JudicialSync | Pivota Spec RTM Generator | PRD-JudicialSync.md, FRD-JudicialSync.md, TechArch-JudicialSync.md, UserStories-JudicialSync.md |
+| 1.1 | 2026-10-08 | Added Phase 7 ("Fix admission integrity and UI usability issues") traceability: 4 new PRD features (F12–F15), 4 new FRD chunks, TechArch amendments (`services/status.ts`, `services/juryPackage.ts`, `services/discrepancies.ts`, 4 client components, 1 new endpoint, 1 schema migration), 4 new UserStories epics (12–15, 14 stories, 55 acceptance criteria), and a new §3a sub-table tracing all 14 stories to their JRN-02.1 (or JRN-01.1/JRN-01.2) journey touchpoint and UX-Mockup screen (Screen-00–Screen-04). All F0–F11 rows left unmodified. | Pivota Spec RTM Generator | PRD-JudicialSync.md, FRD/F12–F15, TechArch/01–06, UserStories-JudicialSync.md, JOURNEYS-JudicialSync.md, STORY-MAP-JudicialSync.md, UX-Mockup/Screen-00–Screen-04, .planning/ROADMAP.md |
 
 **Change control note:** Because every PRD feature maps 1:1 to a single FRD chunk and a small, enumerable TechArch surface, any future change to a feature's scope (e.g., adding a third discrepancy rule, or re-prioritizing F4/F8 to P0) must be reflected in this RTM's §3 Traceability Matrix and §5 Coverage table in the same change cycle, not deferred to a later audit pass.
 

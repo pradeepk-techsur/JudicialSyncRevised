@@ -2,6 +2,7 @@
 
 **Project:** JudicialSync
 **Generated:** 2026-10-06
+**Last Updated:** 2026-10-08 (Phase 7: admission-rejection error, sealed/ex-parte jury package blocker, discrepancy-acknowledgment role/audit visibility, Case Workspace row clickability, assistant example labels, header indicator, activity-feed date+label fixes — US-12.1–US-12.2, US-13.1–US-13.3, US-14.1–US-14.3, US-15.1–US-15.5)
 **Based on:** UserStories-JudicialSync.md, JOURNEYS-JudicialSync.md, PRD-JudicialSync.md, FRD-JudicialSync.md, PROJECT.md
 
 ---
@@ -36,7 +37,7 @@ All five screens live inside one persistent shell:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ JudicialSync   [Case: 2026-CR-0142]      [Role: Judge ▾] [Ask ✦] │ ← global header
+│ JudicialSync   [Case: 2026-CR-0142]  [⚠ 1]  [Role: Judge ▾] [Ask ✦]│ ← global header
 ├───────────────┬──────────────────────────────────────────────────┤
 │ ▸ Command Ctr │                                                  │
 │   Case        │              [ Active Screen Content ]          │
@@ -48,6 +49,7 @@ All five screens live inside one persistent shell:
 
 - **Sidebar** (persistent, 4 items): Command Center, Case Workspace, Jury Package, Pivota Assistant. This is the entire navigable surface — intentionally small, reinforcing low adoption burden (JTBD-04.4).
 - **"Ask ✦" header button**: opens the Pivota Assistant as a slide-over panel from *any* screen without navigating away — the single most important affordance in the product, since F7 is the universal touchpoint across every journey (JOURNEYS §Convergence Points).
+- **Header discrepancy-count indicator ("`[⚠ 1]`")**: resolves a Phase 7 usability defect (US-15.3) in which a numeric element rendered near the role selector carried no label or explanation of any kind. It now shows the case-wide count of `OPEN` discrepancy flags, paired with a visible `aria-label="N open discrepancies"` (readable without a hover/tooltip) and, when tapped, navigates to the Command Center's Discrepancies panel. If the count is zero, the element is omitted entirely rather than showing a bare, unexplained "0." This treatment is identical on every screen (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) since it lives in the one shared header component — see `Y0-patterns.md` §Pattern: Labeled Header Indicator. "Present and unexplained" is not an acceptable end state for any header element.
 - **Role switcher**: demo-only affordance (no production auth per PROJECT.md scope) letting the presenter switch personas live to show role-scoped visibility (US-7.4, US-10.2).
 - **Exhibit Detail View has no sidebar entry** — it is only reached by drilling into a specific exhibit (row click, activity item, citation link), never browsed to directly, consistent with it being a "zoom-in," not a top-level destination.
 
@@ -116,7 +118,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 **Steps:**
 1. **Question arises.** No system touch yet — the user notices a discrepancy or needs a fact to act on (US-7.1).
 2. **Open the assistant.** One tap/click on the ever-visible "Ask ✦" header button opens a slide-over chat panel over whatever screen is currently active — no navigation away, no lost context.
-3. **Ask in plain language.** A single text input, placeholder text rotating through example questions ("Who has custody of Exhibit 7?", "What was admitted yesterday?"). No required syntax, no filter menus (reinforces PRD §Strategic Goals — natural-language-first).
+3. **Ask in plain language.** A single text input, placeholder text rotating through example questions sourced from the case's actual seeded exhibit labels ("Who currently has custody of P-5?", "What was admitted yesterday?") — never a hardcoded placeholder scheme that doesn't match a real exhibit (US-15.2). No required syntax, no filter menus (reinforces PRD §Strategic Goals — natural-language-first).
 4. **Response streams token-by-token** via the chat panel (US-7.1 — Vercel AI SDK `useChat`), so the user sees progress within ~1 second rather than a blank wait.
 5. **Citation renders inline** with every factual sentence — format: `[Exhibit 14 · Status Change · 2026-10-05 14:32]` as a clickable pill immediately following the claim it supports (US-7.2).
 6. **Tap a citation to jump to source.** Clicking a citation pill navigates to the Exhibit Detail View for that exhibit with the specific ledger event visually highlighted/scrolled-to — the "one-tap view supporting record" moment from JRN-01.1.
@@ -298,7 +300,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 ### Screen: Trial Command Center
 
 **Purpose:** A zero-configuration, read-only ambient view of trial activity, unresolved objections, and discrepancies — designed for a glance during a recess, not a dashboard to tune.
-**User Stories:** US-8.1, US-8.2
+**User Stories:** US-8.1, US-8.2, US-15.4, US-15.5
 **Journey:** JRN-01.2 (Glance During Recess, Spot a Flag)
 **Route:** `/command-center` · **Nav:** Sidebar "Command Center" (default landing screen)
 
@@ -312,10 +314,14 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 │   Case        │  ┌────────────────────────────────────────────┐  │
 │   Jury Pkg    │  │ RECENT ACTIVITY (12 today)                  │  │
 │   Assistant   │  │ ──────────────────────────────────────────  │  │
-│               │  │ ● Exhibit 14 — Admitted         2:41 PM     │  │
-│               │  │ ● Exhibit 7  — Custody transferred  2:38 PM │  │
-│               │  │ ● Exhibit 9  — Objection raised 2:15 PM     │  │
-│               │  │ ● Exhibit 3  — Marked            1:58 PM    │  │
+│               │  │ ● Exhibit 14 — Admitted                     │  │
+│               │  │   Oct 8, 2026, 2:41 PM                      │  │
+│               │  │ ● Exhibit 7  — Custody transferred          │  │
+│               │  │   Oct 8, 2026, 2:38 PM                      │  │
+│               │  │ ● Exhibit 9  — Objection raised              │  │
+│               │  │   Oct 8, 2026, 2:15 PM                      │  │
+│               │  │ ● Exhibit 3  — MARKED → OFFERED              │  │
+│               │  │   Oct 8, 2026, 1:58 PM                      │  │
 │               │  │ ... (newest first, scrollable)              │  │
 │               │  └────────────────────────────────────────────┘  │
 │               │  ┌───────────────────────┬──────────────────────┐│
@@ -336,6 +342,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 |----------|---------|-----------|
 | Primary | Discrepancies panel (count + list) — the highest-risk signal | Right column, visually distinct (warning color), never below the fold |
 | Primary | Recent Activity feed — the ambient pulse of the trial | Full-width top panel, newest-first |
+| Primary | Exhibit label + full date-and-time on every Recent Activity row (incl. raw status-transition rows) | Same row, never summarized away (US-15.4, US-15.5) |
 | Secondary | Unresolved Objections panel | Left of the two-column lower row |
 | Tertiary | "Updated Xs ago" freshness indicator | Top-right corner, small type |
 
@@ -349,6 +356,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 | Empty — no unresolved objections | "No unresolved objections — all clear" with a quiet checkmark | Reinforces confidence, not silence-as-ambiguity |
 | Discrepancy present | Discrepancies panel header turns warning-amber, count badge visible from across the room | Visually "impossible to scroll past unnoticed" per US-8.1 |
 | Live update arrives | New row fades in at top of Recent Activity (no jarring re-sort/flash) | No toast needed — ambient by design |
+| Recent Activity row rendering (any event type) | Every row shows both date and time of `recordedAt` ("Oct 8, 2026, 2:41 PM," never time-only) and the exhibit's label, including rows describing a raw `STATUS_CHANGE` transition ("Exhibit 3 — MARKED → OFFERED") | Two events on different days are never visually indistinguishable; no row is ever unattributed to an exhibit (US-15.4, US-15.5) — see `Y0-patterns.md` §Pattern: Activity Feed Row Format |
 | Load failure | Full-panel inline error: "Unable to load trial activity — please retry" with a retry button | Non-blocking — other panels still attempt to load independently |
 
 #### Interactive Elements
@@ -361,10 +369,12 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 | "Ask ✦" header button | Global | Opens Pivota Assistant slide-over without leaving this screen |
 
 **Explicitly absent by design (US-8.1):** no filters, no date pickers, no "configure this view" settings, no data-entry controls of any kind. This screen only links through — it never writes to the ledger.
+
+**Full timestamp + label rule (F15):** every Recent Activity row renders both the date and the time of `recordedAt` — never time-only — and always includes the event's exhibit label as part of the rendered summary, with no exception for raw `STATUS_CHANGE` rows (US-15.4, US-15.5). This uses the `exhibitLabel` field already present in the activity API response — a rendering fix, not a data-contract change.
 ### Screen: Case Workspace
 
 **Purpose:** The primary browsing and searching surface for the full exhibit set — one trustworthy list instead of a spreadsheet.
-**User Stories:** US-9.1, US-9.2, US-4.1, US-1.1, US-1.2, US-3.1, US-3.2, US-2.1
+**User Stories:** US-9.1, US-9.2, US-4.1, US-1.1, US-1.2, US-3.1, US-3.2, US-2.1, US-15.1, US-12.1, US-12.2
 **Journey:** JRN-02.1 (Log Exhibit Activity, Answer a Custody Question, Search Mid-Testimony)
 **Route:** `/case` · **Nav:** Sidebar "Case Workspace"
 
@@ -388,8 +398,10 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 │               │  │ ... (polling live, 3–5s)                     │  │
 │               │  └────────────────────────────────────────────┘  │
 └───────────────┴──────────────────────────────────────────────────┘
-        row click ──▶ Exhibit Detail View (/exhibit/:id)
+   entire row (hover: highlight + cursor:pointer) ──▶ Exhibit Detail View (/exhibit/:id)
 ```
+
+**Row clickability fix (US-15.1):** the full row container — not a nested link, icon, or label span — is the click target, across its entire width, for every row regardless of discrepancy-flag state. A visible hover affordance (row background highlight, `cursor: pointer`) confirms this before the click. The row is keyboard-focusable; `Enter`/`Space` navigates identically to a click. Inline row-level actions (Record Status, Transfer Custody, Raise Objection, the ⚠ discrepancy icon) stop click-propagation so operating them never also triggers row navigation — see `Y0-patterns.md` §Pattern: Fully Clickable List Row.
 
 #### Information Hierarchy
 
@@ -411,8 +423,10 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 | Empty case (no exhibits yet) | "No exhibits recorded yet" | Rare in demo (seed data guarantees content) but designed for completeness |
 | Sealed exhibit, unauthorized role | Row simply absent — no redacted placeholder row | Confirms US-9.1: sealed exhibits are invisible, not indicated |
 | Live update arrives | Status badge or custodian cell updates in place, subtle highlight flash (~400ms) then settles | No full-table re-render/flicker |
+| Row hover / keyboard focus | Full row background highlights and shows `cursor: pointer`; focus ring outlines the entire row, not just a sub-element | Confirms the whole row — not a hidden nested link — is the click/activation target (US-15.1) |
 | Row action in progress (status/custody/objection write) | Inline row shows a small spinner on the affected cell only | Rest of table remains interactive |
 | Write error (e.g., `STATUS_CONFLICT`) | Inline red text beneath the affected row: "Status has changed since this loaded — refresh and retry" | Row reverts to server-confirmed value, no stuck optimistic state |
+| Admission attempt blocked (`ADMISSION_BLOCKED`) | Inline "Record Status" action re-opens with a specific error listing every blocking reason at once — e.g., "Cannot admit: 2 blocking condition(s) present — Unresolved objection on this exhibit; No custodian of record." | No partial/generic failure message; no event recorded; status/badge remain exactly as they were before the attempt (US-12.1, US-12.2) — see `Y0-patterns.md` §Pattern: Multi-Reason Blocking Error |
 | Load failure | Full-table inline error with retry button | — |
 
 #### Interactive Elements
@@ -421,17 +435,17 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 |---------|------|----------|
 | Search bar | Text input | Keyword match against label/description/source; combines with dropdown filters (AND semantics, US-4.1) |
 | Status / Witness / Date filter dropdowns | Combinable filters | Each adds a removable chip; empty search blocked with inline hint, not a hard error page (US-4.1) |
-| Exhibit row | Click target | Navigates to Exhibit Detail View (`/exhibit/:id`) (US-9.2) |
-| Inline "Record Status" action (row-level, authorized roles only) | Compact action, not a modal form | Offers only valid next-transition options (US-1.1) |
+| Exhibit row | Click target (entire row, not a nested element) | Navigates to Exhibit Detail View (`/exhibit/:id`); visible hover highlight; Enter/Space activates on keyboard focus (US-9.2, US-15.1) |
+| Inline "Record Status" action (row-level, authorized roles only) | Compact action, not a modal form | Offers only valid next-transition options (US-1.1); an attempted `ADMITTED` transition is rejected with every blocking reason named if an unresolved objection or missing custodian applies (US-12.1, US-12.2) |
 | Inline "Transfer Custody" action | Compact action | Requires selecting an active user as new custodian (US-3.1) |
 | Inline "Raise Objection" action | Compact action, two fields | Party + grounds only (US-2.1) |
 | Discrepancy icon (⚠) | Tooltip + link | Hover shows the specific rule fired; click navigates to Exhibit Detail View discrepancy section |
 
-**Positioning note:** row-level action affordances are deliberately understated (icon buttons, not prominent colored CTAs) — the search/browse experience is the visual star of this screen, with data-entry kept minimal and secondary per the "assistant, not data-entry system" constraint (FRD F09 §Validation).
+**Positioning note:** row-level action affordances are deliberately understated (icon buttons, not prominent colored CTAs) — the search/browse experience is the visual star of this screen, with data-entry kept minimal and secondary per the "assistant, not data-entry system" constraint (FRD F09 §Validation). These understated inline actions coexist with full-row clickability without conflict: each inline action stops click-propagation, so clicking a status/custody/objection control never also fires row navigation, while every other point on the row — including empty space and the description/party/witness cells — still navigates (US-15.1, fixes a regression against this screen's originally-specified behavior).
 ### Screen: Exhibit Detail View
 
 **Purpose:** The complete, single-screen chronological story of one exhibit — answers "what happened to this exhibit" without assembling fragments.
-**User Stories:** US-10.1, US-10.2, US-3.3, US-2.2, US-6.3
+**User Stories:** US-10.1, US-10.2, US-3.3, US-2.2, US-6.3, US-12.1, US-12.2
 **Journey:** JRN-02.2 (full journey), JRN-01.2 (Request History), JRN-03.1 (Challenge a Custody Gap)
 **Route:** `/exhibit/:id` · **Nav:** Row click from Case Workspace, Command Center, or Jury Package Workspace; citation link from Assistant. No sidebar entry (drill-in only).
 
@@ -481,11 +495,12 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 |-------|------------|----------------|
 | Default — clean exhibit | Header shows status + custodian, no discrepancy banner; full timeline below | None needed |
 | Default — flagged exhibit | Amber discrepancy banner in header with plain-language rule explanation and action buttons | Impossible to miss; same visual treatment as Case Workspace's ⚠ icon, reinforcing consistency |
-| Discrepancy acknowledged | Banner changes from amber "OPEN" to a muted but still-visible "Acknowledged by C. Chen: [justification text]" badge | Never disappears — remains a permanent, visible risk-acceptance record (US-6.3) |
+| Discrepancy acknowledged | Banner changes from amber "OPEN" to a muted but still-visible "Acknowledged by C. Chen (Clerk) · Oct 8, 2026, 3:10 PM: [full justification text]" badge — actor, role, timestamp, and justification all shown in full, never truncated or hidden behind a secondary click | Never disappears — remains a permanent, visible risk-acceptance record (US-6.3, US-14.3) |
 | Loading | Header + timeline skeletons | Brief, since this is a single-exhibit query |
 | Sealed, unauthorized role | Entire route renders the same "Exhibit not found" page as a nonexistent ID — no distinguishing copy, icon, or status code visible to the user | Confirms US-10.2: existence of sealed material is never revealed |
 | Live update arrives (e.g., custody transfer logged elsewhere) | New timeline entry fades in at the appropriate chronological position; header updates in place | No manual refresh required |
 | Citation deep-link arrival (from Assistant) | Page loads with the specific cited timeline entry highlighted and auto-scrolled into view | Closes the loop promised in Flow 1 ("one-tap view supporting record") |
+| Admission attempt blocked (`ADMISSION_BLOCKED`) | The header's inline "Record Status" action re-opens with a specific error listing every applicable blocking reason at once (e.g., "Cannot admit: 2 blocking condition(s) present — Unresolved objection on this exhibit; No custodian of record.") — never a generic "failed to update status" message | No `ExhibitEvent` is recorded; status/custodian in the header remain exactly as they were before the attempt (US-12.1, US-12.2) — see `Y0-patterns.md` §Pattern: Multi-Reason Blocking Error |
 | Load failure | Inline error: "Unable to load exhibit history — please retry" | Retry button, no partial/broken render |
 
 #### Interactive Elements
@@ -493,7 +508,8 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 | Element | Type | Behavior |
 |---------|------|----------|
 | "Resolve →" link (on a discrepancy banner) | Contextual link | Scrolls to / opens the relevant inline action (e.g., "Transfer Custody") directly on this screen |
-| "Acknowledge" button | Action, opens inline justification field | Requires non-empty justification (≤500 chars) before submit; idempotent if already acknowledged (US-6.3) |
+| Inline "Record Status" action (header, authorized roles only) | Compact action, not a modal form | Offers only valid next-transition options (US-1.1); an attempted `ADMITTED` transition is rejected pre-write with every blocking reason named if an unresolved objection or missing custodian applies — status remains unchanged on rejection (US-12.1, US-12.2) |
+| "Acknowledge" button | Action, opens inline justification field | Requires non-empty justification (≤500 chars) before submit; idempotent if already acknowledged (US-6.3); only rendered for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` roles — absent, not disabled, otherwise; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed (US-14.1, US-14.2) |
 | Timeline entry | Static, citable | Each entry carries a stable anchor so Assistant citations and direct links can scroll to it precisely |
 | "← Back to Case Workspace" | Navigation | Returns to the referring list screen (preserves prior scroll/filter state where feasible) |
 | Ruling action (judge role, on an open objection) | Inline action, 1 of 3 options | Sustained / Overruled / Reserved — role-gated (US-2.2) |
@@ -502,7 +518,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 ### Screen: Jury Package Workspace
 
 **Purpose:** The authoritative, discrepancy-gated handoff view for the jury-eligible exhibit list — the screen where "build a jury package" plays out end-to-end.
-**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2
+**User Stories:** US-5.1, US-5.2, US-6.1, US-6.2, US-6.3, US-11.1, US-11.2, US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3
 **Journeys:** JRN-02.1 (Assemble), JRN-01.2 (Present/Accept), JRN-03.1 (Verify Integrity)
 **Route:** `/jury-package` · **Nav:** Sidebar "Jury Package"
 
@@ -521,11 +537,18 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 │               │  │                        [Fix →] [Acknowledge]│  │
 │               │  │ Ex. 9   ●ADMITTED   ⚠ Flagged: unresolved   │  │
 │               │  │                        objection [Fix →]    │  │
+│               │  │ S-2     ●ADMITTED   ⛔ CRITICAL · ex parte   │  │
+│               │  │                        material — must be   │  │
+│               │  │                        removed               │  │
+│               │  │                        [Remove from package]│  │
 │               │  └────────────────────────────────────────────┘  │
-│               │  2 of 4 exhibits have open discrepancies.        │
+│               │  2 of 4 included exhibits have open discrepancies.│
+│               │  1 sealed/ex parte exhibit present — blocked.    │
 │               │  [ Finalize Jury Package ]  ← disabled, greyed   │
 └───────────────┴──────────────────────────────────────────────────┘
 ```
+
+**Sealed/ex-parte blocker row (US-13.1, US-13.3):** a row whose underlying exhibit is `isSealed = true` (e.g., `S-2`, a chambers sidebar note) never renders `✓ Clean` or `⚠ Flagged: ...` — it renders in a distinct, higher-severity "⛔ CRITICAL" treatment with explicit copy ("ex parte material — must be removed") and no `[Fix →]`/`[Acknowledge]` actions, only `[Remove from Package]`. This evaluation is independent of and takes precedence over F6's `discrepancyStatus` for that row. The Finalize control stays disabled while any such row is present, same as for an open discrepancy. In the normal case (computation already excludes sealed exhibits at the query level per F13), this row never appears at all — it is shown here only to specify the required remediation treatment for the regression/legacy-data case where one is nonetheless present.
 
 #### Layout — Finalized State
 
@@ -549,8 +572,10 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 | Priority | Content | Placement |
 |----------|---------|-----------|
 | Primary | Package status badge (`DRAFT`/`FINALIZED`) + discrepancy summary banner | Top of screen, largest visual weight |
+| Primary | Sealed/ex-parte critical blocker row (if present) — highest-severity signal on this screen, never rendered as clean | Same table, visually distinct from and more severe than an ordinary `⚠ Flagged` row (US-13.1, US-13.3) |
 | Primary | Finalize/Export action and its enabled/disabled state with reason | Persistent, bottom or top of exhibit list — never scrolled out of view |
 | Secondary | Per-row discrepancy flag and resolution actions | Inline within each flagged row |
+| Secondary | Acknowledgment role-eligibility and permanent-record disclosure, and the full acknowledgment audit record (actor, role, timestamp, justification) once acknowledged | Inline, always visible — never hover/tooltip-only (US-14.1, US-14.2, US-14.3) |
 | Tertiary | Exhibit status badges (all rows are `ADMITTED` by construction, so this is confirmatory, not discriminating) | Row-level, de-emphasized relative to the discrepancy column |
 
 #### States
@@ -559,13 +584,18 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 |-------|------------|----------------|
 | Draft, zero discrepancies | All rows "✓ Clean"; Finalize button enabled (solid, primary color) | "All exhibits clean — ready to finalize" caption |
 | Draft, open discrepancies | Flagged rows amber with rule explanation + actions; Finalize button visibly disabled (greyed, non-clickable) with caption "{n} exhibit(s) have unresolved discrepancies" | Disabled state is a true HTML-disabled control, not a styled-but-clickable button that errors on click (US-11.2) |
-| Draft, discrepancy acknowledged | Row badge changes to a muted "Acknowledged" state (still visible, not cleared); counts toward "clean enough to finalize" per the gate's ACK/RESOLVED rule | Finalize button re-enables once all flags are ACK'd or RESOLVED |
+| Draft, discrepancy acknowledged | Row badge changes to a muted "Acknowledged by C. Chen (Clerk) · Oct 8, 2026, 3:10 PM: [full justification text]" state — actor, role, timestamp, and justification all shown in full, never truncated/summarized/hidden behind a secondary click (still visible, not cleared); counts toward "clean enough to finalize" per the gate's ACK/RESOLVED rule | Finalize button re-enables once all flags are ACK'd or RESOLVED (US-6.3, US-14.3) |
+| Acknowledge control — non-eligible role | No "Acknowledge" control rendered at all for roles outside `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` | Absent, not disabled or greyed-out — never an affordance the system won't honor (US-14.1) |
+| Acknowledge control — eligible role, before action | "Acknowledge" button visible with inline, always-on copy: "Acknowledging will be recorded as a permanent action under your name and role." Justification field labeled "Justification (recorded permanently)." | Disclosure is visible before the action is confirmed, not only after (US-14.1, US-14.2) |
+| Sealed/ex-parte exhibit present | Row rendered as a distinct "⛔ CRITICAL · ex parte material" blocker — never `✓ Clean`, never `⚠ Flagged` — independent of and taking precedence over the row's own `discrepancyStatus`; Finalize stays disabled while the row is present | Structurally impossible to mistake for an ordinary discrepancy or a clean row (US-13.1, US-13.3) |
+| Sealed/ex-parte exhibit — "Remove from Package" (eligible role) | `DEPUTY`/`CLERK`/`ADMIN` see an enabled "Remove from Package" action on the blocker row; `JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY` see the identical blocker row with no action control | Role gate is absence-based, matching the Acknowledge-control pattern (US-13.2, US-13.3) |
+| Sealed exhibit removed via remediation action | Row disappears from the active/included list immediately; an auditable "Removed by D. Reyes (Deputy) · Oct 8, 2026, 3:12 PM · reason: sealed/ex parte material" record is retained and visible (e.g., on Exhibit Detail's history) — the row is never silently deleted | Deliberate, auditable remediation, never a silent fix with no trace (US-13.2) |
 | Finalizing (in-flight) | Finalize button shows a brief inline spinner/"Finalizing..." label | Prevents double-submit |
 | Finalize rejected (stale client state) | Inline error banner lists the specific blocking exhibits; button re-disables; affected rows re-flag | Never a generic "error occurred" — always names the blocking exhibit(s) (US-5.2) |
 | Finalized | Status badge turns to a calm green "FINALIZED ✓ Zero discrepancies" banner; all action controls disappear; export/print button appears | This is the explicit "zero discrepancies" confirmation stamped for the record, satisfying JRN-01.2's acceptance moment |
 | No admitted exhibits yet | "No admitted exhibits are available to form a jury package yet" | Non-error, informative empty state |
 | Load failure | Inline error with retry | — |
-| Viewed by non-finalizing role (Judge/Attorney/Chambers Staff) | Identical layout, but Finalize/Acknowledge controls render as view-only (absent or disabled with role explanation) | Supports JRN-01.2 (judge review) and JRN-03.1 (attorney verification) from the same screen, no separate "audit view" needed |
+| Viewed by non-finalizing role (Judge/Attorney/Chambers Staff) | Identical layout, but Finalize/Acknowledge/Remove-from-Package controls render as view-only (absent, not disabled-with-explanation) — a sealed/ex-parte blocker row is still visible in its full critical-severity treatment, just without the removal action | Supports JRN-01.2 (judge review) and JRN-03.1 (attorney verification) from the same screen, no separate "audit view" needed (US-13.3) |
 
 #### Interactive Elements
 
@@ -573,15 +603,16 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 |---------|------|----------|
 | "Finalize Jury Package" | Primary action button | Disabled whenever any row is `FLAGGED` + `OPEN`; on click, triggers fresh server-side re-validation before committing (US-5.2, US-11.2) |
 | "Fix →" link on a flagged row | Contextual link | Navigates to that exhibit's Exhibit Detail View to resolve the underlying condition |
-| "Acknowledge" button on a flagged row | Action, opens inline justification field | Same acknowledgment flow as Exhibit Detail View (US-6.3); role-gated to Deputy/Clerk/Judge/Admin |
+| "Acknowledge" button on a flagged row | Action, opens inline justification field | Same acknowledgment flow as Exhibit Detail View (US-6.3); rendered only for `DEPUTY`/`CLERK`/`JUDGE`/`ADMIN` — absent, not disabled, for other roles; accompanied by always-visible copy disclosing the action is permanently recorded under the acting user's name and role before it is confirmed; justification field labeled "Justification (recorded permanently)" (US-14.1, US-14.2) |
+| "Remove from Package" button on a sealed/ex-parte blocker row | Action, confirmation step | Rendered only for `DEPUTY`/`CLERK`/`ADMIN` — absent for other roles; appends an immutable, auditable exclusion event and removes the row from the active list, retaining it for audit (never deletes it); unavailable once the package is `FINALIZED` (US-13.2) |
 | "Export / Print" (finalized state only) | Action | Produces a print-friendly/exportable static view; no further edits possible |
 | Exhibit row (any state) | Click target | Navigates to Exhibit Detail View for full context |
 
-**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce.
+**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce. The sealed/ex-parte exclusion (F13) is structural at the candidate-query level, not a client-side filter — this screen's "Remove from Package" action exists purely as an auditable remediation path for the regression/legacy-data case, never as the primary mechanism keeping sealed material out of the package.
 ### Screen: Pivota Assistant (Conversational UI)
 
 **Purpose:** The universal, natural-language entry point to every fact in the system — the single feature the entire demo's success depends on (PRD F7). Available two ways: as a slide-over panel from any screen, and as a dedicated full-page view for sustained, longer review sessions (e.g., the administrator's evaluation walkthrough, JRN-04.1).
-**User Stories:** US-7.1, US-7.2, US-7.3, US-7.4
+**User Stories:** US-7.1, US-7.2, US-7.3, US-7.4, US-15.2
 **Journeys:** JRN-01.1, JRN-02.1, JRN-02.2, JRN-03.1, JRN-04.1 — the Assistant is the one touchpoint common to every journey in the product.
 **Route:** `/assistant` (full-page) + global slide-over panel · **Nav:** Sidebar "Assistant" (full page) · Header "Ask ✦" button (slide-over, present on every screen)
 
@@ -593,20 +624,20 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 │                                │ Pivota Assistant  ✕ ││
 │                                ├─────────────────────┤│
 │                                │                      ││
-│                                │  You: Is Exhibit 14  ││
-│                                │  in the jury package?││
+│                                │  You: Is P-3 in the  ││
+│                                │  jury package?        ││
 │                                │                      ││
-│                                │  Pivota: Yes — Ex.   ││
-│                                │  14 is ADMITTED and  ││
+│                                │  Pivota: Yes — P-3   ││
+│                                │  is ADMITTED and     ││
 │                                │  flagged as part of  ││
 │                                │  the DRAFT jury       ││
 │                                │  package.             ││
-│                                │  [Ex.14·JuryPkgRow·   ││
+│                                │  [P-3·JuryPkgRow·     ││
 │                                │   2:41 PM]  ⚠ also has││
 │                                │  an open discrepancy: ││
 │                                │  no custodian of      ││
 │                                │  record.              ││
-│                                │  [Ex.14·DiscFlag·     ││
+│                                │  [P-3·DiscFlag·       ││
 │                                │   2:41 PM]            ││
 │                                │                      ││
 │                                ├─────────────────────┤│
@@ -626,8 +657,8 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 │ Jury Pkg      │  │ Try asking:                                 │  │
 │ ▸ Assistant   │  │ "What exhibits were admitted yesterday?"    │  │
 │               │  │ "What objections remain unresolved?"        │  │
-│               │  │ "Who has custody of Exhibit 7?"              │  │
-│               │  │ "What happened to Exhibit 14?"               │  │
+│               │  │ "Is P-3 in the jury package?"                │  │
+│               │  │ "Who currently has custody of P-5?"          │  │
 │               │  └────────────────────────────────────────────┘  │
 │               │  ┌────────────────────────────────────────────┐  │
 │               │  │  [conversation thread — same rendering as   │  │
@@ -655,7 +686,7 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 
 | State | Appearance | User Feedback |
 |-------|------------|----------------|
-| Empty (no conversation yet) | Example-question prompts shown as tappable suggestion chips | Lowers the barrier for a first-time or non-technical user — tap instead of type |
+| Empty (no conversation yet) | Example-question prompts shown as tappable suggestion chips, generated against the case's actual seeded `exhibitLabel` values (e.g., "P-3," "P-5" — offering-party-prefixed, matching this case's real labeling scheme) rather than a hardcoded placeholder scheme | Lowers the barrier for a first-time or non-technical user — tap instead of type; tapping a chip is guaranteed to produce a grounded answer, never a decline about a nonexistent exhibit (US-15.2) |
 | User message sent | Right-aligned message bubble, immediately visible | Instant local echo, no round-trip wait to see your own question |
 | Assistant thinking/streaming | Left-aligned bubble with a typing indicator, then tokens appear incrementally as they stream | Feels "alive" within ~1s of submit — critical for the "live, on-the-bench" use case (US-7.1) |
 | Grounded answer complete | Full answer text with one or more citation pills rendered inline, in the same color treatment used for status badges elsewhere in the app | Visual consistency with Case Workspace/Exhibit Detail reinforces "one source of truth" |
@@ -680,6 +711,8 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 - Answers are written as a confident colleague would state them — "Exhibit 14 is currently Admitted" — never hedged ("it appears that...", "it looks like...") when grounded (FRD F07 §System Prompt Requirements).
 - Declines are equally confident and equally brief — "I don't have that information about Exhibit 22's custody record" — never apologetic padding that could read as uncertainty about *everything else* the assistant says.
 - No emoji, no exclamation points, no "Great question!" filler — the tone is that of a courtroom clerk, not a consumer chatbot, consistent with the legal/compliance audience (PER-04 evaluation lens).
+
+**Example-chip label-source rule (US-15.2, fixes F15 regression):** example/suggested-question chips must reference exhibit labels that actually exist in the active case, sourced from (or validated at render time against) the same `getExhibits` service function the Case Workspace uses — never a hardcoded placeholder scheme (e.g., "Exhibit 14," "Exhibit 7") that doesn't correspond to any seeded exhibit. If the assistant is temporarily unavailable, chips still render from the last-known exhibit list rather than disappearing or reverting to placeholder text.
 ## Interaction Patterns
 
 **Design System (as of Phase 6):** All patterns below are implemented using IBM Carbon Design System (carbondesignsystem.com) components and design tokens, replacing the prior Tailwind/shadcn visual foundation. The interaction guarantees described in each pattern are unchanged from that prior implementation — only the underlying component/styling layer changed, not the behavior.
@@ -753,6 +786,60 @@ This mockup covers the 5 demo screens named in PROJECT.md: **Trial Command Cente
 **Behavior:** The sealed exhibit is simply absent — not shown as a redacted row, not referenced in a count, not hinted at via a "1 hidden result" message. An unauthorized direct navigation to its detail URL returns an identical "not found" experience to a genuinely nonexistent ID.
 **Examples:** Case Workspace list (US-9.1), Exhibit Detail View (US-10.2), Assistant decline (US-7.4), search results (US-4.1).
 **Rationale:** The FRD is explicit that revealing *existence* of sealed material to an unauthorized role is itself the harm to prevent — a redacted placeholder row would violate this even though no content leaks.
+
+---
+
+### Pattern: Fully Clickable List Row
+
+**When to use:** Any list row that drills into a detail screen — Case Workspace's exhibit table and Command Center's Recent Activity/Unresolved Objections/Discrepancies rows.
+**Behavior:** The entire row container is the click target and carries a visible hover affordance (background highlight + `cursor: pointer`), not just a nested link, icon, or label span. The row is keyboard-focusable and Enter/Space activates it identically to a click. Nested inline action controls (e.g., "Record Status," "Acknowledge") call `stopPropagation()` so operating them never triggers row navigation, while every other point on the row does.
+**Examples:** Case Workspace exhibit row (fixes a regression against this same guarantee — US-15.1); Command Center's Recent Activity/Unresolved Objections/Discrepancies rows (already correct, used here as the reference implementation).
+**Rationale:** US-15.1 requires a row with zero discrepancy flags and a row with one or more flags to be "both fully, identically clickable across their entire row area" — a shared pattern definition is what keeps Case Workspace from silently drifting out of sync with the Command Center behavior it is meant to match.
+
+---
+
+### Pattern: Multi-Reason Blocking Error (Admission Gate)
+
+**When to use:** Any inline "Record Status" action attempting to transition an exhibit to `ADMITTED` — available on both the Case Workspace row and the Exhibit Detail header.
+**Behavior:** If the attempt is rejected (`422 ADMISSION_BLOCKED`), the inline action renders a specific inline error naming every applicable blocking reason at once — never a generic "failed to update status" message and never only the first reason found. Each reason renders as its own line (e.g., "Unresolved objection on this exhibit," "No custodian of record"), preceded by a count ("Cannot admit: 2 blocking condition(s) present"). No `ExhibitEvent` is recorded and the exhibit's displayed status does not change — the inline action simply re-collapses to its prior, unmodified state once the error is dismissed.
+**Examples:** Case Workspace's inline "Record Status" action; Exhibit Detail View's header "Record Status" action (US-12.1, US-12.2).
+**Rationale:** F12 moves this check to a hard pre-write gate specifically so a deputy never discovers a blocking condition one at a time through repeated failed attempts — the UI's job is to surface every reason the first time, matching the service layer's `reasons[]` array 1:1.
+
+---
+
+### Pattern: Critical Blocker Row (Sealed / Ex Parte)
+
+**When to use:** Any Jury Package Workspace row whose underlying exhibit is `isSealed = true`.
+**Behavior:** Rendered in a distinct, higher-severity treatment than the Discrepancy Flag Treatment pattern above — explicit label ("Critical · ex parte material — must be removed"), a stronger/non-amber critical color, and never the `✓ Clean` or `⚠ Flagged` wording used by ordinary discrepancies. This evaluation runs independently of, and takes precedence over, the row's underlying `discrepancyStatus` — a sealed exhibit's row is structurally incapable of ever reading `Clean`, regardless of what F6's discrepancy engine separately reports for it. Only `DEPUTY`, `CLERK`, or `ADMIN` roles see the row's "Remove from Package" action; `JUDGE`, `CHAMBERS_STAFF`, and `ATTORNEY` see the identical critical-severity row with no action control.
+**Examples:** Jury Package Workspace sealed/ex-parte blocker row (US-13.1, US-13.2, US-13.3).
+**Rationale:** F13 names sealed material reaching a jury package as "the single most damaging failure mode in this domain" — a row that could ever be mistaken for an ordinary flagged-but-tolerable discrepancy would undermine the entire guarantee, so this pattern is deliberately visually incompatible with the Discrepancy Flag Treatment pattern.
+
+---
+
+### Pattern: Permanent-Record Disclosure (Role-Gated Action)
+
+**When to use:** Any control that triggers an auditable, identity-attributed ledger event the user is about to commit to — currently the discrepancy "Acknowledge" action (F6/F14) and the jury package "Remove from Package" action (F13).
+**Behavior:** Two guarantees, both required: (1) if the requesting role is not in the action's permitted set, the control is simply absent — never rendered disabled or greyed-out; (2) if the role is permitted, the control is shown alongside inline, always-visible (not tooltip/hover-only) copy stating the action will be permanently recorded under the acting user's name and role before the action is confirmed — e.g., "Acknowledging will be recorded as a permanent action under your name." Any accompanying free-text input (e.g., acknowledgment justification) is labeled to make clear it becomes part of the permanent record, not an optional comment. Once the action is taken, every screen rendering that record displays the full audit trail (actor, role, timestamp, justification) — never summarized away or hidden behind a secondary click.
+**Examples:** Discrepancy "Acknowledge" button on Case Workspace, Exhibit Detail, and Jury Package Workspace (US-14.1, US-14.2, US-14.3); Jury Package "Remove from Package" button (US-13.2).
+**Rationale:** F14 is explicit that the underlying audit data already exists in full — the gap is purely that a user could take an irreversible, identity-attributed action without being shown, before committing, that it is irreversible and identity-attributed. This pattern closes that gap identically everywhere the action appears, rather than per-screen.
+
+---
+
+### Pattern: Activity Feed Row Format (Full Timestamp + Label)
+
+**When to use:** Command Center's Recent Activity feed (F8) — any row rendering an `ExhibitEvent` as a one-line summary.
+**Behavior:** Every row renders both the date and the time of `recordedAt` (e.g., "Oct 8, 2026, 2:41 PM") — never a time-only stamp — and always includes the event's exhibit label as part of the rendered summary, including rows describing a raw `STATUS_CHANGE` transition (e.g., "Exhibit 3 — MARKED → OFFERED, Oct 8, 2026, 1:58 PM" rather than a summary with no exhibit identified).
+**Examples:** Command Center Recent Activity panel, every `eventType` value (US-15.4, US-15.5).
+**Rationale:** A judge scanning the feed across a day boundary or a multi-day recess cannot tell two events on different days apart from a time-only stamp, and an unattributed raw-transition row forces a drill-in just to learn which exhibit it concerned — both defeat the "glance, don't drill in" promise of US-8.1.
+
+---
+
+### Pattern: Labeled Header Indicator
+
+**When to use:** Any numeric or iconographic element rendered in the shared app header (near the role selector), present identically on all five screens.
+**Behavior:** An element is never shown "present and unexplained." Every header indicator either (a) carries a visible label or an accessible `aria-label`/tooltip explaining what it represents, or (b) is not rendered at all when it has no current user-facing function. The resolved discrepancy-count indicator (see `00-overview.md` §App Shell) is the current example: a small `[⚠ N]` badge showing the case-wide count of `OPEN` discrepancy flags, labeled via `aria-label="N open discrepancies"`, omitted entirely when the count is zero.
+**Examples:** App header discrepancy-count badge, replacing a previously unlabeled numeric element (US-15.3).
+**Rationale:** "Present and unexplained" is explicitly called out as unacceptable for any header element, verified across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace — a single shared header component (not per-screen reimplementation) is what guarantees the fix can't regress on only some screens.
 ## Responsive Considerations
 
 Per PROJECT.md §Out of Scope, JudicialSync targets **web/desktop screens only** — no mobile-native app is in scope. However, a judge's bench tablet (JRN-01.2: "Opens the Trial Command Center on the bench tablet during a two-minute recess") is an explicitly named real-world touchpoint, so tablet-width responsiveness is a first-class concern even though mobile phone layouts are not.

@@ -2,16 +2,19 @@
 
 **Project Acronym:** JudicialSync
 **Document Type:** FRD (Functional Requirements Document)
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Draft
 **Generated:** 2026-10-06
+**Last Updated:** 2026-10-08 (added F12–F15 for Phase 7)
 **Source PRD:** `PRD-JudicialSync.md`
 
 ---
 
 ## Scope
 
-This FRD translates JudicialSync's 12 PRD features (F0–F11) into implementation-ready specifications: data model, process flows, inputs/outputs, validation rules, error states, API surface, and schema surface. It is grounded in one non-negotiable architectural constraint established by project research (`SUMMARY.md`, `ARCHITECTURE.md`, `PITFALLS.md`): **status, objections/rulings, and custody are modeled exclusively as an append-only event ledger**, never as mutable "current state" fields. Every UI screen and every Pivota Assistant answer reads through one shared service layer over this ledger and its derived current-state projections — there is no parallel retrieval path, which is what makes assistant citations trustworthy.
+This FRD translates JudicialSync's 16 PRD features (F0–F15) into implementation-ready specifications: data model, process flows, inputs/outputs, validation rules, error states, API surface, and schema surface. It is grounded in one non-negotiable architectural constraint established by project research (`SUMMARY.md`, `ARCHITECTURE.md`, `PITFALLS.md`): **status, objections/rulings, and custody are modeled exclusively as an append-only event ledger**, never as mutable "current state" fields. Every UI screen and every Pivota Assistant answer reads through one shared service layer over this ledger and its derived current-state projections — there is no parallel retrieval path, which is what makes assistant citations trustworthy.
+
+F12–F15 (added for Phase 7: "Fix admission integrity and UI usability issues") extend this foundation with a hard pre-write admission gate (F12), a structural sealed/ex-parte exclusion from jury packages (F13), a UI-visibility-only requirement over F6's existing acknowledgment audit trail (F14), and a cluster of client-rendering usability fixes with no backend contract changes (F15). None of F12–F15 alters the behavior specified for F0–F11 in this document; they add new validation points, one new ledger event type, and new fields strictly additive to the schema described in `Y0-schema.md`.
 
 This document is written for developers implementing JudicialSync and assumes familiarity with the PRD's feature priorities and the project's demo-first context (seeded data, no production auth, single-case scope).
 
@@ -19,7 +22,7 @@ This document is written for developers implementing JudicialSync and assumes fa
 
 ## How to Read This Document
 
-- **Feature chunks (`F00`–`F11`)** map 1:1 to PRD features F0–F11. Each chunk is self-contained (description, process, inputs/outputs, validation, errors) but defers full DDL to `Y0-schema.md` and full endpoint contracts to `Y1-api.md`.
+- **Feature chunks (`F00`–`F15`)** map 1:1 to PRD features F0–F15. Each chunk is self-contained (description, process, inputs/outputs, validation, errors) but defers full DDL to `Y0-schema.md` and full endpoint contracts to `Y1-api.md`. F12–F15 (Phase 7) additionally cross-reference the F0–F11 chunks whose behavior they extend or gate, rather than restating or altering that behavior in place.
 - **Cross-feature chunks (`Y0`–`Y3`)** consolidate schema, API, error catalog, and integrations so there is one canonical definition of each, referenced (not duplicated) by every feature chunk.
 - **IDs:** Feature IDs (`F0`–`F11`) match the PRD exactly. Database entity names use `PascalCase` (Prisma model convention). API paths use `kebab-case`. Event types use `SCREAMING_SNAKE_CASE`.
 - **Cross-references** appear as `see F03 §Process step 2` or `see Y0-schema.md §Event Ledger`.
@@ -73,6 +76,10 @@ This table is the single source of truth for role scoping and is applied identic
 | `F09-case-workspace-screen.md` | Case-level exhibit browsing screen |
 | `F10-exhibit-detail-view-screen.md` | Single-exhibit chronological timeline screen |
 | `F11-jury-package-workspace-screen.md` | Curated jury package handoff screen |
+| `F12-admission-integrity-gating.md` | Pre-write admission gate (unresolved objection / no custodian) |
+| `F13-jury-package-ex-parte-sealed-exclusion.md` | Hard structural exclusion of sealed/ex-parte exhibits from jury packages |
+| `F14-discrepancy-acknowledgment-transparency.md` | UI visibility of acknowledgment role gating + audit trail (no new data) |
+| `F15-courtroom-usability-fixes.md` | Case Workspace/assistant/header/activity-feed client-rendering fixes |
 | `Y0-schema.md` | Full database DDL (Prisma schema) |
 | `Y1-api.md` | Consolidated REST API endpoint catalog |
 | `Y2-errors.md` | Cross-feature error catalog |

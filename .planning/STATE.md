@@ -105,6 +105,7 @@ Progress: [████████░░] 83%
 ### Roadmap Evolution
 
 - Phase 6 added: Carbon Design System UI Upgrade - replace Tailwind/shadcn foundation and all screens with IBM Carbon Design System (carbondesignsystem.com) across every shipped phase
+- Phase 7 added: Fix admission integrity and UI usability issues - close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, make Case Workspace rows clickable, correct assistant example labels, remove the unlabeled header element, and fix activity-feed date/ordering/labeling; align affected screens with the reviewed target design
 
 ### Decisions
 

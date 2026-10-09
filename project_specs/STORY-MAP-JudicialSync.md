@@ -35,6 +35,7 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 | Query the Assistant: ask a live natural-language question from the bench | PER-01 | Epic 7 (F7) | US-7.1 | JTBD-01.1: Given a live natural-language question during proceedings, the assistant returns an answer within seconds, with no required menus/filters/login | R1 |
 | Receive Cited Answer: read the streamed reply with its ledger citation | PER-01 | Epic 7 (F7), Epic 1 (F1) | US-7.2, US-1.2 | JTBD-01.1: Every answer carries a citation to a specific ledger record; status shown matches the identical record across every screen | R1 |
 | Rule with Confidence: state the confirmed fact aloud and rule without missing a beat | PER-01 | Epic 1 (F1), Epic 7 (F7) | US-1.2, US-7.1 | JTBD-01.1: Judge rules on the matter without pausing proceedings or delegating the lookup, 100% of live-question instances | R1 |
+| Query the Assistant: example prompts reference exhibit labels that actually exist in this case | PER-01 | Epic 15 (F15) | US-15.2 | JTBD-01.1: Example/suggested-question chips cite real seeded `exhibitLabel` values (e.g., "P-1," "S-2"), so trying an example never returns an unearned decline about a nonexistent placeholder exhibit | R3 |
 
 **Journey:** JRN-01.2 — Ambient Awareness to Jury Package Acceptance
 
@@ -42,6 +43,7 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 |----------|---------|------|---------|-----|---------|
 | Glance During Recess: open the Trial Command Center with zero setup | PER-01 | Epic 8 (F8) | US-8.1 | JTBD-01.2: Given the Command Center is open with no configuration performed, recent status changes, pending objections, and rulings are visible within 10 seconds | R2 |
 | Spot a Flag: notice a discrepancy indicator and drill into it | PER-01 | Epic 8 (F8), Epic 6 (F6) | US-8.1, US-8.2, US-6.1, US-6.2 | JTBD-01.2: Outstanding discrepancies are surfaced visually without a manual filter, and drill-through preserves the flagged exhibit's context | R2 |
+| Glance During Recess: header carries no unexplained elements, activity feed shows full date/time and the exhibit name on every row | PER-01 | Epic 8 (F8), Epic 15 (F15) | US-15.3, US-15.4, US-15.5 | JTBD-01.2: Every header element is either labeled or removed, and every activity-feed row (Recent Activity, Exhibit Detail timeline) shows both a full date/time and the exhibit label it concerns — a single glance is never left ambiguous | R3 |
 | Request History: pull the full chronological story behind the flag | PER-01 | Epic 10 (F10) | US-10.1 | JTBD-01.4: Full chronological timeline of status, objection, ruling, and custody events renders instantly, with zero manual assembly | R1 |
 | Jury Package Presented: deputy presents the finalized package for acceptance | PER-01 | Epic 11 (F11) | US-11.1, US-11.2 | JTBD-01.3: The discrepancy gate is visible on the same screen as the jury package — a flagged exhibit cannot silently reach the final list | R1 |
 | Accept with Confidence: review the zero-discrepancy confirmation and accept | PER-01 | Epic 11 (F11), Epic 6 (F6) | US-11.2, US-6.3 | JTBD-01.3: Zero discrepant exhibits (unresolved objection or incomplete custody) appear in the finalized package the judge accepts | R1 |
@@ -54,12 +56,15 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 | Activity | Persona | Epic | Stories | NaC | Release |
 |----------|---------|------|---------|-----|---------|
 | Log Exhibit Activity: mark status, objection, and custody events the instant they happen on the floor | PER-02 | Epic 0 (F0), Epic 1 (F1), Epic 2 (F2), Epic 3 (F3), Epic 9 (F9) | US-0.1, US-1.1, US-2.1, US-3.1, US-9.1 | JTBD-02.1: Every status, objection, and custody event is recorded as an immutable, timestamped ledger entry and appears identically across every screen and the assistant | R1 |
+| Log Exhibit Activity: admission blocked until every unresolved objection and custody gap is cleared | PER-02 | Epic 12 (F12) | US-12.1, US-12.2, US-12.3 | JTBD-02.1: No invalid `ADMITTED` transition is ever recorded against an exhibit with an unresolved objection or missing custodian — the gate fires inside the shared service layer with no override, and every blocking reason is returned together in one response | R3 |
 | Field "What Was Admitted Yesterday?": assistant answers directly, Dana is not the bottleneck | PER-02 | Epic 7 (F7), Epic 1 (F1) | US-7.1, US-1.2 | JTBD-01.1: Judge gets a cited live answer in seconds, with the deputy freed from being the forced lookup intermediary | R1 |
 | Field "What Objections Remain Unresolved?": case-wide query answers the bench instantly | PER-02 | Epic 7 (F7), Epic 2 (F2) | US-7.1, US-2.3 | JTBD-02.1: Objection/ruling status is answered directly from the live record, not fragile running notes | R1 |
 | Answer a Custody Question: single lookup, no paper log | PER-02 | Epic 3 (F3) | US-3.2 | JTBD-02.2: "Who currently has custody of Exhibit X" is answered in under 5 seconds, with zero paper-log lookup | R1 |
 | Search Mid-Testimony: filter by witness/keyword/status and drill into the match | PER-02 | Epic 4 (F4), Epic 9 (F9) | US-4.1, US-4.2, US-9.2 | JTBD-02.4: Combinable filters return matching exhibits in under 10 seconds during live testimony | R1 |
+| Search Mid-Testimony: click anywhere on a matched exhibit row — not just a nested link — to open its detail | PER-02 | Epic 15 (F15) | US-15.1 | JTBD-02.4: Every exhibit row, flagged or clean, is clickable across its entire row area and keyboard-activatable, so zero time is lost hunting for a specific link during live testimony | R3 |
 | Field "Is Exhibit 14 in the Jury Package?": assistant resolves jury-eligibility live | PER-02 | Epic 7 (F7), Epic 5 (F5), Epic 6 (F6) | US-7.1, US-5.1, US-6.2 | JTBD-02.3: Jury-eligible status is answered instantly from the same current-state projection the screens use | R1 |
 | Assemble the Jury Package: generate the list; discrepancy detection gates finalization | PER-02 | Epic 5 (F5), Epic 6 (F6), Epic 11 (F11) | US-5.2, US-6.3, US-11.2 | JTBD-02.3: Finalization is blocked with 409 until every flagged discrepancy is resolved or acknowledged — zero manual cross-referencing required | R1 |
+| Assemble the Jury Package: sealed exhibits are structurally excluded, and acknowledgment actions are made transparent before they're taken | PER-02 | Epic 13 (F13), Epic 14 (F14) | US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3 | JTBD-02.3: A sealed/ex-parte exhibit can never render as eligible or clean and is removable only via an authorized, reason-recorded action; every discrepancy-acknowledgment control visibly states, before confirmation, who may act and that the action is permanently audited | R3 |
 
 **Journey:** JRN-02.2 — Reconstructing What Happened to an Exhibit
 
@@ -105,20 +110,25 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 | JTBD-01.1 | Cited live answer in seconds, zero staff delegation | JRN-01.1:Query the Assistant | Assistant returns a cited answer within seconds for a live natural-language question, no menus/filters required | US-7.1 |
 | JTBD-01.1 | Cited live answer in seconds, zero staff delegation | JRN-01.1:Receive Cited Answer | Every answer carries a citation to a specific ledger record; citation is visible without an extra tap | US-7.2, US-1.2 |
 | JTBD-01.1 | Cited live answer in seconds, zero staff delegation | JRN-02.1:Field "What Was Admitted Yesterday?" | Judge gets a cited answer directly from the assistant; deputy is not a forced intermediary | US-7.1, US-1.2 |
+| JTBD-01.1 | Cited live answer in seconds, zero staff delegation | JRN-01.1:Query the Assistant (example prompts) | Example/suggested-question chips reference real seeded `exhibitLabel` values, never a mismatched placeholder | US-15.2 |
 | JTBD-01.2 | Ambient trial awareness, zero configuration | JRN-01.2:Glance During Recess | Recent status changes, pending objections, and rulings are visible within 10 seconds of opening the Command Center with no setup | US-8.1 |
 | JTBD-01.2 | Ambient trial awareness, zero configuration | JRN-01.2:Spot a Flag | Discrepancy indicators are visually distinct and impossible to scroll past unnoticed; drill-through preserves context | US-8.1, US-8.2, US-6.1, US-6.2 |
+| JTBD-01.2 | Ambient trial awareness, zero configuration | JRN-01.2:Glance During Recess (header/activity feed legibility) | No header element is present-and-unexplained; every activity-feed row shows a full date/time and the exhibit label it concerns | US-15.3, US-15.4, US-15.5 |
 | JTBD-01.3 | Jury package acceptance, zero undetected discrepancies | JRN-01.2:Jury Package Presented | Discrepancy gate is visible on the same screen as the jury package; a flagged exhibit cannot silently reach the final list | US-11.1, US-11.2 |
 | JTBD-01.3 | Jury package acceptance, zero undetected discrepancies | JRN-01.2:Accept with Confidence | Zero discrepant exhibits appear in a package presented for judicial acceptance | US-11.2, US-6.3 |
 | JTBD-01.4 | Instant full exhibit history reconstruction | JRN-01.2:Request History | Full ledger-derived timeline renders instantly, already assembled, with zero manual document assembly | US-10.1 |
 | JTBD-01.4 | Instant full exhibit history reconstruction | JRN-02.2:Open Exhibit Detail | A single screen holds the complete story reconstructed directly from the ledger, nothing missing | US-10.1 |
 | JTBD-01.4 | Instant full exhibit history reconstruction | JRN-02.2:Confirm via Assistant | History accessible via both direct screen view and natural-language assistant query, and the two agree exactly | US-7.1, US-7.2 |
 | JTBD-02.1 | One trustworthy real-time record | JRN-02.1:Log Exhibit Activity | Every status/objection/custody event is an immutable, timestamped ledger entry visible identically on every screen and the assistant | US-0.1, US-1.1, US-2.1, US-3.1, US-9.1 |
+| JTBD-02.1 | One trustworthy real-time record | JRN-02.1:Log Exhibit Activity (admission gate) | No invalid `ADMITTED` transition is ever recorded against an exhibit with an unresolved objection or missing custodian; every blocking reason is returned together, and no caller can bypass the gate | US-12.1, US-12.2, US-12.3 |
 | JTBD-02.1 | One trustworthy real-time record | JRN-02.1:Field "What Objections Remain Unresolved?" | Objection status is answered directly from the live record, never fragile running notes | US-7.1, US-2.3 |
 | JTBD-02.1 | One trustworthy real-time record | JRN-02.2:Walk Through the Timeline | Status, objection, ruling, and custody events are all visible as one trustworthy, ordered record | US-10.1, US-2.2, US-3.3 |
 | JTBD-02.2 | Instant custody answer | JRN-02.1:Answer a Custody Question | "Who currently has custody of Exhibit X" answered in under 5 seconds, zero paper-log lookup | US-3.2 |
 | JTBD-02.3 | Provably clean jury package assembly | JRN-02.1:Field "Is Exhibit 14 in the Jury Package?" | Jury-eligible status answered instantly from the current-state projection the screens use | US-7.1, US-5.1, US-6.2 |
 | JTBD-02.3 | Provably clean jury package assembly | JRN-02.1:Assemble the Jury Package | Finalization blocked with 409 until every discrepancy flag is resolved or acknowledged; zero manual cross-referencing | US-5.2, US-6.3, US-11.2 |
+| JTBD-02.3 | Provably clean jury package assembly | JRN-02.1:Assemble the Jury Package (sealed exclusion + acknowledgment transparency) | A sealed/ex-parte exhibit can never render as eligible/clean and is removable only via an authorized, reason-recorded action; every acknowledgment control discloses who may act and that the action is permanently audited, before it's confirmed | US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3 |
 | JTBD-02.4 | Fast exhibit location during live testimony | JRN-02.1:Search Mid-Testimony | Combinable filters (ID/keyword/status/witness/date) return matching exhibits in under 10 seconds | US-4.1, US-4.2, US-9.2 |
+| JTBD-02.4 | Fast exhibit location during live testimony | JRN-02.1:Search Mid-Testimony (clickable rows) | Any matched exhibit row, flagged or clean, is clickable across its entire row area and keyboard-activatable | US-15.1 |
 | JTBD-03.1 | Confirmed exhibit status before acting in argument | JRN-03.1:Confirm Status Before Referencing | Status answers available on demand, fast enough to use live, with zero courtroom-staff intermediary | US-1.2, US-7.1 |
 | JTBD-03.2 | Known objection resolution status | JRN-03.1:Check Objection Resolution | Case-wide unresolved-objection query returned in under 10 seconds, replacing personal notes | US-2.3 |
 | JTBD-03.3 | Verified custody chain for admissibility challenge | JRN-03.1:Challenge a Custody Gap | Full timestamped custody history retrievable without a formal evidentiary request; gaps visually distinguishable | US-3.3, US-10.1 |
@@ -170,16 +180,39 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 
 ---
 
+### Release R3: "Admission Integrity and Courtroom Usability Hardening"
+
+**Theme:** Closes the single most damaging failure mode in this domain — a sealed/ex-parte exhibit reaching the jury package — and its admission-side counterpart (an exhibit reaching `ADMITTED` status over an unresolved objection or missing custodian) with hard, structural gates. Then clears the courtroom usability friction (unclickable rows, placeholder assistant prompts, unexplained header elements, ambiguous activity-feed timestamps, unattributed activity-feed rows) that a live demo or real adoption review would otherwise surface. Maps to Phase 7 of the roadmap.
+
+**Stories:** US-12.1, US-12.2, US-12.3, US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3, US-15.1, US-15.2, US-15.3, US-15.4, US-15.5 (14 stories)
+
+**Personas Served:** PER-02 (admission gate hard-blocks an invalid `ADMITTED` transition during Log Exhibit Activity; jury package assembly now structurally excludes sealed exhibits and discloses acknowledgment transparency; Case Workspace rows fully clickable during Search Mid-Testimony), PER-01 (Command Center header and activity feed fully legible during Glance During Recess; assistant example prompts grounded in real exhibit labels during Query the Assistant), PER-04 (admission integrity and sealed-exclusion hardening directly strengthen the evidence reviewed during Probe the Assistant for Fabrication and Test Discrepancy Detection)
+
+**JTBD Addressed:** JTBD-02.1 (strengthened — admission gate), JTBD-02.3 (strengthened — zero sealed exhibits in jury package, visible acknowledgment transparency), JTBD-02.4 (strengthened — fully clickable rows), JTBD-01.1 (strengthened — grounded assistant examples), JTBD-01.2 (strengthened — legible ambient header/activity feed). No new JTBD IDs are introduced in this release — all 14 stories harden or clarify outcomes already committed to in R1/R2.
+
+**Acceptance Gate:**
+- [ ] All NaC for the 14 included stories pass against seeded data
+- [ ] No invalid `ADMITTED` transition can ever be recorded against an exhibit with an unresolved objection or missing custodian, via any caller — UI, direct API, or seed loader (US-12.1, US-12.3)
+- [ ] A seeded sealed/ex-parte exhibit marked `ADMITTED` never appears as eligible/clean in `computeJuryCandidates`, the Jury Package Workspace, or the assistant's `getJuryPackageStatus` (US-13.1)
+- [ ] Every Case Workspace exhibit row — flagged or clean — is clickable across its full row area and keyboard-activatable (US-15.1)
+- [ ] Zero example assistant prompts reference an `exhibitLabel` absent from the active case's seed data (US-15.2)
+- [ ] No header element renders unlabeled, and no activity-feed row renders without both a full date/time and its exhibit label (US-15.3, US-15.4, US-15.5)
+- [ ] Release introduces zero regressions to any R1/R2 flow (admission gate, sealed exclusion, and row-click fixes are additive hardening, not behavior changes to existing valid paths)
+
+---
+
 ## Coverage Analysis
 
 ### Persona Coverage
 
-| Persona | R1 | R2 |
-|---------|----|----|
-| PER-01 (Judge Elena Marsh) | US-7.1, US-7.2, US-1.2, US-10.1, US-11.1, US-11.2, US-6.3 | US-8.1, US-8.2, US-6.1, US-6.2 |
-| PER-02 (Courtroom Deputy Dana Reyes) | US-0.1, US-1.1, US-2.1, US-2.2, US-2.3, US-3.1, US-3.2, US-3.3, US-4.1, US-4.2, US-5.1, US-5.2, US-6.2, US-6.3, US-7.1, US-7.2, US-9.1, US-9.2, US-10.1, US-11.2 | — |
-| PER-03 (Attorney Marcus Webb) | US-1.2, US-7.1, US-2.3, US-3.3, US-10.1, US-11.1, US-6.2, US-5.1 | — |
-| PER-04 (Administrator Priya Nair) | US-0.2, US-0.3, US-9.1, US-10.1, US-10.2, US-11.1, US-6.1, US-6.2, US-7.2, US-7.3, US-7.4, US-4.1 | US-8.1 (full walkthrough + adoption-burden stages) |
+| Persona | R1 | R2 | R3 |
+|---------|----|----|----|
+| PER-01 (Judge Elena Marsh) | US-7.1, US-7.2, US-1.2, US-10.1, US-11.1, US-11.2, US-6.3 | US-8.1, US-8.2, US-6.1, US-6.2 | US-14.3, US-15.2, US-15.4, US-15.5 |
+| PER-02 (Courtroom Deputy Dana Reyes) | US-0.1, US-1.1, US-2.1, US-2.2, US-2.3, US-3.1, US-3.2, US-3.3, US-4.1, US-4.2, US-5.1, US-5.2, US-6.2, US-6.3, US-7.1, US-7.2, US-9.1, US-9.2, US-10.1, US-11.2 | — | US-12.1, US-12.2, US-13.1, US-13.2, US-13.3, US-14.1*, US-14.2 |
+| PER-03 (Attorney Marcus Webb) | US-1.2, US-7.1, US-2.3, US-3.3, US-10.1, US-11.1, US-6.2, US-5.1 | — | US-15.1 |
+| PER-04 (Administrator Priya Nair) | US-0.2, US-0.3, US-9.1, US-10.1, US-10.2, US-11.1, US-6.1, US-6.2, US-7.2, US-7.3, US-7.4, US-4.1 | US-8.1 (full walkthrough + adoption-burden stages) | US-12.3, US-15.3 |
+
+*US-14.1 ("any courtroom user") is cross-persona-visible — its acknowledge-control role gating renders identically for PER-01 and PER-03 as well; listed under PER-02 as the deputy is the primary actor on the Jury Package Workspace where it was authored.
 
 ### JTBD Coverage
 
@@ -201,14 +234,20 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 | JTBD-04.2 | R1 | US-6.1, US-6.2 | 1 |
 | JTBD-04.3 | R1 | US-7.2, US-7.3, US-7.4 | 1 |
 | JTBD-04.4 | R2 | US-4.1, US-9.1, US-8.1 | 1 |
+| JTBD-01.1 | R3 (strengthened) | US-15.2 | +1 |
+| JTBD-01.2 | R3 (strengthened) | US-15.3, US-15.4, US-15.5 | +1 |
+| JTBD-02.1 | R3 (strengthened) | US-12.1, US-12.2, US-12.3 | +1 |
+| JTBD-02.3 | R3 (strengthened) | US-13.1, US-13.2, US-13.3, US-14.1, US-14.2, US-14.3 | +1 |
+| JTBD-02.4 | R3 (strengthened) | US-15.1 | +1 |
 
 ### Gap Analysis
 
 - **JTBD-04.1 spans both releases:** ledger immutability and cross-screen consistency are fully verifiable in R1 (US-0.3, US-9.1, US-10.1, US-10.2, US-11.1), but the administrator's *complete* walkthrough narrative (JRN-04.1:Review the Walkthrough) only closes once the Command Center ships in R2 — flagged as a partial-coverage item, not a missing one.
 - **JTBD-04.4 fully deferred to R2:** the adoption-burden assessment is explicitly scoped against "all five screens" in JRN-04.1; with only four screens live in R1, this JTBD cannot be fully satisfied until US-8.1 ships. R1 supports only a four-screen partial read.
-- **No orphan stories:** all 30 UserStories (US-0.1 through US-11.2) are placed in at least one lane above. Cross-check against the UserStories summary table (30 total: 23 P0, 7 P1) confirms full placement.
+- **No orphan stories:** all 45 UserStories (US-0.1 through US-15.5) are placed in at least one lane above. Cross-check against the UserStories summary table (45 total: 30 P0, 13 P1, 2 P2) confirms full placement — including the 14 Phase 7 stories (US-12.1 through US-15.5) placed in Release R3.
 - **No uncovered journey stages:** every stage in every journey (JRN-01.1, JRN-01.2, JRN-02.1, JRN-02.2, JRN-03.1, JRN-04.1) maps to at least one story, with the sole exception of stages explicitly outside system scope — "Question Arises" (JRN-01.1, pre-system bench awareness), "Request Arrives" and "Report Back" (JRN-02.2, verbal courtroom exchange), and "Make a Recommendation" (JRN-04.1, the administrator's own written output) — none of these represent a gap, as the journeys themselves mark them as non-system touchpoints.
 - **No JTBD without a derived NaC:** all 16 JTBD IDs (JTBD-01.1 through JTBD-04.4) appear in the NaC Derivation Table with at least one testable criterion and at least one story.
+- **Phase 7 / Release R3 introduces no new epics, journeys, or JTBD IDs:** all 14 new stories (Epics 12–15) are hardening/clarity fixes placed against existing backbone activities — "Log Exhibit Activity" (admission gate), "Assemble the Jury Package" (sealed exclusion + acknowledgment transparency), "Search Mid-Testimony" (clickable rows), "Query the Assistant" (grounded example prompts), and "Glance During Recess" (header/activity-feed legibility). No journey stage required a new row category to accommodate them, confirming the existing backbone was structurally sufficient for this phase.
 
 ---
 
@@ -233,10 +272,18 @@ This story map places every existing UserStory (US-X.Y) at the intersection of a
 | JTBD-04.3: Explicit decline when no record supports a claim | US-7.3 | "If no tool call returns a relevant record, the assistant responds with an explicit 'I don't have that information' statement"; "treated as valid, expected behavior in testing, not a failure mode" | Yes |
 | JTBD-04.3: No role-unauthorized disclosure via the assistant | US-7.4 | "A sealed exhibit is excluded from assistant tool results identically to... UI queries"; "the assistant declines without revealing that a matching record exists" | Yes |
 | JTBD-04.4: Non-technical reviewer describes behavior without training | US-9.1 | "list includes every visible exhibit... with exhibit label, description, offering party, witness, status badge, current custodian, and discrepancy indicator" | Yes (screen clarity supports the claim; formal "no training required" measure is evaluator judgment, not a system AC) |
+| JTBD-02.1: No invalid `ADMITTED` transition over an unresolved objection or missing custodian | US-12.1 | "A `toStatus = ADMITTED` request is rejected with 422 `ADMISSION_BLOCKED` when ≥1 `ObjectionCurrentState` row... has `status = 'UNRESOLVED'`"; "...when no `CustodyCurrentState` row exists... or its `currentCustodianUserId` is null" | Yes |
+| JTBD-02.1: Every blocking reason surfaced at once, gate enforced with no override | US-12.2, US-12.3 | "the rejection response's `reasons[]` array contains both `UNRESOLVED_OBJECTION` and `NO_CUSTODIAN` entries, not just one"; "There is no 'force admit' parameter, admin-role override, or alternate code path that bypasses either check" | Yes |
+| JTBD-02.3: Zero sealed/ex-parte exhibits ever reach eligible/clean status | US-13.1 | "`computeJuryCandidates(caseId)` queries... `AND exhibit.isSealed = false`"; "A seeded sealed exhibit marked `ADMITTED`... never appears in `computeJuryCandidates`'s result set" | Yes |
+| JTBD-02.3: Sealed exhibit removable only via an authorized, reason-recorded action | US-13.2, US-13.3 | "Exclusion appends an immutable `JURY_PACKAGE_EXHIBIT_EXCLUDED` ledger event (`reason: 'SEALED_EXPARTE'`)"; "rendered with explicit labeling (e.g., 'Sealed material — must be removed') instead of either `CLEAN` or `FLAGGED`" | Yes |
+| JTBD-02.3: Acknowledgment transparency disclosed before the action is taken | US-14.1, US-14.2, US-14.3 | "the 'Acknowledge' control is rendered and accompanied by inline, always-visible copy... stating the action will be permanently recorded"; "every screen that renders that flag displays the acknowledging user's name, role, timestamp, and justification text in full" | Yes |
+| JTBD-02.4: Every exhibit row fully clickable, not just a nested link | US-15.1 | "The entire row rendered by the Case Workspace exhibit table... is clickable and navigates to `/exhibit/:id`"; "supports keyboard/focus activation — Enter or Space navigates" | Yes |
+| JTBD-01.1: Assistant example prompts reference real exhibit labels | US-15.2 | "Example/suggested-question chips reference the case's actual exhibit-label scheme... not a mismatched placeholder numeric scheme"; "An automated test compares rendered chip text against seeded labels and fails if any example prompt references an `exhibitLabel` that does not exist" | Yes |
+| JTBD-01.2: Ambient screen fully legible — no unexplained header elements, full date/time and exhibit name on every activity row | US-15.3, US-15.4, US-15.5 | "'Present and unexplained' is not an acceptable end state for any header element"; "No activity-feed row renders a time-only timestamp under any circumstance"; "No activity-feed row anywhere renders a summary string without that event's associated `exhibitLabel`" | Yes |
 
 **Note on partial alignments:** two rows above are marked "Yes" with a caveat rather than a direct 1:1 AC match — this is expected, since NaC are derived from *stage-level* JTBD outcomes that sometimes span more than one story's acceptance criteria (e.g., custody-gap visibility is jointly produced by US-3.3's complete history and US-6.1's discrepancy flag). No NaC in this document is unsupported by at least one cited AC.
 
 ---
 
 *Document generated by Pivota Spec Framework*
-*Last updated: 2026-10-06*
+*Last updated: 2026-10-08 (added Release R3 for Phase 7: US-12.1–US-15.5 placed under existing "Log Exhibit Activity," "Assemble the Jury Package," "Search Mid-Testimony," "Query the Assistant," and "Glance During Recess" backbone activities — no new epics, journeys, or JTBD IDs introduced)*

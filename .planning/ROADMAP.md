@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline (completed 2026-10-07)
 - [x] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens (completed 2026-10-08)
 - [x] **Phase 6: Carbon Design System UI Upgrade** - Replace the Tailwind/shadcn visual foundation and every screen's components with IBM Carbon Design System, across all 5 shipped phases (completed 2026-10-08)
+- [ ] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues
 
 ## Phase Details
 
@@ -135,10 +136,20 @@ Plans:
 - [ ] 06-08-PLAN.md — Pivota Assistant (panel/thread/bubbles/citations) → Carbon Tag/TextInput/InlineNotification/Loading — wave 2
 - [ ] 06-09-PLAN.md — Cleanup: remove Tailwind/shadcn/lucide-react/cn/@base-ui/react, full build+test+Playwright regression gate — wave 4
 
+### Phase 7: Fix admission integrity and UI usability issues
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 6
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /pivota_spec-plan-phase 7 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -148,3 +159,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
+| 7. Fix admission integrity and UI usability issues | 0/TBD | Not planned | — |
