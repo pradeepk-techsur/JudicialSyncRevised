@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { POST } from '@/app/api/exhibits/[id]/events/status/route';
+import { POST as postCustody } from '@/app/api/exhibits/[id]/events/custody/route';
 import { GET as getStatus } from '@/app/api/exhibits/[id]/status/route';
 
 // Route-handler tests: import the handlers directly and invoke them with a
@@ -21,6 +22,11 @@ async function seedFixture() {
   const user = await prisma.user.create({
     data: { caseId: kase.id, name: 'Test Deputy', role: 'DEPUTY' },
   });
+  // A second active user to transfer custody TO (must differ from the actor and
+  // be active per recordCustodyTransfer's INVALID_CUSTODIAN / NO_OP checks).
+  const custodian = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Test Custodian', role: 'DEPUTY' },
+  });
   const exhibit = await prisma.exhibit.create({
     data: {
       caseId: kase.id,
@@ -29,12 +35,28 @@ async function seedFixture() {
       offeringParty: 'PLAINTIFF',
     },
   });
-  return { caseId: kase.id, userId: user.id, exhibitId: exhibit.id };
+  return {
+    caseId: kase.id,
+    userId: user.id,
+    custodianId: custodian.id,
+    exhibitId: exhibit.id,
+  };
 }
 
 function postStatus(exhibitId: string, body: unknown) {
   return POST(
     new NextRequest(`http://localhost/api/exhibits/${exhibitId}/events/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    { params: Promise.resolve({ id: exhibitId }) },
+  );
+}
+
+function postCustodyTransfer(exhibitId: string, body: unknown) {
+  return postCustody(
+    new NextRequest(`http://localhost/api/exhibits/${exhibitId}/events/custody`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -83,10 +105,20 @@ describe('status API routes', () => {
   });
 
   it('POST on a terminal exhibit returns 409 STATUS_FINALIZED with the envelope', async () => {
-    const { exhibitId, userId } = fixture;
+    const { exhibitId, userId, custodianId } = fixture;
 
     expect((await postStatus(exhibitId, { toStatus: 'MARKED', actorUserId: userId })).status).toBe(201);
     expect((await postStatus(exhibitId, { toStatus: 'OFFERED', actorUserId: userId })).status).toBe(201);
+    // Establish custody of record so the F12 admission gate does not block the
+    // ADMIT below — this test needs a genuinely terminal (ADMITTED) exhibit to
+    // then assert 409 on a FURTHER transition attempt.
+    expect(
+      (await postCustodyTransfer(exhibitId, {
+        fromCustodianUserId: null,
+        toCustodianUserId: custodianId,
+        actorUserId: userId,
+      })).status,
+    ).toBe(201);
     expect((await postStatus(exhibitId, { toStatus: 'ADMITTED', actorUserId: userId })).status).toBe(201);
 
     const res = await postStatus(exhibitId, { toStatus: 'WITHDRAWN', actorUserId: userId });
@@ -94,6 +126,24 @@ describe('status API routes', () => {
     const body = await res.json();
     expect(body.error.code).toBe('STATUS_FINALIZED');
     expect(typeof body.error.message).toBe('string');
+  });
+
+  it('POST ADMITTED with no custodian returns 422 ADMISSION_BLOCKED with reasons', async () => {
+    const { exhibitId, userId } = fixture;
+
+    expect((await postStatus(exhibitId, { toStatus: 'MARKED', actorUserId: userId })).status).toBe(201);
+    expect((await postStatus(exhibitId, { toStatus: 'OFFERED', actorUserId: userId })).status).toBe(201);
+
+    const res = await postStatus(exhibitId, { toStatus: 'ADMITTED', actorUserId: userId });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.code).toBe('ADMISSION_BLOCKED');
+    expect(Array.isArray(body.error.details.reasons)).toBe(true);
+    expect(
+      body.error.details.reasons.some(
+        (r: { code: string }) => r.code === 'NO_CUSTODIAN',
+      ),
+    ).toBe(true);
   });
 
   it('POST OBJECTED without an unresolved objection returns 422, and succeeds once one exists', async () => {
