@@ -8,6 +8,7 @@ import { useRoleStore } from '@/stores/roleStore';
 import { RecentActivityPanel } from '@/components/command-center/RecentActivityPanel';
 import { ObjectionsPanel } from '@/components/command-center/ObjectionsPanel';
 import { DiscrepanciesPanel } from '@/components/command-center/DiscrepanciesPanel';
+import { CustodyAtAGlancePanel } from '@/components/command-center/CustodyAtAGlancePanel';
 import { StatCardRow } from '@/components/command-center/StatCardRow';
 import { StatusDistributionBar } from '@/components/command-center/StatusDistributionBar';
 import { FreshnessIndicator } from '@/components/command-center/FreshnessIndicator';
@@ -118,6 +119,13 @@ export default function CommandCenterPage() {
       <div className={styles.lowerRow}>
         <ObjectionsPanel />
         <DiscrepanciesPanel />
+      </div>
+
+      {/* The right-hand column of Screenshot 1 is a two-up: the Jury Package
+          summary widget (08-15, wave 4) + Custody at a Glance. This plan lands
+          the custody panel; 08-15 fills the jury-widget slot alongside it. */}
+      <div className={styles.lowerRow}>
+        <CustodyAtAGlancePanel />
       </div>
     </div>
   );
