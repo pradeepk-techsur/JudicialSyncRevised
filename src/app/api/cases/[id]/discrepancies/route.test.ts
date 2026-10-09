@@ -3,10 +3,52 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { GET } from '@/app/api/cases/[id]/discrepancies/route';
 import { recordStatusChange } from '@/services/status';
+import { evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Route-handler tests for GET /api/cases/:id/discrepancies. Self-contained
 // fixtures (unique caseNumber) via the live write paths — independent under
 // fileParallelism:false. Backed by the real Postgres from docker-compose.yml.
+
+// Test-only bypass for the ADMITTED-transition step alone (see
+// discrepancies.test.ts for the rationale). F12's live gate forbids reaching
+// ADMITTED with no custodian for every real caller; this directly writes the
+// STATUS_CHANGE event + projection and re-evaluates so the resulting
+// ADMITTED_NO_CUSTODIAN flag is genuinely firing.
+async function forceAdmitBypassingGate(
+  exhibitId: string,
+  caseId: string,
+  actorUserId: string,
+): Promise<void> {
+  const agg = await prisma.exhibitEvent.aggregate({
+    where: { exhibitId },
+    _max: { sequenceNo: true },
+  });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId,
+      caseId,
+      eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OFFERED', toStatus: 'ADMITTED' },
+      actorUserId,
+      sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: {
+      exhibitId,
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+    update: {
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+  });
+  await evaluateDiscrepancies(exhibitId);
+}
 
 async function seedFixture() {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -31,7 +73,7 @@ async function seedFixture() {
   });
   await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'MARKED', actorUserId: deputy.id });
   await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'OFFERED', actorUserId: deputy.id });
-  await recordStatusChange({ exhibitId: exhibit.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
+  await forceAdmitBypassingGate(exhibit.id, kase.id, deputy.id);
   return { caseId: kase.id, exhibitId: exhibit.id };
 }
 

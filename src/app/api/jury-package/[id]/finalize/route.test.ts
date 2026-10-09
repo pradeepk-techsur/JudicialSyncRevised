@@ -5,10 +5,53 @@ import { POST } from '@/app/api/jury-package/[id]/finalize/route';
 import { initiateJuryPackage } from '@/services/juryPackage';
 import { recordStatusChange } from '@/services/status';
 import { recordCustodyTransfer } from '@/services/custody';
-import { acknowledgeDiscrepancy } from '@/services/discrepancies';
+import { acknowledgeDiscrepancy, evaluateDiscrepancies } from '@/services/discrepancies';
 
 // Route-handler tests for POST /api/jury-package/:id/finalize. Self-contained
 // fixtures via live write paths; real Postgres from docker-compose.yml.
+
+// Test-only bypass for the ADMITTED-transition step alone (see
+// discrepancies.test.ts for the rationale). The `flagged` fixture is
+// deliberately custody-less → OPEN ADMITTED_NO_CUSTODIAN flag, which is the
+// entire point of this finalize-gate test. F12's live gate would block that
+// admission, and finalize's fresh re-evaluation would silently resolve a
+// synthetic flag if custody were added — so build the genuinely-firing
+// precondition directly and re-evaluate.
+async function forceAdmitBypassingGate(
+  exhibitId: string,
+  caseId: string,
+  actorUserId: string,
+): Promise<void> {
+  const agg = await prisma.exhibitEvent.aggregate({
+    where: { exhibitId },
+    _max: { sequenceNo: true },
+  });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId,
+      caseId,
+      eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OFFERED', toStatus: 'ADMITTED' },
+      actorUserId,
+      sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: {
+      exhibitId,
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+    update: {
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+  });
+  await evaluateDiscrepancies(exhibitId);
+}
 
 async function seedFixture() {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -32,15 +75,17 @@ async function seedFixture() {
       offeringParty: 'PROSECUTION',
     },
   });
+  // Pattern A — establish custody BEFORE the ADMITTED call so F12's gate passes
+  // (the real admission path, no bypass needed: this exhibit is meant to be clean).
   await recordStatusChange({ exhibitId: clean.id, toStatus: 'MARKED', actorUserId: deputy.id });
   await recordStatusChange({ exhibitId: clean.id, toStatus: 'OFFERED', actorUserId: deputy.id });
-  await recordStatusChange({ exhibitId: clean.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
   await recordCustodyTransfer({
     exhibitId: clean.id,
     fromCustodianUserId: null,
     toCustodianUserId: deputy.id,
     actorUserId: deputy.id,
   });
+  await recordStatusChange({ exhibitId: clean.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
 
   const flagged = await prisma.exhibit.create({
     data: {
@@ -52,7 +97,9 @@ async function seedFixture() {
   });
   await recordStatusChange({ exhibitId: flagged.id, toStatus: 'MARKED', actorUserId: deputy.id });
   await recordStatusChange({ exhibitId: flagged.id, toStatus: 'OFFERED', actorUserId: deputy.id });
-  await recordStatusChange({ exhibitId: flagged.id, toStatus: 'ADMITTED', actorUserId: deputy.id });
+  // Pattern B — custody-less ADMITTED is the whole point of this fixture; bypass
+  // the gate so the OPEN ADMITTED_NO_CUSTODIAN flag genuinely fires.
+  await forceAdmitBypassingGate(flagged.id, kase.id, deputy.id);
 
   const { juryPackage } = await initiateJuryPackage(kase.id, deputy.id, 'DEPUTY');
 
