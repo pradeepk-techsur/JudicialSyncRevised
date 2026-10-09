@@ -42,3 +42,7 @@ discovering plan.
   gate to converge — same shared-working-tree hazard as above. (Note: a bare
   `tsc --noEmit` over the tree passes; only `next build`'s stricter test-file
   inclusion surfaces this, so it is invisible until the aggregated phase gate.)
+
+## 08-13 shared-working-tree observations (out of scope — NOT fixed by 08-13)
+- `src/components/exhibit/ExhibitHeader.tsx` (sibling 08-12 WIP, uncommitted): tsc error TS2322 — passes an `objections` prop to `DiscrepancyBanner` that the committed DiscrepancyBanner signature does not yet accept. 08-12 owns both files; converging their own two edits resolves it. 08-13 did not touch either file.
+- `src/app/command-center/page.tsx` (sibling WIP, uncommitted): tsc errors present. Out of 08-13 scope (right-rail cards + Timeline + exhibit page.tsx only).
