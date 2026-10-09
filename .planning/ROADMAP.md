@@ -213,5 +213,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 �
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
-| 8. UI Redesign and Write-Action Coverage | 0/15 | In progress | — |
-**Status**: In progress
+| 8. UI Redesign and Write-Action Coverage | 0/15 | Failed | — |
+**Status**: Failed
