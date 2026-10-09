@@ -44,6 +44,16 @@ export const discrepancyAcknowledgedPayload = z.object({
   justification: z.string().min(1).max(500),
 });
 
+// F13 (Phase 7): a sealed/ex-parte exhibit being explicitly excluded from a jury
+// package. The excluding user records an auditable reason. Emitted by the exclude
+// workflow landing in plan 07-07; the schema is declared here so recordEvent()
+// recognizes the new EventType value added in this plan's migration.
+export const juryPackageExhibitExcludedPayload = z.object({
+  juryPackageId: z.string().uuid(),
+  exhibitId: z.string().uuid(),
+  reason: z.string().min(1).max(500),
+});
+
 // DISCREPANCY_ACKNOWLEDGED's schema is included for completeness per
 // Y0-schema.md's full payload table even though no Phase 1 caller emits it yet
 // — Phase 3 will.
@@ -53,4 +63,5 @@ export const eventPayloadSchemas = {
   RULING_RECORDED: rulingRecordedPayload,
   CUSTODY_TRANSFER: custodyTransferPayload,
   DISCREPANCY_ACKNOWLEDGED: discrepancyAcknowledgedPayload,
+  JURY_PACKAGE_EXHIBIT_EXCLUDED: juryPackageExhibitExcludedPayload,
 } as const;
