@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Pivota Assistant** - Tool-calling NL assistant answering courtroom questions with citations, role-scoped, cite-or-decline (completed 2026-10-07)
 - [x] **Phase 5: Trial Command Center + Live Sync** - Ambient live-trial-glance screen and tuned polling-based sync across all screens (completed 2026-10-08)
 - [x] **Phase 6: Carbon Design System UI Upgrade** - Replace the Tailwind/shadcn visual foundation and every screen's components with IBM Carbon Design System, across all 5 shipped phases (completed 2026-10-08)
-- [ ] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues
+- [x] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues (completed 2026-10-09)
 - [ ] **Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export** (INSERTED) - Chambers/sealed classification enforced at intake, full state-machine + server-side role enforcement, custody handoff confirmation, pending-ruling queue, multi-case support, and versioned jury packages with PDF export
 
 ## Phase Details
@@ -161,7 +161,7 @@ Plans:
 - [ ] 07-06-PLAN.md — F14 discrepancy acknowledgment transparency: read-time justification join + always-visible disclosure + full audit record rendering
 - [ ] 07-07-PLAN.md — F13 exclude workflow: excludeJuryPackageExhibit service/route + Jury Package Workspace CRITICAL row + Remove-from-Package UI
 
-**Status**: Passed
+**Status**: Complete (2026-10-09)
 ### Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
@@ -185,5 +185,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1
 | 4. Pivota Assistant | 5/5 | Complete | 2026-10-07 |
 | 5. Trial Command Center + Live Sync | 3/3 | Complete | 2026-10-08 |
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
-| 7. Fix admission integrity and UI usability issues | 7/7 | Passed | — |
+| 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
