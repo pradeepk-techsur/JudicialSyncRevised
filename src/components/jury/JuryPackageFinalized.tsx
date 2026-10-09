@@ -12,6 +12,7 @@ import {
 } from '@carbon/react';
 import type { Role } from '@prisma/client';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ExhibitTag } from '@/components/shared/ExhibitTag';
 import { useRoleStore } from '@/stores/roleStore';
 import type { JuryPackageDto, JuryPackageExhibitView } from '@/hooks/useJuryPackage';
 import styles from './JuryPackageFinalized.module.scss';
@@ -81,7 +82,9 @@ export function JuryPackageFinalized({
           <TableBody>
             {exhibits.map((row) => (
               <TableRow key={row.exhibitId} data-exhibit-label={row.exhibitLabel}>
-                <TableCell className={styles.label}>{row.exhibitLabel}</TableCell>
+                <TableCell className={styles.label}>
+                  <ExhibitTag label={row.exhibitLabel} />
+                </TableCell>
                 <TableCell>
                   <StatusBadge status={row.currentStatus} />
                 </TableCell>

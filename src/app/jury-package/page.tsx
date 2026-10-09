@@ -14,8 +14,17 @@ import { JuryPackageFinalized } from '@/components/jury/JuryPackageFinalized';
 //   - juryPackage.status DRAFT     → JuryPackageDraft (gate + acknowledge)
 //   - juryPackage.status FINALIZED → JuryPackageFinalized (read-only export)
 export default function JuryPackagePage() {
-  const { data, isLoading, isError, dataUpdatedAt, initiate, finalize, exclude, acknowledge } =
-    useJuryPackage();
+  const {
+    data,
+    isLoading,
+    isError,
+    dataUpdatedAt,
+    initiate,
+    finalize,
+    exclude,
+    acknowledge,
+    requestFinalization,
+  } = useJuryPackage();
   // Case-wide flags: the Draft view resolves the concrete DiscrepancyFlag.id for
   // an (exhibitId, ruleCode) pair from here (the jury rows carry no flag id).
   const { flags: caseFlags } = useDiscrepancyCount();
@@ -71,6 +80,8 @@ export default function JuryPackagePage() {
       onAcknowledge={(flagId, justification) =>
         acknowledge.mutateAsync({ flagId, justification })
       }
+      onRequestFinalization={(id) => requestFinalization.mutate(id)}
+      requestFinalizationPending={requestFinalization.isPending}
       finalizePending={finalize.isPending}
       finalizeError={finalize.error}
       acknowledgePending={acknowledge.isPending}

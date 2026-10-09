@@ -129,9 +129,29 @@ export function useJuryPackage() {
     onSuccess: invalidateAll,
   });
 
+  // F11 §Process step 7: a role that CANNOT finalize directly (JUDGE/ATTORNEY/
+  // CHAMBERS_STAFF) stamps a finalization REQUEST on the package. The server
+  // (08-01) independently gates this with an INVERTED check — a finalize-
+  // authorized role (DEPUTY/CLERK/ADMIN) is rejected 403 — so the UI branch is a
+  // usability affordance only, not the authority. Mirrors the finalize mutation.
+  const requestFinalization = useMutation({
+    mutationFn: async (juryPackageId: string) => {
+      const res = await apiFetch(`/api/jury-package/${juryPackageId}/request-finalization`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorUserId: activeUserId }),
+      });
+      if (!res.ok) {
+        throw await parseError(res);
+      }
+      return res.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
   // Reuse the standalone acknowledge mutation (same invalidation set) so the
   // jury screen and the Exhibit Detail banner share one acknowledge path.
   const acknowledge = useAcknowledgeDiscrepancy();
 
-  return { ...query, initiate, finalize, exclude, acknowledge };
+  return { ...query, initiate, finalize, exclude, acknowledge, requestFinalization };
 }

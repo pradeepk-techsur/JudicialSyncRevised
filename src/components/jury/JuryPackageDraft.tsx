@@ -126,7 +126,7 @@ export function JuryPackageDraft({
   onFinalize: (id: string) => void;
   onExclude: (exhibitId: string) => void;
   onAcknowledge: (flagId: string, justification: string) => Promise<void> | void;
-  onRequestFinalization?: (id: string) => void;
+  onRequestFinalization: (id: string) => void;
   requestFinalizationPending?: boolean;
   finalizePending?: boolean;
   finalizeError?: unknown;
@@ -173,12 +173,33 @@ export function JuryPackageDraft({
   const hasCritical = criticalRows.length > 0;
   const disableFinalize = hasOpen || hasCritical || finalizePending;
 
-  // Clean = non-sealed rows with zero OPEN flags.
+  // A non-sealed row with flags but NONE still OPEN — i.e. every flag has been
+  // ACKNOWLEDGED. It no longer BLOCKS finalize, but F14 requires its full
+  // acknowledgment record to stay visible, so it remains in the Blockers section
+  // (rendered as a resolved card) rather than collapsing into a bare Clean row.
+  const acknowledgedRows = useMemo(
+    () =>
+      exhibits.filter(
+        (r) => !r.isSealed && r.flags.length > 0 && r.flags.every((f) => f.status !== 'OPEN'),
+      ),
+    [exhibits],
+  );
+
+  // Blockers section = CRITICAL rows first, then OPEN-flagged rows, then resolved
+  // (acknowledged) rows that keep their audit record visible.
+  const blockerRows = useMemo(
+    () => [...criticalRows, ...blocking, ...acknowledgedRows],
+    [criticalRows, blocking, acknowledgedRows],
+  );
+
+  // Clean = non-sealed rows with NO flags at all (never flagged).
   const cleanRows = useMemo(
-    () => exhibits.filter((r) => !r.isSealed && r.flags.every((f) => f.status !== 'OPEN')),
+    () => exhibits.filter((r) => !r.isSealed && r.flags.length === 0),
     [exhibits],
   );
   const cleanCount = cleanRows.length;
+  // The heading counts ACTIVE blockers (CRITICAL + OPEN) — acknowledged rows are
+  // resolved, so they are not counted as outstanding blockers.
   const blockerCount = blocking.length + criticalRows.length;
 
   // Stale-client 409 blocking list from the finalize mutation error.
@@ -249,11 +270,18 @@ export function JuryPackageDraft({
 
       <section className={styles.section} data-testid="jury-blockers-section">
         <h2 className={styles.sectionHeading}>Blockers ({blockerCount})</h2>
-        {[...criticalRows, ...blocking].map((row) => {
+        {blockerRows.map((row) => {
           const isCritical = row.isSealed;
           const rowOpenFlags = row.flags.filter((f) => f.status === 'OPEN');
-          const isObjectionBlocker = rowOpenFlags.some((f) => f.ruleCode === OBJECTION_RULE);
-          const isCustodyBlocker = rowOpenFlags.some((f) => f.ruleCode === CUSTODY_RULE);
+          // A non-critical row with flags but no OPEN ones is RESOLVED
+          // (acknowledged) — still shown here for its audit record, but with no
+          // remediation action and not counted as an active blocker.
+          const isResolved = !isCritical && rowOpenFlags.length === 0;
+          // Condition is derived from OPEN flags for active blockers, or the
+          // (acknowledged) flags for a resolved row.
+          const conditionFlags = rowOpenFlags.length > 0 ? rowOpenFlags : row.flags;
+          const isObjectionBlocker = conditionFlags.some((f) => f.ruleCode === OBJECTION_RULE);
+          const isCustodyBlocker = conditionFlags.some((f) => f.ruleCode === CUSTODY_RULE);
           const objectionId = objectionIdByExhibit.get(row.exhibitId);
 
           const title = isCritical
@@ -264,12 +292,14 @@ export function JuryPackageDraft({
           const pillTone = isCritical ? 'critical' : isObjectionBlocker ? 'high' : 'medium';
           const pillLabel = isCritical
             ? 'Critical · ex parte material'
-            : isObjectionBlocker
-              ? 'Unresolved objection'
-              : 'No custodian on record';
+            : isResolved
+              ? 'Resolved · acknowledged'
+              : isObjectionBlocker
+                ? 'Unresolved objection'
+                : 'No custodian on record';
           const detail = isCritical
             ? 'Sealed/ex parte material must be removed before this package can be finalized.'
-            : rowOpenFlags[0]?.label ?? title;
+            : conditionFlags[0]?.label ?? title;
 
           return (
             <Card
@@ -278,7 +308,7 @@ export function JuryPackageDraft({
               className={styles.blockerCard}
               data-testid="jury-blocker-card"
               data-exhibit-label={row.exhibitLabel}
-              data-blocking="true"
+              data-blocking={isCritical || rowOpenFlags.length > 0 ? 'true' : 'false'}
             >
               <div className={styles.blockerHead}>
                 <ExhibitTag label={row.exhibitLabel} />
@@ -319,6 +349,10 @@ export function JuryPackageDraft({
                     </Link>
                   }
                 />
+              ) : isResolved ? (
+                // RESOLVED (acknowledged) row — no remediation/acknowledge action;
+                // the full ack record below is the only content.
+                null
               ) : (
                 <ActionButtonRow
                   primary={
@@ -472,7 +506,7 @@ export function JuryPackageDraft({
               kind="secondary"
               type="button"
               data-testid="jury-request-finalization"
-              onClick={() => onRequestFinalization?.(juryPackage.id)}
+              onClick={() => onRequestFinalization(juryPackage.id)}
               disabled={requestFinalizationPending}
             >
               {requestFinalizationPending ? 'Requesting…' : 'Request finalization from Clerk'}
