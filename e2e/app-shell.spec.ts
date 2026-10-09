@@ -8,9 +8,12 @@ test.describe('App shell', () => {
     await expect(page).toHaveURL(/\/command-center$/);
   });
 
-  test('header shows the seeded case number and defaults the role switcher to a JUDGE persona', async ({ page }) => {
+  test('role switcher defaults to a JUDGE persona', async ({ page }) => {
+    // Phase 8 (08-04) removed the raw case-number text node from the shared
+    // header entirely (it now lives in each screen's own subtitle, per the
+    // reference screenshots) — so this test asserts ONLY the still-true
+    // role-switcher-defaults-to-JUDGE behavior.
     await page.goto('/case');
-    await expect(page.getByText(/Case: 2026-CR-0142/)).toBeVisible();
     const select = page.getByLabel('Switch active role');
     await expect(select).toBeVisible();
     const selectedLabel = await select.locator('option:checked').textContent();
@@ -34,10 +37,10 @@ test.describe('App shell', () => {
     expect(selectedLabel).toMatch(/ATTORNEY/);
   });
 
-  test('Ask ✦ button is present and enabled (Phase 4 activates the assistant panel)', async ({ page }) => {
+  test('Ask Pivota button is present and enabled (Phase 4 activates the assistant panel)', async ({ page }) => {
     await page.goto('/case');
     // The button's accessible name is its aria-label ("Open Pivota Assistant");
-    // its visible text is "Ask ✦".
+    // its visible text is "Ask Pivota" (relabeled from "Ask ✦" in Phase 8, 08-04).
     const askButton = page.getByTestId('ask-assistant');
     await expect(askButton).toBeEnabled();
     await expect(askButton).toHaveText(/Ask/);
@@ -68,19 +71,13 @@ test.describe('App shell', () => {
     await expect(page.getByRole('main')).toBeVisible();
   });
 
-  test('header discrepancy-count indicator is absent when the open count is zero (default seed)', async ({ page }) => {
-    await page.goto('/case');
-    // Plan 07-02's seed produces zero exhibits with an OPEN discrepancy flag —
-    // the indicator must be completely absent, not rendered-and-hidden.
-    await expect(page.getByTestId('header-discrepancy-indicator')).toHaveCount(0);
-  });
-
-  test('header discrepancy-count indicator renders with an accessible label and navigates on click when the count is nonzero', async ({ page }) => {
-    // Acknowledging a discrepancy does not clear the OPEN count on its own —
-    // there is no organic OPEN flag in the default seed post-F12 (plan 07-02).
-    // Mock the discrepancies endpoint to force a nonzero count for this UI-only
-    // assertion, mirroring the mocking pattern already used elsewhere in this
-    // suite (e.g. jury-package.spec.ts's role-gating test).
+  test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
+    // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
+    // ENTIRELY — in any state. The discrepancy signal now lives in the Command
+    // Center's stat-card row / "Needs your attention" feed (08-CONTEXT §Header
+    // layout). To prove the removal is unconditional (not merely zero-count
+    // hiding), force the underlying count NONZERO via the same discrepancies
+    // route-mock the old design's test used — the indicator must STILL be absent.
     await page.route('**/api/cases/**/discrepancies', async (route) => {
       await route.fulfill({
         status: 200,
@@ -91,10 +88,7 @@ test.describe('App shell', () => {
       });
     });
     await page.goto('/case');
-    const indicator = page.getByTestId('header-discrepancy-indicator');
-    await expect(indicator).toBeVisible();
-    await expect(indicator).toHaveAccessibleName('1 open discrepancies');
-    await indicator.click();
-    await expect(page).toHaveURL(/\/command-center/);
+    // Even with a nonzero mocked count, the header has no such element at all.
+    await expect(page.getByTestId('header-discrepancy-indicator')).toHaveCount(0);
   });
 });

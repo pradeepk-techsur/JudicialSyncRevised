@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Header as CarbonHeader,
   HeaderName,
@@ -12,15 +11,10 @@ import {
 } from '@carbon/react';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAssistantStore } from '@/stores/assistantStore';
-import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 
 export function Header() {
   const { caseNumber, users, activeUserId, setActiveUser, hydrate } = useRoleStore();
   const togglePanel = useAssistantStore((s) => s.togglePanel);
-  // Case-wide OPEN-discrepancy count from the SAME shared hook the sidebar count
-  // pill (JuryPackageNavItem) uses — no second discrepancy query is introduced.
-  const { openCount } = useDiscrepancyCount();
-  const router = useRouter();
 
   useEffect(() => {
     if (caseNumber) return; // already hydrated
@@ -37,39 +31,19 @@ export function Header() {
   return (
     // Carbon's UI Shell <Header> renders the <header> landmark. `no-print` is
     // preserved so the Jury Package print/export (06-01's print CSS) still hides
-    // the chrome. The case number stays a plain text node (matchable via
-    // getByText(/Case: 2026-CR-0142/)) adjacent to the product HeaderName.
+    // the chrome.
+    //
+    // Phase 8 (08-04) simplified this header to match the reference screenshots:
+    // the raw case-number text node and the discrepancy-count badge are both
+    // GONE from the shared header entirely. The case identifier now lives in each
+    // screen's own subtitle (built in the wave-3 screen plans); the discrepancy
+    // signal moves to the Command Center's stat-card row / "Needs your attention"
+    // feed (08-CONTEXT §Header layout: "Do not add either element back in").
     <CarbonHeader aria-label="JudicialSync" className="no-print">
       <HeaderName href="/" prefix="">
         JudicialSync
       </HeaderName>
-      <span className="cds--header__case-number">
-        {caseNumber ? `Case: ${caseNumber}` : 'Loading case…'}
-      </span>
       <HeaderGlobalBar>
-        {/* Labeled discrepancy-count indicator (UX-Mockup §App Shell layout:
-            `[Case: ...]  [⚠ 1]  [Role: ... ▾] [Ask ✦]`). Sourced from the SHARED
-            useDiscrepancyCount query, it shows the case-wide count of OPEN
-            discrepancy flags paired with a visible aria-label ("N open
-            discrepancies") readable without a hover, and navigates to the Command
-            Center's Discrepancies panel on click. When the count is zero the
-            element is COMPLETELY ABSENT from the DOM (not rendered-and-hidden) —
-            never a bare, unexplained "0" — which is the common case against the
-            fresh default seed (Labeled Header Indicator pattern's "or not rendered
-            at all" half). Identical on every screen since it lives in the one
-            shared Header. */}
-        {openCount > 0 && (
-          <Button
-            kind="ghost"
-            type="button"
-            onClick={() => router.push('/command-center#discrepancies')}
-            data-testid="header-discrepancy-indicator"
-            aria-label={`${openCount} open discrepancies`}
-            title={`${openCount} open discrepancies`}
-          >
-            ⚠ {openCount}
-          </Button>
-        )}
         {/* Role switcher — Carbon's `Select` wraps a REAL native <select> with a
             REAL <label htmlFor>, so Playwright's option-count / option-text /
             option:checked assertions against a native <select> keep working. The
@@ -90,11 +64,13 @@ export function Header() {
             <SelectItem key={u.id} value={u.id} text={`${u.name} (${u.role})`} />
           ))}
         </Select>
-        {/* "Ask ✦" uses a plain Carbon ghost Button rather than
+        {/* "Ask Pivota" uses a plain Carbon ghost Button rather than
             HeaderGlobalAction: the latter is icon-only (children expected to be
             an Icon), but app-shell.spec.ts asserts the button's VISIBLE text
             matches /Ask/, so a text Button preserves the label faithfully. All
-            three identifying attributes are kept verbatim. */}
+            three identifying attributes (data-testid, aria-label, title) are kept
+            verbatim — only the visible text changed from "Ask ✦" to "Ask Pivota"
+            per the Phase 8 reference screenshots. */}
         <Button
           kind="ghost"
           type="button"
@@ -103,7 +79,7 @@ export function Header() {
           aria-label="Open Pivota Assistant"
           title="Ask the Pivota Assistant"
         >
-          Ask ✦
+          Ask Pivota
         </Button>
       </HeaderGlobalBar>
     </CarbonHeader>
