@@ -9,6 +9,8 @@ import { RecentActivityPanel } from '@/components/command-center/RecentActivityP
 import { ObjectionsPanel } from '@/components/command-center/ObjectionsPanel';
 import { DiscrepanciesPanel } from '@/components/command-center/DiscrepanciesPanel';
 import { CustodyAtAGlancePanel } from '@/components/command-center/CustodyAtAGlancePanel';
+import { AttentionFeedPanel } from '@/components/command-center/AttentionFeedPanel';
+import { JuryPackageSummaryWidget } from '@/components/command-center/JuryPackageSummaryWidget';
 import { StatCardRow } from '@/components/command-center/StatCardRow';
 import { StatusDistributionBar } from '@/components/command-center/StatusDistributionBar';
 import { FreshnessIndicator } from '@/components/command-center/FreshnessIndicator';
@@ -34,9 +36,10 @@ const EMPTY_STATUS_COUNTS: Record<ExhibitStatus, number> = {
 // the 4 stat cards, the proportional status-distribution bar, the (read-only)
 // Objections/Discrepancies panels, and the Custody-at-a-Glance panel (whose one
 // inline Transfer/Assign action is this screen's first-ever write affordance,
-// role-gated to DEPUTY/CLERK/ADMIN). The "Needs your attention" feed and Jury
-// Package summary widget are deliberately OUT of scope here — 08-15 (wave 4)
-// inserts them into this layout.
+// role-gated to DEPUTY/CLERK/ADMIN). 08-15 (wave 4) completes the layout by
+// inserting the "Needs your attention" feed (full-width, bearing the two inline
+// write actions — the screen's ONLY write surface, ever) and the Jury Package
+// summary widget (link-through only) alongside Custody at a Glance.
 export default function CommandCenterPage() {
   // Recent Activity is the freshness anchor (the ambient pulse) AND now carries
   // statusCounts for the stat cards + distribution bar — ONE query backs the
@@ -114,6 +117,13 @@ export default function CommandCenterPage() {
 
       <StatusDistributionBar statusCounts={statusCounts ?? EMPTY_STATUS_COUNTS} />
 
+      {/* The "Needs your attention" feed — full-width, between the status
+          distribution bar and the lower two-column rows (Screenshot 1). This is
+          the Command Center's ONLY write surface: its two inline actions (Record
+          ruling / Assign custodian) are the single deliberate reversal of the
+          otherwise strictly read-only screen. */}
+      <AttentionFeedPanel />
+
       <RecentActivityPanel query={activity} />
 
       <div className={styles.lowerRow}>
@@ -122,9 +132,9 @@ export default function CommandCenterPage() {
       </div>
 
       {/* The right-hand column of Screenshot 1 is a two-up: the Jury Package
-          summary widget (08-15, wave 4) + Custody at a Glance. This plan lands
-          the custody panel; 08-15 fills the jury-widget slot alongside it. */}
+          summary widget (link-through only) + Custody at a Glance. */}
       <div className={styles.lowerRow}>
+        <JuryPackageSummaryWidget />
         <CustodyAtAGlancePanel />
       </div>
     </div>

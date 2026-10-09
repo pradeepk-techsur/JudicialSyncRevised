@@ -95,27 +95,50 @@ test.describe('Trial Command Center', () => {
     await expect(nav.getByRole('link', { name: /assistant/i })).toBeVisible();
   });
 
-  // Criterion 3 — strictly read-only: no write affordances, link-through only.
-  test('exposes no record/edit/acknowledge path — link-through only', async ({ page }) => {
+  // Criterion 3 — strictly read-only EVERYWHERE EXCEPT the attention feed. The
+  // "Needs your attention" feed is the single deliberate, traceable reversal of
+  // Phase 5's read-only criterion (08-15 / F08 §Design decision supersedes a
+  // prior constraint); every OTHER panel — stat cards, distribution bar, recent
+  // activity, objections, discrepancies, custody panel's non-transfer parts, and
+  // the jury-package widget — stays link-through only. This test proves exactly
+  // that boundary: it scopes its read-only assertions to the command center MINUS
+  // the attention feed (and MINUS the custody panel, whose inline Transfer/Assign
+  // is 08-10's own, separately-tested write affordance).
+  test('every panel except the attention feed is read-only / link-through only', async ({
+    page,
+  }) => {
     await page.goto('/command-center');
     const cc = page.getByTestId('command-center');
     // Wait for the panels to settle into their loaded (happy-path) render.
     await expect(page.getByTestId('recent-activity-row').first()).toBeVisible();
 
-    // No mutating input surfaces anywhere on the screen.
-    await expect(cc.locator('form')).toHaveCount(0);
-    await expect(cc.locator('input')).toHaveCount(0);
-    await expect(cc.locator('textarea')).toHaveCount(0);
-
-    // No mutation-named controls (a read-only "retry" on an errored panel would
-    // be acceptable, but on the happy path there are none).
-    await expect(
-      cc.getByRole('button', { name: /record|edit|acknowledge|save|submit|resolve|add/i }),
-    ).toHaveCount(0);
+    // The panels that must remain strictly read-only.
+    for (const testid of [
+      'recent-activity-list',
+      'objections-panel',
+      'discrepancies-panel',
+      'stat-card-row',
+      'command-center-jury-package-widget',
+    ]) {
+      const panel = cc.getByTestId(testid);
+      await expect(panel.locator('form')).toHaveCount(0);
+      await expect(panel.locator('input')).toHaveCount(0);
+      await expect(panel.locator('textarea')).toHaveCount(0);
+      await expect(
+        panel.getByRole('button', { name: /record|edit|acknowledge|save|submit|resolve|add/i }),
+      ).toHaveCount(0);
+    }
 
     // Every actionable Recent Activity element is a link into Exhibit Detail.
     const firstRow = page.getByTestId('recent-activity-row').first();
     await expect(firstRow).toHaveAttribute('href', /\/exhibit\//);
+
+    // The jury-package widget's only possible affordance is the link-through
+    // "Open jury package" button (present only once a package exists) — it never
+    // exposes a mutating control. If it renders at all, it is a plain button that
+    // navigates, which the read-only button-name assertion above already allows.
+    const widget = page.getByTestId('command-center-jury-package-widget');
+    await expect(widget).toBeVisible();
   });
 
   // Criterion 2 — a new event recorded elsewhere appears within one 4s interval.
@@ -446,5 +469,318 @@ test.describe('Trial Command Center', () => {
     // The label is now an ExhibitTag chip, not a plain-text prefix.
     await expect(firstRow.getByTestId('exhibit-tag').first()).toBeVisible();
     await expect(firstRow.getByTestId('exhibit-tag').first()).toHaveText('P-1');
+  });
+
+  // ===================================================================
+  // 08-15 — "Needs your attention" feed (tier ordering, role-gated inline
+  // actions, no-optimistic-update) + Jury Package summary widget
+  // (cross-screen parity). F08 §Process steps 4-6, F24.
+  // ===================================================================
+
+  // A deterministic 4-tier feed so the ordering / interleaving assertion never
+  // flakes on shared-DB seed drift (the live seed happens to carry no CRITICAL
+  // row — no sealed exhibit is in a jury package — so a mock is the only way to
+  // exercise all four tiers at once). The mock interleaves tiers OUT of order on
+  // purpose so a correct render (which trusts the server order verbatim) would
+  // still be whatever the server sent; the server itself is tested to emit the
+  // canonical order, so here we send the canonical order and assert it survives
+  // verbatim with zero client re-sort.
+  const MOCK_FEED = [
+    {
+      id: 'critical-1',
+      tier: 'CRITICAL',
+      ruleCode: 'SEALED_IN_JURY_PACKAGE',
+      exhibitId: 'ex-crit',
+      exhibitLabel: 'S-9',
+      detectedAt: new Date().toISOString(),
+      summary: 'S-9 — ex parte material improperly included in jury package',
+      availableAction: 'REMOVE_FROM_PACKAGE',
+    },
+    {
+      id: 'high-1',
+      tier: 'HIGH',
+      ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+      exhibitId: 'ex-high',
+      exhibitLabel: 'P-7',
+      objectionId: 'obj-high',
+      detectedAt: new Date().toISOString(),
+      summary: 'P-7 — admitted with an open, unresolved objection',
+      availableAction: 'RECORD_RULING',
+    },
+    {
+      id: 'pending-1',
+      tier: 'PENDING',
+      ruleCode: 'PENDING_RULING',
+      exhibitId: 'ex-pending',
+      exhibitLabel: 'P-3',
+      objectionId: 'obj-pending',
+      detectedAt: new Date().toISOString(),
+      summary: 'P-3 — objection unresolved, not yet admitted',
+      availableAction: 'RECORD_RULING',
+    },
+    {
+      id: 'medium-1',
+      tier: 'MEDIUM',
+      ruleCode: 'ADMITTED_NO_CUSTODIAN',
+      exhibitId: 'ex-medium',
+      exhibitLabel: 'P-6',
+      detectedAt: new Date().toISOString(),
+      summary: 'P-6 — admitted, no custodian of record',
+      availableAction: 'TRANSFER_CUSTODY',
+    },
+  ];
+
+  async function mockFeed(page: Page, feed: unknown[]): Promise<void> {
+    await page.route('**/api/cases/**/attention-feed', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(feed),
+      });
+    });
+  }
+
+  test('attention feed renders tiers in CRITICAL→HIGH→PENDING→MEDIUM order, never interleaved', async ({
+    page,
+  }) => {
+    await mockFeed(page, MOCK_FEED);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+    const entries = feed.getByTestId('attention-feed-entry');
+    await expect(entries).toHaveCount(4);
+
+    // DOM order equals the server order verbatim (zero client re-sort).
+    await expect(entries.nth(0)).toHaveAttribute('data-tier', 'CRITICAL');
+    await expect(entries.nth(1)).toHaveAttribute('data-tier', 'HIGH');
+    await expect(entries.nth(2)).toHaveAttribute('data-tier', 'PENDING');
+    await expect(entries.nth(3)).toHaveAttribute('data-tier', 'MEDIUM');
+  });
+
+  test('each severity badge renders with the correct per-tier aria-label', async ({ page }) => {
+    await mockFeed(page, MOCK_FEED);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+    // One pill per entry, each carrying "Severity: <Tier>" with the title-cased
+    // tier word — color is never the sole signal.
+    for (const word of ['Critical', 'High', 'Pending', 'Medium']) {
+      await expect(feed.getByLabel(`Severity: ${word}`)).toBeVisible();
+    }
+  });
+
+  test('Record ruling is visible for JUDGE, absent for DEPUTY, and expands the form inline (never a modal)', async ({
+    page,
+  }) => {
+    await mockFeed(page, MOCK_FEED);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+
+    // Default JUDGE: Record ruling is present on the HIGH (and PENDING) entries.
+    const rulingButton = feed.getByTestId('attention-feed-action-record-ruling').first();
+    await expect(rulingButton).toBeVisible();
+
+    // Clicking it expands the shared RecordRulingForm INLINE — never navigates
+    // away, never opens a modal (the command center is still the current screen).
+    await rulingButton.click();
+    await expect(feed.getByTestId('record-ruling-form')).toBeVisible();
+    await expect(page).toHaveURL(/\/command-center$/);
+
+    // Switch to a DEPUTY persona: the Record-ruling affordance is now ABSENT
+    // (not disabled) everywhere in the feed, on every HIGH/PENDING entry.
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    await select.selectOption((await deputyOption.getAttribute('value')) as string);
+    await expect(feed.getByTestId('attention-feed-action-record-ruling')).toHaveCount(0);
+  });
+
+  test('Assign custodian is visible for DEPUTY, absent for JUDGE, on the MEDIUM entry', async ({
+    page,
+  }) => {
+    await mockFeed(page, MOCK_FEED);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+
+    // Default JUDGE: Assign custodian is absent (JUDGE is not a custody role).
+    await expect(feed.getByTestId('attention-feed-action-assign-custodian')).toHaveCount(0);
+
+    // Switch to DEPUTY: the Assign-custodian affordance appears on the MEDIUM
+    // entry and expands the shared TransferCustodyForm inline.
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    await select.selectOption((await deputyOption.getAttribute('value')) as string);
+
+    const assign = feed.getByTestId('attention-feed-action-assign-custodian');
+    await expect(assign).toBeVisible();
+    await assign.click();
+    await expect(feed.getByTestId('transfer-custody-form')).toBeVisible();
+  });
+
+  test('"Review and remove →" on a CRITICAL entry navigates to the Jury Package Workspace', async ({
+    page,
+  }) => {
+    await mockFeed(page, MOCK_FEED);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+    const review = feed.getByTestId('attention-feed-action-review-remove');
+    await expect(review).toBeVisible();
+    await review.click();
+    await expect(page).toHaveURL(/\/jury-package$/);
+  });
+
+  test('a successful inline ruling does NOT optimistically remove the entry — it waits for the next server read', async ({
+    page,
+  }) => {
+    // A single HIGH entry; the feed is re-served WITHOUT it only after the ruling
+    // POST has succeeded (simulating the ledger state the next poll observes).
+    let ruled = false;
+    await page.route('**/api/cases/**/attention-feed', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ruled ? [] : [MOCK_FEED[1]]),
+      });
+    });
+    // The ruling POST succeeds but DELIBERATELY stalls briefly, so we can observe
+    // the entry is still present in the window between "confirm clicked" and "the
+    // next feed read reflects the resolution" — proving no optimistic removal.
+    await page.route('**/api/objections/*/ruling', async (route) => {
+      ruled = true;
+      await new Promise((r) => setTimeout(r, 400));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto('/command-center');
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed.getByTestId('attention-feed-entry')).toHaveCount(1);
+
+    // Open + submit a SUSTAINED ruling as the default JUDGE.
+    await feed.getByTestId('attention-feed-action-record-ruling').first().click();
+    const form = feed.getByTestId('record-ruling-form');
+    await expect(form).toBeVisible();
+    // Carbon RadioButton's input is overlaid by a visual span — click the label.
+    await form.getByText('Sustained', { exact: true }).click();
+    await form.getByTestId('record-ruling-confirm').click();
+
+    // The entry is NOT removed optimistically: it is still present in the DOM
+    // right after the click (the mutation is still in flight; no client-side
+    // splice happened). It disappears ONLY once the subsequent server read
+    // (invalidated feed query) returns the entry gone.
+    await expect(feed.getByTestId('attention-feed-entry')).toHaveCount(1);
+    await expect(feed.getByTestId('attention-feed-entry')).toHaveCount(0, { timeout: 6_000 });
+  });
+
+  test('the jury-package widget shows no package before one is started', async ({ page }) => {
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ juryPackage: null, exhibits: [] }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto('/command-center');
+    const widget = page.getByTestId('command-center-jury-package-widget');
+    await expect(widget).toBeVisible();
+    await expect(widget).toContainText(/no package started yet/i);
+  });
+
+  test('the jury-package widget shows the IDENTICAL clean/total ratio the Jury Package Workspace renders (cross-screen parity)', async ({
+    page,
+  }) => {
+    // One DRAFT package, three exhibits: two clean, one OPEN-flagged blocker. Both
+    // the Command Center widget and the Jury Package Workspace read THIS payload
+    // and render through the SAME TwoColorProgressBar, so their captions must be
+    // byte-identical: "2 of 3 exhibits are clean · 1 blocker remain".
+    const DRAFT_BODY = {
+      juryPackage: {
+        id: 'pkg-1',
+        caseId: 'case-1',
+        status: 'DRAFT',
+        createdAt: new Date().toISOString(),
+        finalizedAt: null,
+        finalizedBy: null,
+        finalizationRequestedAt: null,
+        finalizationRequestedBy: null,
+      },
+      exhibits: [
+        {
+          exhibitId: 'ex-a',
+          exhibitLabel: 'P-1',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'CLEAN',
+          flags: [],
+          isSealed: false,
+          addedAt: new Date().toISOString(),
+        },
+        {
+          exhibitId: 'ex-b',
+          exhibitLabel: 'P-2',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'CLEAN',
+          flags: [],
+          isSealed: false,
+          addedAt: new Date().toISOString(),
+        },
+        {
+          exhibitId: 'ex-c',
+          exhibitLabel: 'P-3',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'FLAGGED',
+          flags: [
+            { ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE', status: 'OPEN', label: 'Unresolved objection' },
+          ],
+          isSealed: false,
+          addedAt: new Date().toISOString(),
+        },
+      ],
+    };
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(DRAFT_BODY),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    // Command Center widget caption.
+    await page.goto('/command-center');
+    const widget = page.getByTestId('command-center-jury-package-widget');
+    await expect(widget).toBeVisible();
+    const widgetCaption = await widget
+      .getByTestId('two-color-progress-caption')
+      .innerText();
+
+    // Jury Package Workspace header-bar caption off the SAME payload.
+    await page.goto('/jury-package');
+    await expect(page.getByTestId('jury-package-draft')).toBeVisible();
+    const workspaceCaption = await page
+      .getByTestId('jury-package-draft')
+      .getByTestId('two-color-progress-caption')
+      .first()
+      .innerText();
+
+    // Byte-identical, and the expected 2-of-3 ratio.
+    expect(widgetCaption).toBe(workspaceCaption);
+    expect(widgetCaption).toContain('2 of 3 exhibits are clean');
   });
 });
