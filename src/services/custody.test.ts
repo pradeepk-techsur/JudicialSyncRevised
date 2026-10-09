@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
+import { RoleNotPermittedError } from '@/lib/errors';
 import {
   CustodyChainBrokenError,
   InvalidCustodianError,
@@ -31,6 +32,9 @@ async function seedFixture() {
   const attorney = await prisma.user.create({
     data: { caseId: kase.id, name: 'Attorney C', role: 'ATTORNEY' },
   });
+  const admin = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Admin D', role: 'ADMIN' },
+  });
   const exhibit = await prisma.exhibit.create({
     data: {
       caseId: kase.id,
@@ -44,6 +48,7 @@ async function seedFixture() {
     deputyId: deputy.id,
     clerkId: clerk.id,
     attorneyId: attorney.id,
+    adminId: admin.id,
     exhibitId: exhibit.id,
   };
 }
@@ -222,7 +227,10 @@ describe('custody service', () => {
       fromCustodianUserId: clerkId,
       toCustodianUserId: attorneyId,
       reason: 'to attorney',
-      actorUserId: attorneyId,
+      // The clerk (who currently holds custody) performs the transfer TO the
+      // attorney. ATTORNEY is not an authorized custody-transfer actor under the
+      // new F24 role gate, so the ACTOR is the clerk; the recipient is unchanged.
+      actorUserId: clerkId,
     });
 
     const history = await getCustodyHistory(exhibitId);
@@ -245,5 +253,59 @@ describe('custody service', () => {
     // Chronological ordering: timestamps non-decreasing.
     expect(history[0].timestamp.getTime()).toBeLessThanOrEqual(history[1].timestamp.getTime());
     expect(history[1].timestamp.getTime()).toBeLessThanOrEqual(history[2].timestamp.getTime());
+  });
+
+  it('rejects a transfer by an unauthorized role (ATTORNEY) with ROLE_NOT_PERMITTED', async () => {
+    const { exhibitId, deputyId, attorneyId } = fx;
+
+    // First-time assignment attempted BY an attorney — the gate must fire
+    // before any ledger write, regardless of the transfer being otherwise valid.
+    await expect(
+      recordCustodyTransfer({
+        exhibitId,
+        fromCustodianUserId: null,
+        toCustodianUserId: deputyId,
+        actorUserId: attorneyId,
+      }),
+    ).rejects.toBeInstanceOf(RoleNotPermittedError);
+
+    // The gate fires before any write — no CustodyCurrentState row was created.
+    const rowCount = await prisma.custodyCurrentState.count({ where: { exhibitId } });
+    expect(rowCount).toBe(0);
+    const eventCount = await prisma.exhibitEvent.count({
+      where: { exhibitId, eventType: 'CUSTODY_TRANSFER' },
+    });
+    expect(eventCount).toBe(0);
+  });
+
+  it('allows DEPUTY, CLERK, and ADMIN to record a transfer', async () => {
+    const { exhibitId, deputyId, clerkId, adminId } = fx;
+
+    // DEPUTY performs the first-time assignment (to self).
+    const first = await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: null,
+      toCustodianUserId: deputyId,
+      actorUserId: deputyId,
+    });
+    expect(first.custodyState.currentCustodianUserId).toBe(deputyId);
+
+    // CLERK transfers it onward (deputy → clerk).
+    const second = await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: deputyId,
+      toCustodianUserId: clerkId,
+      actorUserId: clerkId,
+    });
+    expect(second.custodyState.currentCustodianUserId).toBe(clerkId);
+
+    // ADMIN transfers it onward (clerk → admin).
+    const third = await recordCustodyTransfer({
+      exhibitId,
+      fromCustodianUserId: clerkId,
+      toCustodianUserId: adminId,
+      actorUserId: adminId,
+    });
+    expect(third.custodyState.currentCustodianUserId).toBe(adminId);
   });
 });
