@@ -47,6 +47,7 @@ describe('getCustodyByCustodian (F8) against a self-contained fixture case', () 
       exhibitLabel: `A-withCustodyA ${suffix}`,
       description: 'Exhibit with custodian A',
       offeringParty: 'PROSECUTION',
+      actorUserId: custodianAId,
     });
     exhibitAId = exA.id;
     await recordStatusChange({ exhibitId: exhibitAId, toStatus: 'MARKED', actorUserId: custodianAId });
@@ -63,6 +64,7 @@ describe('getCustodyByCustodian (F8) against a self-contained fixture case', () 
       exhibitLabel: `B-withCustodyB ${suffix}`,
       description: 'Exhibit with custodian B',
       offeringParty: 'DEFENSE',
+      actorUserId: custodianBId,
     });
     exhibitBId = exB.id;
     await recordStatusChange({ exhibitId: exhibitBId, toStatus: 'MARKED', actorUserId: custodianBId });
@@ -79,6 +81,7 @@ describe('getCustodyByCustodian (F8) against a self-contained fixture case', () 
       exhibitLabel: `C-noCustody ${suffix}`,
       description: 'Exhibit with no custodian of record',
       offeringParty: 'PLAINTIFF',
+      actorUserId: custodianAId,
     });
     exhibitNoCustodyId = exNone.id;
     await recordStatusChange({
@@ -95,6 +98,7 @@ describe('getCustodyByCustodian (F8) against a self-contained fixture case', () 
       description: 'A sealed exhibit — restricted visibility',
       offeringParty: 'PROSECUTION',
       isSealed: true,
+      actorUserId: custodianBId,
     });
     sealedExhibitId = sealed.id;
     await recordStatusChange({

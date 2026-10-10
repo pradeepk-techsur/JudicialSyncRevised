@@ -43,12 +43,19 @@ describe('GET /api/cases/:id/activity', () => {
       data: { caseId, name: 'Judge Route Fixture', role: 'JUDGE' },
     });
     const actorUserId = actor.id;
+    // F20 row 1 (09-SECURITY.md F-09-01): createExhibit now requires a
+    // DEPUTY/CLERK/ADMIN actorUserId — JUDGE remains the actor for
+    // recordStatusChange calls, unchanged.
+    const deputy = await prisma.user.create({
+      data: { caseId, name: 'Deputy Route Fixture', role: 'DEPUTY' },
+    });
 
     const visible = await createExhibit({
       caseId,
       exhibitLabel: `A-Visible ${suffix}`,
       description: 'An ordinary visible exhibit',
       offeringParty: 'DEFENSE',
+      actorUserId: deputy.id,
     });
     visibleExhibitId = visible.id;
     await recordStatusChange({ exhibitId: visibleExhibitId, toStatus: 'MARKED', actorUserId });
@@ -60,6 +67,7 @@ describe('GET /api/cases/:id/activity', () => {
       description: 'A sealed exhibit — restricted visibility',
       offeringParty: 'PROSECUTION',
       isSealed: true,
+      actorUserId: deputy.id,
     });
     const sealedResult = await recordStatusChange({
       exhibitId: sealed.id,

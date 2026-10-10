@@ -46,6 +46,7 @@ describe('GET /api/cases/:id/attention-feed', () => {
       exhibitLabel: `PEND-ROUTE-${suffix}`,
       description: 'unresolved objection, not admitted',
       offeringParty: 'PLAINTIFF',
+      actorUserId: deputy.id,
     });
     pendingExhibitId = pending.id;
     await recordStatusChange({ exhibitId: pendingExhibitId, toStatus: 'MARKED', actorUserId: deputy.id });

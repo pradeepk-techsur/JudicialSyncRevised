@@ -51,6 +51,12 @@ describe('getRecentActivity (F8) against a self-contained fixture case', () => {
       },
     });
     actorUserId = actor.id;
+    // F20 row 1 (09-SECURITY.md F-09-01): createExhibit now requires a
+    // DEPUTY/CLERK/ADMIN actorUserId — JUDGE remains the actor for
+    // recordStatusChange calls, unchanged.
+    const deputy = await prisma.user.create({
+      data: { caseId, name: 'Deputy Fixture', role: 'DEPUTY' },
+    });
 
     // A visible exhibit with ≥2 status events on the ledger (MARKED → OFFERED).
     const visible = await createExhibit({
@@ -58,6 +64,7 @@ describe('getRecentActivity (F8) against a self-contained fixture case', () => {
       exhibitLabel: `A-Visible ${suffix}`,
       description: 'An ordinary visible exhibit',
       offeringParty: 'DEFENSE',
+      actorUserId: deputy.id,
     });
     visibleExhibitId = visible.id;
     await recordStatusChange({ exhibitId: visibleExhibitId, toStatus: 'MARKED', actorUserId });
@@ -71,6 +78,7 @@ describe('getRecentActivity (F8) against a self-contained fixture case', () => {
       description: 'A sealed exhibit — restricted visibility',
       offeringParty: 'PROSECUTION',
       isSealed: true,
+      actorUserId: deputy.id,
     });
     sealedExhibitId = sealed.id;
     const sealedResult = await recordStatusChange({
@@ -190,6 +198,7 @@ describe('getStatusCounts (F8) against a hand-built fixture case', () => {
         exhibitLabel: `${n}-${suffix}`,
         description: 'marked',
         offeringParty: 'PROSECUTION',
+        actorUserId: deputy.id,
       });
       await recordStatusChange({ exhibitId: ex.id, toStatus: 'MARKED', actorUserId: deputy.id });
     }
@@ -200,6 +209,7 @@ describe('getStatusCounts (F8) against a hand-built fixture case', () => {
       exhibitLabel: `O1-${suffix}`,
       description: 'offered',
       offeringParty: 'DEFENSE',
+      actorUserId: deputy.id,
     });
     await recordStatusChange({ exhibitId: offered.id, toStatus: 'MARKED', actorUserId: deputy.id });
     await recordStatusChange({ exhibitId: offered.id, toStatus: 'OFFERED', actorUserId: deputy.id });
@@ -210,6 +220,7 @@ describe('getStatusCounts (F8) against a hand-built fixture case', () => {
       exhibitLabel: `A1-${suffix}`,
       description: 'admitted',
       offeringParty: 'PROSECUTION',
+      actorUserId: deputy.id,
     });
     await recordStatusChange({ exhibitId: admitted.id, toStatus: 'MARKED', actorUserId: deputy.id });
     await recordStatusChange({ exhibitId: admitted.id, toStatus: 'OFFERED', actorUserId: deputy.id });
@@ -228,6 +239,7 @@ describe('getStatusCounts (F8) against a hand-built fixture case', () => {
       description: 'sealed marked',
       offeringParty: 'PROSECUTION',
       isSealed: true,
+      actorUserId: deputy.id,
     });
     await recordStatusChange({ exhibitId: sealed.id, toStatus: 'MARKED', actorUserId: deputy.id });
 
@@ -237,6 +249,7 @@ describe('getStatusCounts (F8) against a hand-built fixture case', () => {
       exhibitLabel: `N1-${suffix}`,
       description: 'never statused',
       offeringParty: 'DEFENSE',
+      actorUserId: deputy.id,
     });
   });
 

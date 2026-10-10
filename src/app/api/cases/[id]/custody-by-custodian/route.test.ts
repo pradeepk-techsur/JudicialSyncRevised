@@ -50,6 +50,7 @@ describe('GET /api/cases/:id/custody-by-custodian', () => {
       exhibitLabel: `A-withCustody ${suffix}`,
       description: 'has a custodian',
       offeringParty: 'PROSECUTION',
+      actorUserId: custodianId,
     });
     exhibitWithCustodyId = withCustody.id;
     await recordStatusChange({
@@ -69,6 +70,7 @@ describe('GET /api/cases/:id/custody-by-custodian', () => {
       exhibitLabel: `B-noCustody ${suffix}`,
       description: 'no custodian of record',
       offeringParty: 'DEFENSE',
+      actorUserId: custodianId,
     });
     exhibitNoCustodyId = noCustody.id;
     await recordStatusChange({

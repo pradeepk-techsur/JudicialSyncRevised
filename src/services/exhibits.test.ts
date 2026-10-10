@@ -1,7 +1,18 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
-import { createExhibit, getExhibit, getExhibits, searchExhibits } from '@/services/exhibits';
-import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import {
+  createExhibit,
+  getExhibit,
+  getExhibits,
+  searchExhibits,
+} from '@/services/exhibits';
+import {
+  ConflictError,
+  NotFoundError,
+  RoleNotPermittedError,
+  UnprocessableError,
+  ValidationError,
+} from '@/lib/errors';
 import { DEMO_CASE_NUMBER } from '@/lib/constants';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
@@ -15,7 +26,12 @@ async function seedCase() {
       court: 'Test Court',
     },
   });
-  return { caseId: kase.id, suffix };
+  // F20 row 1 (09-SECURITY.md F-09-01): createExhibit now requires a
+  // DEPUTY/CLERK/ADMIN actorUserId — every fixture needs one in scope.
+  const deputy = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Deputy Fixture', role: 'DEPUTY' },
+  });
+  return { caseId: kase.id, suffix, deputyId: deputy.id };
 }
 
 describe('exhibits service', () => {
@@ -30,7 +46,7 @@ describe('exhibits service', () => {
   });
 
   it('createExhibit returns a row with a generated id; getExhibit and getExhibits find it', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const created = await createExhibit({
       caseId,
@@ -39,6 +55,7 @@ describe('exhibits service', () => {
       offeringParty: 'PROSECUTION',
       source: 'Evidence locker',
       associatedWitness: 'Det. Rivera',
+      actorUserId: deputyId,
     });
 
     expect(created.id).toBeTruthy();
@@ -67,7 +84,7 @@ describe('exhibits service', () => {
   });
 
   it('rejects a duplicate exhibitLabel within the same case with EXHIBIT_LABEL_CONFLICT', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
     const label = `Dup ${suffix}`;
 
     await createExhibit({
@@ -75,6 +92,7 @@ describe('exhibits service', () => {
       exhibitLabel: label,
       description: 'first',
       offeringParty: 'DEFENSE',
+      actorUserId: deputyId,
     });
 
     await expect(
@@ -83,6 +101,7 @@ describe('exhibits service', () => {
         exhibitLabel: label,
         description: 'second',
         offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
       }),
     ).rejects.toSatisfy(
       (err: unknown) => err instanceof ConflictError && err.code === 'EXHIBIT_LABEL_CONFLICT',
@@ -90,7 +109,7 @@ describe('exhibits service', () => {
   });
 
   it('rejects an offeringParty outside the enum before any DB write', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const before = await prisma.exhibit.count({ where: { caseId } });
 
@@ -101,6 +120,7 @@ describe('exhibits service', () => {
         description: 'bad party',
         // @ts-expect-error — intentionally invalid enum value to exercise validation.
         offeringParty: 'WITNESS',
+        actorUserId: deputyId,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
 
@@ -117,13 +137,14 @@ describe('exhibits service', () => {
     let sealedId: string;
 
     beforeEach(async () => {
-      const { caseId, suffix } = fixture;
+      const { caseId, suffix, deputyId } = fixture;
       const sealed = await createExhibit({
         caseId,
         exhibitLabel: `Sealed ${suffix}`,
         description: 'A sealed exhibit — restricted visibility',
         offeringParty: 'PROSECUTION',
         isSealed: true,
+        actorUserId: deputyId,
       });
       sealedId = sealed.id;
     });
@@ -150,12 +171,13 @@ describe('exhibits service', () => {
     let visibleId: string;
 
     beforeEach(async () => {
-      const { caseId, suffix } = fixture;
+      const { caseId, suffix, deputyId } = fixture;
       const visible = await createExhibit({
         caseId,
         exhibitLabel: `A-Visible ${suffix}`,
         description: 'An ordinary visible exhibit',
         offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
       });
       visibleId = visible.id;
       const sealed = await createExhibit({
@@ -164,6 +186,7 @@ describe('exhibits service', () => {
         description: 'A sealed exhibit — restricted visibility',
         offeringParty: 'PROSECUTION',
         isSealed: true,
+        actorUserId: deputyId,
       });
       sealedId = sealed.id;
     });
@@ -224,6 +247,7 @@ describe('exhibits service', () => {
         description: `exhibit ${label}`,
         offeringParty: 'PROSECUTION',
         isSealed,
+        actorUserId: fixture.deputyId,
       });
       return ex.id;
     }
@@ -376,6 +400,33 @@ describe('exhibits service', () => {
       });
       const row = await rowFor(exId);
       expect(row?.hasUnresolvedObjection).toBe(false);
+    });
+  });
+
+  // F20 row 1 / 09-SECURITY.md F-09-01 — createExhibit's new server-side role
+  // gate. Proves the ONE confirmed-exploitable write path the Phase 9 security
+  // audit found is now closed at the service layer.
+  describe('role gate (F20 row 1 / F-09-01)', () => {
+    it('rejects exhibit creation by a non-DEPUTY/CLERK/ADMIN actor (e.g. ATTORNEY) with ROLE_NOT_PERMITTED', async () => {
+      const { caseId, suffix } = fixture;
+      const attorney = await prisma.user.create({
+        data: { caseId, name: 'Attorney Fixture', role: 'ATTORNEY' },
+      });
+
+      const before = await prisma.exhibit.count({ where: { caseId } });
+
+      await expect(
+        createExhibit({
+          caseId,
+          exhibitLabel: `Blocked ${suffix}`,
+          description: 'should never be created',
+          offeringParty: 'PROSECUTION',
+          actorUserId: attorney.id,
+        }),
+      ).rejects.toBeInstanceOf(RoleNotPermittedError);
+
+      const after = await prisma.exhibit.count({ where: { caseId } });
+      expect(after).toBe(before);
     });
   });
 });
