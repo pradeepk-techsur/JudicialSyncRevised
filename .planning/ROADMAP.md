@@ -202,13 +202,38 @@ Plans:
 
 ### Phase 9: UI tickets and typography standard
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** The 16 tickets from the external UI/UX review of the develop build are each resolved as their own small, acceptance-criteria-verifiable change — the Command Center's ranked attention list is visible without scrolling and fed by a real 4-tier severity scale; every screen reads status/severity color from one shared token source; Recent Activity and the Case Workspace table read correctly and are properly labeled; discrepancy actions (Record ruling, Acknowledge) are safe, singular, and accountable; navigation and the demo role switcher are unambiguous; the Jury Package empty state guides the user and offers a read-only readiness preview to every role; the Assistant page is context-aware and removes the stray API-key control; and IBM Plex Sans/Mono actually load (verified via `document.fonts`) with every text element on a real Carbon type token — all without introducing a second styling system, a new dependency, or any data-model/API/role-permission change the tickets didn't explicitly call for.
+**Requirements**: F1, F7, F8, F9, F10, F11, F15, F20, F24 (revised), F25 (new) — see project_specs/PRD-JudicialSync.md and project_specs/FRD/ for full detail; not yet reflected in REQUIREMENTS.md pending a future sync pass
 **Depends on:** Phase 8
-**Plans:** 0 plans
+**Context:** Filed as a phase-sized change assessment from a 16-ticket external UI/UX review (T-01 through T-16) of the develop build, plus a typography/font-loading audit. The source document's own instruction is "one ticket at a time... one pull request per ticket" — plans should preserve that granularity rather than collapsing tickets together. Cross-cutting ground rules every plan must respect: reuse existing components/tokens (no second styling system); no data-model/API/role-permission change unless a ticket explicitly calls for one; derived values live in `services/*.ts` and the API response, never computed in a component; server-side `assertRole`/Permission Matrix remains the sole security boundary; no new dependency without explicit approval (`next/font` is built into Next.js, not a new dependency).
+**Success Criteria** (what must be TRUE):
+  1. The Command Center's ranked attention list (>=6 rows, exhibit/issue/severity/age/action columns, service-authoritative tier order, inline objection grounds) is visible without scrolling at 1440x900, with KPI tiles <=80px each linking to their filtered view.
+  2. Every screen (Command Center legend, Case Workspace pills/filters, Exhibit Detail header/history) renders exhibit status and attention-tier severity from one shared, AA-contrast-verified color+icon token source — no two statuses or tiers share a hue family, and a visual-regression/snapshot check proves consistency.
+  3. Recent Activity shows the latest 10 entries (+ "View all" link) with no nested scroll, consecutive same-exhibit transitions collapsed into one row, and one timestamp format (always including seconds) whose heading count and date-group label agree; the Case Workspace table's Jury Package column shows the correct one of four values (Included/Blocked/Not eligible/Not yet evaluated) for every row, with all filters visibly labeled and a "Showing X of Y" + Clear-filters readout replacing the old helper sentence.
+  4. Each exhibit's discrepancy banner has exactly one primary "Record ruling" button (JUDGE-only, scoped to its objection) and an Acknowledge action that requires a written justification and appears in history with user+time — no duplicate Record-ruling control anywhere else on the page.
+  5. The role switcher is labeled as a demo/test control (or environment-flag-gated out of production), shows a persistent "Active role: X — switch back" banner after switching, and every role-gated UI control refreshes immediately on switch without a page reload; navigation shows a clearly marked active item and the Pivota Assistant has exactly one entry point.
+  6. Opening the Jury Package Workspace before a package exists shows full-width guidance naming which roles can start one plus a read-only readiness preview (admitted exhibits and their blockers) visible to every role including a read-only Judge view — computed by a new pure-read service function, never by duplicating eligibility rules client-side.
+  7. `document.fonts` reports IBM Plex Sans (400/600) and IBM Plex Mono loaded exactly once on all 4 main pages; every text element's computed font-size/line-height matches a real Carbon type token (no off-scale values); tables/counts/timestamps use tabular figures; section titles follow one capitalization rule; and an automated accessibility check (axe) reports zero contrast failures on the 4 main pages.
+**Plans:** 17 plans (7 waves)
 
 Plans:
-- [ ] TBD (run /pivota_spec-plan-phase 9 to break down)
+- [ ] 09-01-PLAN.md — T-01: Command Center first-viewport rebuild (KPI tiles <=80px + attention DataTable + objection grounds)
+- [ ] 09-02-PLAN.md — T-02: Four distinct-hue severity tones (SeverityPill) with icons + AA contrast test
+- [ ] 09-03-PLAN.md — T-03: Unified status palette — StatusBadge as the single exported source, icons, cross-screen parity test
+- [ ] 09-04-PLAN.md — T-04: Recent Activity rework — no nested scroll, 10-row cap + View all, 60s grouping, one timestamp format
+- [ ] 09-05-PLAN.md — T-05: Discrepancy actions — Carbon Buttons, single Record-ruling entry point (ObjectionCard de-duplicated)
+- [ ] 09-06-PLAN.md — T-06: Case Workspace eligibility fix — 4-value NOT_YET_EVALUATED precedence in the service layer
+- [ ] 09-07-PLAN.md — T-07: Filter labels, From/To clarity, witness ComboBox, Showing X of Y + Clear filters
+- [ ] 09-08-PLAN.md — T-08: Active nav styling + icons; Jury Package badge count matches the page
+- [ ] 09-09-PLAN.md — T-09: Demo-labeled/env-gated role switcher + persistent Active-role banner
+- [ ] 09-10-PLAN.md — T-10/F25: Jury Package readiness preview (new pure-read service fn) + full-width empty state
+- [ ] 09-11-PLAN.md — T-11: Assistant rework — API-key investigation, exhibit-scoped prompts, viewport layout, 503 retry
+- [ ] 09-12-PLAN.md — T-16a: next/font IBM Plex Sans/Mono self-hosting + document.fonts verification
+- [ ] 09-13-PLAN.md — T-15: LiveIndicator (Live / Connection lost at 60s) replacing FreshnessIndicator
+- [ ] 09-14-PLAN.md — T-12: Contrast/text-size token audit + axe accessibility scan (4 main pages)
+- [ ] 09-15-PLAN.md — T-13: Surface/layer flattening — one card/panel chrome, no triple-nesting
+- [ ] 09-16-PLAN.md — T-14: Spacing/button-size standardization (Carbon spacing tokens, one button convention)
+- [ ] 09-17-PLAN.md — T-16b: Type-token correction sweep (heading-04/code-01, tabular-nums, capitalization rule)
 
 ## Progress
 
