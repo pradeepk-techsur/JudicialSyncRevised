@@ -12,6 +12,46 @@
   color: $text-secondary;
 }
 
+// Phase 9 (F09, T-06): `table-layout: fixed` so the browser honours the explicit
+// per-column widths below and lets the ONE column WITHOUT an explicit width
+// (Description) absorb the remaining table width. Carbon's plain Table does not
+// auto-flex columns the way a CSS grid would, so fixed layout + explicit widths
+// on every OTHER column is how Description becomes the single flexible, wrapping
+// column. width:100% keeps the table spanning main's content box.
+.table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+// Explicit per-column widths (every column EXCEPT Description). Description is
+// deliberately left WITHOUT a width so it absorbs the remainder.
+.colLabel {
+  width: 6rem;
+}
+.colParty {
+  width: 8rem;
+}
+.colStatus {
+  width: 7rem;
+}
+.colCustodian {
+  width: 9rem;
+}
+.colFlags {
+  width: 10rem;
+}
+.colJury {
+  width: 9rem;
+}
+.colChevron {
+  width: 2rem;
+}
+// Description header: no width (the flexible remainder column). The width is
+// intentionally unset; the cell content wraps via .descriptionCell below.
+.colDescription {
+  // left unset on purpose — the flexible column
+}
+
 // Clickable row affordance (was: cursor-pointer). The ENTIRE row is the hit
 // area (Y0-patterns.md "Fully Clickable List Row") — the <tr> carries the
 // onClick, so a click on any cell (content or padding whitespace) bubbles up
@@ -35,20 +75,22 @@
   }
 }
 
-// Truncated description cell (was: max-w-xs truncate). Phase 8 (08-11) narrows
-// this from 20rem to 10rem: the redesign adds the Flags, Jury Package, and
-// trailing-chevron columns, and at the old width the 8-column table overflowed
-// the app-shell <main>'s content box (main has 1.5rem padding on every side).
-// When the table's right edge spills past main's content box, a click in that
-// trailing strip lands on <main>, not the row — breaking F15's "entire row area
-// is clickable" guarantee at the far-right edge. The tighter description keeps
-// the whole table (and therefore the whole clickable row) inside main's content
-// box so every cell, edge-to-edge, stays clickable.
+// Description cell. Phase 9 (F09, T-06) reverses 08-11's fixed-narrow 10rem
+// truncation: with `.table` now `table-layout: fixed` and every OTHER column
+// carrying an explicit width (see .col* above), Description is the single
+// width-less column, so it absorbs the remaining table width instead of being
+// clamped to 10rem. The text now WRAPS (word-break for long unbroken tokens)
+// and is capped at 2 lines via line-clamp per the acceptance criterion ("wraps
+// to 2 lines if needed"), rather than truncating to a single ellipsised line.
+// vertical-align keeps the clamped block top-aligned with the other cells.
 .descriptionCell {
-  max-width: 10rem;
+  white-space: normal;
+  word-break: break-word;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  vertical-align: top;
 }
 
 // Rows "needing attention" get a pale tint (Screenshot 5). Applied alongside
@@ -90,6 +132,15 @@
 .juryBlocked {
   color: colors.$red-60;
   font-weight: 600;
+}
+
+// Phase 9 (F09 §Process step 4): "Not yet evaluated" — a neutral/muted treatment,
+// deliberately NOT weighted/colored like the structural "Not eligible" (which is
+// secondary text) and clearly distinct from the positive green "Included" and
+// the red "Blocked". Italic signals "transient/pending assessment", not verdict.
+.juryNotYetEvaluated {
+  color: $text-secondary;
+  font-style: italic;
 }
 
 // Trailing chevron affordance (VISUAL only — row-clickability already shipped in

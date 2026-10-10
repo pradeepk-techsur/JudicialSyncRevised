@@ -66,6 +66,11 @@ const JURY_PACKAGE_TEXT: Record<
   INCLUDED: { text: 'Included', className: 'juryIncluded' },
   NOT_ELIGIBLE: { text: 'Not eligible', className: 'juryNotEligible' },
   BLOCKED: { text: 'Blocked', className: 'juryBlocked' },
+  // Phase 9 (F09 §Process step 4): the corrected replacement for Phase 8's
+  // always-"Not eligible" behaviour — an admitted exhibit never run through
+  // package computation reads "Not yet evaluated" (neutral/grey), not the
+  // permanent "Not eligible" verdict.
+  NOT_YET_EVALUATED: { text: 'Not yet evaluated', className: 'juryNotYetEvaluated' },
 };
 
 export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
@@ -76,24 +81,28 @@ export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
   }
 
   return (
-    <Table>
+    <Table className={styles.table}>
       {/* Carbon naming note: `TableHead` is the <thead> wrapper (NOT shadcn's
           per-column <th>), and `TableHeader` is the per-column <th>. This is the
           one place Carbon's and shadcn's naming conventions invert — verified
           against @carbon/react's exports at execution time. */}
       <TableHead>
         <TableRow>
-          <TableHeader>Label</TableHeader>
-          <TableHeader>Description</TableHeader>
-          <TableHeader>Party</TableHeader>
-          <TableHeader>Status</TableHeader>
-          <TableHeader>Custodian</TableHeader>
-          <TableHeader>Flags</TableHeader>
-          <TableHeader>Jury Package</TableHeader>
+          {/* table-layout:fixed (see .table in the module SCSS): every column
+              EXCEPT Description carries an explicit width so Description is the
+              one flexible column that absorbs the remaining table width and
+              wraps rather than truncates (Phase 9 / F09 acceptance criterion). */}
+          <TableHeader className={styles.colLabel}>Label</TableHeader>
+          <TableHeader className={styles.colDescription}>Description</TableHeader>
+          <TableHeader className={styles.colParty}>Party</TableHeader>
+          <TableHeader className={styles.colStatus}>Status</TableHeader>
+          <TableHeader className={styles.colCustodian}>Custodian</TableHeader>
+          <TableHeader className={styles.colFlags}>Flags</TableHeader>
+          <TableHeader className={styles.colJury}>Jury Package</TableHeader>
           {/* Trailing chevron affordance column (confirms row-clickability per
               Screenshot 5 item 6 — already functional since 07-04; VISUAL
               addition only). Header has no visible label. */}
-          <TableHeader aria-hidden="true" />
+          <TableHeader className={styles.colChevron} aria-hidden="true" />
         </TableRow>
       </TableHead>
       <TableBody>
@@ -165,15 +174,25 @@ export function ExhibitTable({ rows }: { rows: ExhibitListRow[] }) {
                   </span>
                 )}
               </TableCell>
-              {/* Jury Package column: plain-language colored text, server-computed. */}
+              {/* Jury Package column: plain-language colored text, server-computed.
+                  Phase 9 (F09 §Process step 4): for a NON-admitted row we render
+                  NOTHING at all — an eligibility tag on an exhibit that hasn't
+                  even been offered is noise, not signal. The service still
+                  computes and returns the value (the "derived values stay
+                  server-side" principle); the UI simply suppresses it here. An
+                  ADMITTED row always renders its tag, including the Phase-9
+                  "Not yet evaluated" value that replaces Phase 8's incorrect
+                  always-"Not eligible". */}
               <TableCell>
-                <span
-                  className={styles[jury.className]}
-                  data-testid="jury-package-eligibility"
-                  data-eligibility={row.juryPackageEligibility}
-                >
-                  {jury.text}
-                </span>
+                {row.currentStatus === 'ADMITTED' && (
+                  <span
+                    className={styles[jury.className]}
+                    data-testid="jury-package-eligibility"
+                    data-eligibility={row.juryPackageEligibility}
+                  >
+                    {jury.text}
+                  </span>
+                )}
               </TableCell>
               {/* Trailing chevron affordance (VISUAL only; decorative). */}
               <TableCell className={styles.chevronCell}>

@@ -20,6 +20,12 @@ const ELIGIBILITY_LABEL: Record<
   INCLUDED: 'Included',
   BLOCKED: 'Blocked',
   NOT_ELIGIBLE: 'Not eligible',
+  // Phase 9 (F09): the 4th value. The backend's loadJuryEligibilityByExhibit now
+  // returns NOT_YET_EVALUATED for an exhibit with no package member row; this
+  // card renders whatever checklist.eligibility contains, so the label+style
+  // entry is all that's needed for it to surface here (without it the value would
+  // fall through to undefined).
+  NOT_YET_EVALUATED: 'Not yet evaluated',
 };
 
 // A positive "Included" verdict reads oddly through SeverityPill's severity
