@@ -26,3 +26,28 @@
 
 ## 09-20 out-of-scope discovery (shared working tree)
 - The shared working tree carries uncommitted sibling 09-18 (F20 `POST /api/exhibits` role gate, F-09-01 fix) in-flight work in `src/services/exhibits.ts` — a new required `actorUserId: string` field added to `createExhibit`'s input type, matching 09-18-PLAN.md's file set exactly (`src/services/exhibits.ts`, `src/app/api/exhibits/route.ts`, `src/data/seed.ts`, plus 6 test files) — but the sibling hasn't yet landed the corresponding test-fixture updates, so `tsc --noEmit`/`npm run build` fail on ~15 `actorUserId is missing` errors across `exhibits.test.ts`/`activity.test.ts`/`attentionFeed.test.ts`/`custodyByCustodian.test.ts`/two route.test.ts files — none of which are in 09-20's file set. Confirmed NOT caused by 09-20: none of 09-20's touched files (`Header.tsx`, `Header.module.scss`, `ActiveRoleBanner.tsx`/`.module.scss`, `e2e/app-shell.spec.ts`) appear anywhere in the error list; `npx tsc --noEmit 2>&1 | grep -iE "ActiveRoleBanner|Header\.tsx|Header\.module"` returns empty. Not fixed (out of scope per SCOPE BOUNDARY, same recurring shared-tree hazard documented by every prior Phase 9 plan above). Only 09-20's own files staged/committed; 09-18's in-flight `exhibits.ts` edit left untouched for its own plan to land.
+
+## 09-19 execution (shared-working-tree hazard, out of scope)
+
+Date: 2026-10-10
+
+While executing 09-19 (ExhibitTable column-width CSS fix), `npx tsc --noEmit` and
+`npm run build` both failed with ~10-15 `TS2345: Property 'actorUserId' is missing`
+errors across `src/services/*.test.ts` and `src/app/api/**/*.test.ts`.
+
+Root cause: sibling plan 09-18 (F-09-01 security gap-closure — adds a required
+`actorUserId` param to `createExhibit`) is mid-edit in this shared working tree.
+`src/services/exhibits.ts` already requires `actorUserId`, but several sibling
+test files (`attentionFeed.test.ts`, `custodyByCustodian.test.ts`,
+`activity.test.ts`, the two route `.test.ts` files) have not yet been updated to
+pass it — 09-18's own `exhibits.test.ts` fixture update is present, confirming
+the plan is actively in flight, not abandoned.
+
+Verified NOT caused by 09-19: `git stash push -- src/components/case/ExhibitTable.module.scss`
+(09-19's only changed file) still reproduces the identical error set/count —
+09-19's CSS-only change contributes zero tsc/build errors on its own.
+
+Per the deviation-rules scope boundary ("Only auto-fix issues DIRECTLY caused by
+the current task's changes... out-of-scope discoveries logged, not fixed"), this
+is sibling plan 09-18's own unfinished work and is left for 09-18 to complete and
+commit. Not fixed here.

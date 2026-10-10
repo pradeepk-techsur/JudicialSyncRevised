@@ -41,7 +41,9 @@
   width: 9rem;
 }
 .colFlags {
-  width: 10rem;
+  width: 13rem; // was 10rem — too narrow for "Ex parte · restricted" (~165px
+  // measured live), causing the pill to visually overflow into the adjacent
+  // Jury Package column (the "rows are broken" UAT-6 gap-closure defect).
 }
 .colJury {
   width: 9rem;
@@ -151,6 +153,22 @@
 // action.
 .chevronCell {
   text-align: right;
+  width: 2rem;
+}
+
+// Carbon's own `.cds--data-table th:last-of-type { inline-size: auto }` rule
+// (vendored @carbon/styles data-table partial) overrides a single-class
+// `.colChevron` selector on the table's actual last column, because it
+// targets :last-of-type specifically — this silently gave BOTH the chevron
+// column AND Description "auto" width under table-layout:fixed, splitting
+// the remainder ~50/50 instead of letting Description absorb it all (the
+// 09-06 defect this fixes, confirmed via live Playwright measurement: the
+// Description column was collapsing to the same ~96px as the fixed 6rem
+// Label column). Compound the selector with the table's own class to win
+// without reaching for a global :last-of-type override or !important.
+.table :global(.cds--data-table) th:last-of-type.colChevron,
+.table :global(.cds--data-table) td:last-of-type.chevronCell {
+  inline-size: 2rem;
   width: 2rem;
 }
 
