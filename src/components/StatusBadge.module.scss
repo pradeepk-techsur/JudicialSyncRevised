@@ -1,4 +1,5 @@
 @use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
 @use '../styles/statusColors' as status;
 
 // Small colored status dot rendered INSIDE the Carbon Tag, preserving the
@@ -52,11 +53,16 @@
 
 // Plain-text "not yet entered" branch — a genuinely absent status is not a
 // status color, so it is not a Tag. Muted text + muted dot.
+// T-12 (09-14): the muted "not yet entered" sub-label is free-flowing text, not
+// a tag/label element, so it reads through Carbon's text-secondary token (==
+// $gray-70 #525252 in the White theme, identical pixels, 7.2:1 on $white — AA)
+// rather than a raw palette value, matching the token-purity rule applied to
+// every other timestamp/helper/sub-label text node this phase audited.
 .nullBadge {
   display: inline-flex;
   align-items: center;
   font-size: 0.875rem;
-  color: colors.$gray-70;
+  color: $text-secondary;
 }
 
 .statusDotMuted {
