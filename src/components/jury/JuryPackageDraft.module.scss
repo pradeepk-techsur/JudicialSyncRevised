@@ -22,12 +22,16 @@
 .summary {
   margin-top: $spacing-02;
   @include type-style('body-compact-01');
+  // Tabular figures so the clean/total counts in the summary line align.
+  font-variant-numeric: tabular-nums;
   color: $text-secondary;
 }
 
 // Freshness label — tertiary, small type, muted; pulsing-free (static label).
 .freshness {
   @include type-style('label-01');
+  // Tabular figures so the "updated Ns ago" numerals use fixed-width digits.
+  font-variant-numeric: tabular-nums;
   color: $text-helper;
 }
 
@@ -37,6 +41,8 @@
 
 .clean {
   @include type-style('label-01');
+  // Tabular figures so the clean-count summary numerals align.
+  font-variant-numeric: tabular-nums;
   color: $text-helper;
 }
 

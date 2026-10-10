@@ -1101,7 +1101,7 @@ test.describe('Trial Command Center', () => {
 
     await expect(page).toHaveURL(/\/activity$/);
     await expect(page.getByTestId('activity-page')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Activity History' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activity history' })).toBeVisible();
     await expect(page.getByTestId('activity-full-list')).toBeVisible();
 
     // Full, uncapped: 12 singles + 1 merged run = 13 units (vs the panel's 10).

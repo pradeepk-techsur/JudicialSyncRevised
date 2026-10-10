@@ -40,6 +40,8 @@
   @include type-style('heading-03');
   color: $text-primary;
   line-height: 1.1;
+  // Tabular figures so the stat numerals (counts) use fixed-width digits.
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 

@@ -32,7 +32,7 @@ export function ObjectionsPanel() {
       aria-label="Unresolved objections"
     >
       <h2 className={styles.heading}>
-        Unresolved Objections{' '}
+        Unresolved objections{' '}
         <span className={styles.count}>({objections.length})</span>
       </h2>
 

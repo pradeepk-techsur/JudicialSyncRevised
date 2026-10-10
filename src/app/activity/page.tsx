@@ -71,7 +71,7 @@ export default function ActivityPage() {
         ‹ Command Center
       </Link>
 
-      <h1 className={styles.title}>Activity History</h1>
+      <h1 className={styles.title}>Activity history</h1>
       <p className={styles.subtitle}>The complete record of trial activity for this case.</p>
 
       {isLoading && (

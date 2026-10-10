@@ -38,7 +38,7 @@ export function CustodyAtAGlancePanel() {
 
   return (
     <Tile data-testid="custody-at-a-glance" aria-label="Custody at a glance">
-      <h2 className={styles.heading}>Custody at a Glance</h2>
+      <h2 className={styles.heading}>Custody at a glance</h2>
 
       {isLoading && (
         <div aria-hidden="true">

@@ -21,6 +21,9 @@
 .table {
   table-layout: fixed;
   width: 100%;
+  // Tabular figures so numeric/aligned content (counts, any numerals in cells)
+  // uses fixed-width digits, keeping columns visually aligned.
+  font-variant-numeric: tabular-nums;
 }
 
 // Explicit per-column widths (every column EXCEPT Description). Description is

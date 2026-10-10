@@ -211,4 +211,52 @@ test.describe('T-16 typography: IBM Plex self-hosted via next/font, loaded once'
     await page.goto('/jury-package');
     await assertPlexLoadedOnce(page);
   });
+
+  // 09-17 (T-16 second half): prove the pipeline is connected END TO END, not
+  // just independently loaded. The ExhibitTag chip now routes its font-family at
+  // the var(--font-ibm-plex-mono) CSS variable from 09-12's src/lib/fonts.ts.
+  // Loading the FontFace (asserted above) and a component REFERENCING it are two
+  // separate things — this proves a rendered ExhibitTag's COMPUTED font-family
+  // actually resolves to the self-hosted IBM Plex Mono family rather than falling
+  // back to a system mono font, closing the load → variable → consumption loop.
+  test('a rendered ExhibitTag chip computes to the self-hosted IBM Plex Mono font, end to end', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+
+    // At least one exhibit label chip is on the Case Workspace table.
+    const chip = page.getByTestId('exhibit-tag').first();
+    await expect(chip).toBeVisible();
+
+    // Force lazy @font-face resolution before measuring.
+    await page.evaluate(async () => {
+      await (document as Document).fonts.ready;
+    });
+
+    const computed = await chip.evaluate((el) => {
+      const family = getComputedStyle(el as Element).fontFamily;
+      // Probe with the computed stack's FIRST family (the var-substituted value)
+      // at the chip's own weight — if it matches, the chip is painting the real
+      // self-hosted font, not a fallback.
+      const firstFamily = family.split(',')[0].trim();
+      const ok = (document as Document).fonts.check(`600 12px ${firstFamily}`);
+      return { family, firstFamily, ok };
+    });
+
+    // next/font generates a hashed family name that still contains the human
+    // "IBM Plex Mono" identifier (e.g. "__IBM_Plex_Mono_abc123"); the raw literal
+    // "IBM Plex Mono" is the declared @font-face family either way. Accept both so
+    // the assertion is robust across next/font's dev vs prod naming.
+    expect(
+      /IBM.?Plex.?Mono/i.test(computed.family),
+      `ExhibitTag computed font-family resolves to IBM Plex Mono (got: ${computed.family})`,
+    ).toBe(true);
+
+    // The resolved family is an actually-matched FontFace, not an unmatched name
+    // that silently falls back to a system mono font.
+    expect(
+      computed.ok,
+      `ExhibitTag's resolved font (${computed.firstFamily}) is a matched FontFace`,
+    ).toBe(true);
+  });
 });

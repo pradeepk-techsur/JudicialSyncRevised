@@ -114,6 +114,8 @@
 .time {
   flex-shrink: 0;
   @include type-style('label-01');
+  // Tabular figures so the seconds-precise timestamps align column-to-column.
+  font-variant-numeric: tabular-nums;
   color: $text-helper;
 }
 

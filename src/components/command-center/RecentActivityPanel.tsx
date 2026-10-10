@@ -276,7 +276,7 @@ export function RecentActivityPanel({
       aria-label="Recent activity"
     >
       <h2 className={styles.heading}>
-        Recent Activity{' '}
+        Recent activity{' '}
         <span className={styles.count}>
           ({entries.length}{' '}
           {windowDayWord(entries[0]?.recordedAt ?? new Date().toISOString())})
