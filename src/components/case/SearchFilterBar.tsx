@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Dropdown, TextInput, DismissibleTag, Button } from '@carbon/react';
+import { Search, Dropdown, ComboBox, TextInput, DismissibleTag, Button } from '@carbon/react';
 import type { ExhibitFilters } from '@/hooks/useExhibitList';
 import styles from './SearchFilterBar.module.scss';
 
@@ -16,14 +16,17 @@ const STATUS_OPTIONS = [
 export function SearchFilterBar({
   filters,
   onChange,
+  witnessOptions,
 }: {
   filters: ExhibitFilters;
   onChange: (next: ExhibitFilters) => void;
+  // Distinct `associatedWitness` values from the already-loaded exhibit list
+  // (derived in case/page.tsx). Turns the former free-text witness field into a
+  // searchable select bound to real seeded values — the ComboBox can only submit
+  // a value already present in the list (threat T-09-11), narrowing the
+  // searchExhibits validation surface rather than widening it.
+  witnessOptions: string[];
 }) {
-  const hasAny = Boolean(
-    filters.keyword || filters.status || filters.witness || filters.dateFrom || filters.dateTo,
-  );
-
   const chips = (Object.entries(filters) as [keyof ExhibitFilters, string | undefined][]).filter(
     ([, v]) => v,
   );
@@ -31,29 +34,37 @@ export function SearchFilterBar({
   return (
     <div className={styles.bar}>
       <div className={styles.row}>
-        <Search
-          id="exhibit-keyword-search"
-          labelText="Keyword search"
-          aria-label="Keyword search"
-          placeholder="Search exhibits…"
-          size="md"
-          value={filters.keyword ?? ''}
-          onChange={(e) => onChange({ ...filters, keyword: e.target.value || undefined })}
-          onClear={() => onChange({ ...filters, keyword: undefined })}
-          className={styles.searchField}
-        />
+        {/* Carbon's Search renders `labelText` as a visually-hidden <label> even
+            in non-compact mode, so a sighted user never sees it. Pair it with a
+            visible <span> label above the control (matching the label-above
+            pattern Dropdown/ComboBox/date inputs now use), while keeping the
+            existing aria-label/placeholder behaviour intact. */}
+        <div className={styles.field}>
+          <span className={styles.fieldLabel} id="exhibit-keyword-search-label">
+            Search
+          </span>
+          <Search
+            id="exhibit-keyword-search"
+            labelText="Keyword search"
+            aria-label="Keyword search"
+            placeholder="Search exhibits…"
+            size="md"
+            value={filters.keyword ?? ''}
+            onChange={(e) => onChange({ ...filters, keyword: e.target.value || undefined })}
+            onClear={() => onChange({ ...filters, keyword: undefined })}
+            className={styles.searchField}
+          />
+        </div>
         <Dropdown
           id="exhibit-status-filter"
-          // The toggle BUTTON carries the "Filter by status" accessible name via
-          // aria-label (getByLabel resolves to the combobox). titleText must NOT
-          // also be "Filter by status": Carbon labels the inner <ul role=listbox>
-          // via aria-labelledby→titleText, so a matching titleText would make
-          // getByLabel strict-mode-collide with the listbox. Keep titleText as a
-          // distinct hidden label ("Status").
+          // `hideLabel` removed: Carbon's Dropdown now renders titleText="Status"
+          // as a real VISIBLE label above the control. aria-label is dropped — a
+          // visible titleText already provides the accessible name, and keeping a
+          // differing aria-label would make Playwright's getByText('Status')/the
+          // accessible-name both resolve, risking a strict-mode collision. The
+          // control is addressable by its visible "Status" label.
           titleText="Status"
-          hideLabel
-          aria-label="Filter by status"
-          label="Status"
+          label="Select…"
           items={STATUS_OPTIONS as unknown as string[]}
           itemToString={(item) => item ?? ''}
           selectedItem={filters.status ?? null}
@@ -64,40 +75,41 @@ export function SearchFilterBar({
             onChange({ ...filters, status: selectedItem || undefined })
           }
         />
-        <TextInput
+        <ComboBox
           id="exhibit-witness-filter"
-          labelText="Filter by witness"
-          hideLabel
-          aria-label="Filter by witness"
-          placeholder="Witness"
-          value={filters.witness ?? ''}
-          onChange={(e) => onChange({ ...filters, witness: e.target.value || undefined })}
+          // Searchable single-select built from the loaded list's distinct
+          // witness values. Visible titleText="Witness" (no hideLabel). The
+          // selected value flows into ExhibitFilters.witness exactly as the old
+          // free-text input did, so searchExhibits query-param parsing is
+          // unchanged downstream.
+          titleText="Witness"
+          placeholder="Any witness"
+          items={witnessOptions}
+          itemToString={(item) => item ?? ''}
+          selectedItem={filters.witness ?? null}
+          onChange={({ selectedItem }) =>
+            onChange({ ...filters, witness: selectedItem ?? undefined })
+          }
           className={styles.witnessField}
         />
         <TextInput
           id="exhibit-date-from"
-          labelText="Date from"
-          hideLabel
-          aria-label="Date from"
+          // Visible label — shortened to "From" (clearer than "Date from" sitting
+          // beside "Date to"). Native type="date" already localizes its own
+          // picker UI, so no placeholder formatting is needed.
+          labelText="From"
           type="date"
           value={filters.dateFrom ?? ''}
           onChange={(e) => onChange({ ...filters, dateFrom: e.target.value || undefined })}
         />
         <TextInput
           id="exhibit-date-to"
-          labelText="Date to"
-          hideLabel
-          aria-label="Date to"
+          labelText="To"
           type="date"
           value={filters.dateTo ?? ''}
           onChange={(e) => onChange({ ...filters, dateTo: e.target.value || undefined })}
         />
       </div>
-      {!hasAny && (
-        <p className={styles.hint}>
-          Enter at least one filter above to search — showing the full list.
-        </p>
-      )}
       {chips.length > 0 && (
         <div className={styles.row}>
           <span className={styles.hint}>Active filters:</span>
