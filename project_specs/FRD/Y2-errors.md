@@ -22,6 +22,8 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 | 409 | STATUS_FINALIZED | "Exhibit status is final and cannot be changed" | Not retryable — terminal state is by design |
 | 409 | STATUS_CONFLICT | "Exhibit status has changed since this view was loaded — refresh and retry" | Refetch current state, then retry the transition |
 
+**Note:** Phase 9's unified status-color and attention-tier design-token standard (`StatusBadge` component, F1) introduces no new error codes — it is a client-side component/token consolidation only; see `F01-exhibit-status-display.md` §Process step 8.
+
 ### Objection & Ruling Errors (F2)
 
 | HTTP Status | Error Code | Message | Retry Guidance |
@@ -137,7 +139,24 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 
 **Note:** Phase 8's `GET /api/cases/:id/custody-by-custodian` (F8, new) introduces no new error code — it reuses the existing `COMMAND_CENTER_LOAD_FAILED` (500) for any underlying query failure. The `statusCounts` addition to `GET /api/cases/:id/activity` (F8) introduces no new error code either, since it is computed from data the endpoint already fetches.
 
-**Note:** F24 (Write-Action UI Coverage — Record Ruling & Transfer Custody) introduces no new error codes. Every error it surfaces is an existing code from F02 (`OBJECTION_ALREADY_RESOLVED`, `OBJECTION_NOT_FOUND`), F03 (`CUSTODY_CHAIN_BROKEN`, `INVALID_CUSTODIAN`, `NO_OP_TRANSFER`), F19 (`CUSTODY_TRANSFER_ALREADY_PENDING`, `CUSTODY_CONFIRMATION_NOT_PENDING`, `CUSTODY_CONFIRM_WRONG_USER`, `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION`), and F20 (`ROLE_NOT_PERMITTED`), all unchanged — see `F24-write-action-ui-coverage.md` §Error States for the consolidated list as surfaced through this feature's UI.
+**Note:** Phase 9's `objectionGrounds` addition to `GET /api/cases/:id/attention-feed` (F8) introduces no new error code — it is a purely additive, read-time field with no new rejection path; see `F08-trial-command-center-screen.md` §Process step 9.
+
+### Jury Package Eligibility Value Addition (F9, added Phase 9)
+
+**Note:** The `NOT_YET_EVALUATED` eligibility value added to `GET /api/cases/:id/exhibits`, `GET /api/cases/:id/exhibits/search`, and `GET /api/exhibits/:id/history`'s `juryPackageChecklist.eligibility` (F9/F10) introduces no new error code. It is a TypeScript union-type extension to an existing field, computed at read time — see `F09-case-workspace-screen.md` §Process steps 3–4 and §Validation for the three-surface consistency requirement.
+
+### Jury Package Readiness Preview Errors (F25, added Phase 9)
+
+| HTTP Status | Error Code | Message | Retry Guidance |
+|---|---|---|---|
+| 404 | CASE_NOT_FOUND | "No case found with the given ID" | Verify the case ID *(reuses the existing code, unchanged)* |
+| 500 | JURY_PACKAGE_PREVIEW_LOAD_FAILED | "Unable to load the jury package readiness preview — please retry" | Transient; retry |
+
+**Note:** This read-only route has no `ROLE_NOT_PERMITTED` gate by design — every role, including `JUDGE`, receives a `200` for a valid `caseId`; see `F25-jury-package-readiness-preview.md` §Validation.
+
+**Note:** Phase 9's removal of the auto-create-on-view behavior from `GET /api/cases/:id/jury-package` (F11) introduces no new error code — the "no package yet" case is a normal `200` response with `juryPackage: null`, not an error; see `F11-jury-package-workspace-screen.md` §Process step 10.
+
+**Note:** F24 (Write-Action UI Coverage — Record Ruling & Transfer Custody) introduces no new error codes. Every error it surfaces is an existing code from F02 (`OBJECTION_ALREADY_RESOLVED`, `OBJECTION_NOT_FOUND`), F03 (`CUSTODY_CHAIN_BROKEN`, `INVALID_CUSTODIAN`, `NO_OP_TRANSFER`), F06/F14 (`JUSTIFICATION_REQUIRED`), F19 (`CUSTODY_TRANSFER_ALREADY_PENDING`, `CUSTODY_CONFIRMATION_NOT_PENDING`, `CUSTODY_CONFIRM_WRONG_USER`, `CUSTODY_TRANSFER_REQUIRES_CONFIRMATION`), and F20 (`ROLE_NOT_PERMITTED`), all unchanged — see `F24-write-action-ui-coverage.md` §Error States for the consolidated list as surfaced through this feature's UI. **Phase 9 confirms this remains true:** the discrepancy-banner button consolidation (single "Record ruling" entry point; confirmed "Acknowledge"-requires-justification contract) is a UI-only change and introduces no new error code.
 
 ### Versioned Jury Package Export Errors (F23)
 
@@ -155,6 +174,8 @@ Consolidated cross-feature error scenarios. Per-feature chunks list only the err
 | 503 | ASSISTANT_UNAVAILABLE | "The assistant is temporarily unavailable — please try again" | Retry after a short delay; check LLM provider status |
 | 404 | CONVERSATION_NOT_FOUND | "No conversation found with the given ID" | Verify the conversation ID |
 | — (no HTTP error; model behavior) | — | "I don't have that information" (Decline Response) | Not an error — a required, valid response path when no tool result supports an answer. **Must never be treated as a bug to "fix" by relaxing citation requirements.** |
+
+**Note:** Phase 9's context-aware example prompts (`contextExhibitId`, F7) introduce no new error code — an unresolvable or unauthorized context exhibit silently falls back to the standard example set; see `F07-pivota-assistant.md` §Validation.
 
 ### Authorization / Visibility (Cross-Cutting)
 

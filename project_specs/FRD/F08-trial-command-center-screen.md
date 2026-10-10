@@ -30,6 +30,7 @@
 6. The client renders five ambient panels/widgets: "Recent Activity", per-status count cards + distribution bar, "Custody at a Glance", "Needs Your Attention" (with inline actions), and the Jury Package summary widget, plus the existing "Discrepancies" indicator.
 7. The client polls all underlying endpoints on the existing fixed interval (3–5 seconds, `Y3-integrations.md` §Live Sync) so a status change, ruling, or custody transfer recorded anywhere — including via this screen's own inline actions (F24) — appears across every open screen without manual refresh.
 8. Every panel on this screen except the attention feed's inline actions remains strictly read-only, exactly as Phase 5 established; a "view full details" link-through to F9/F10/F11 is the only other interaction any panel offers.
+9. **(Phase 9) Objection grounds inline:** `getAttentionFeed`'s `HIGH` and `PENDING` tier entries (§Process step 4, both objection-scoped) additionally populate `objectionGrounds` — the associated `ObjectionCurrentState.grounds` value for that entry's `objectionId` — so the dense attention-feed DataTable can render why the item is flagged directly on the row, with no extra click-through. `objectionGrounds` is `null` for `CRITICAL` and `MEDIUM` tier entries, which are not tied to any single objection thread. This is an additive, read-time field only — the grounds value is already available from the same `ObjectionCurrentState` row the tier/`objectionId` computation already reads, so no new query is introduced — and it does not alter tier precedence, sort order, or any of the four rule conditions in step 4. The service's tier ordering remains authoritative; the DataTable renders rows in the exact order returned, never re-sorting independently (including never sorting by `objectionGrounds` text).
 
 **Inputs:**
 - `caseId` (string/UUID, required, from session)
@@ -41,13 +42,14 @@
 - `statusCounts`: `Record<ExhibitStatus, number>` — new, additive field on the existing activity response
 - `unresolvedObjections[]`, `discrepancies[]`: per F2/F6 output shapes, unchanged
 - `custodyByCustodian[]`: `{ custodianUserId, custodianName, exhibits: Array<{ exhibitId, exhibitLabel, currentStatus }>, pendingTransfersIn: Array<{ exhibitId, exhibitLabel, proposedAt }> }` — new
-- `attentionFeed[]`: `{ id, tier: 'CRITICAL'|'HIGH'|'PENDING'|'MEDIUM', ruleCode, exhibitId, exhibitLabel, objectionId?, detectedAt, summary, availableAction: 'RECORD_RULING'|'REMOVE_FROM_PACKAGE'|'TRANSFER_CUSTODY'|null }` — new; `availableAction` is `null` only for the `CRITICAL` tier's link-through case (§Process step 4), never for `HIGH`/`PENDING`/`MEDIUM`
+- `attentionFeed[]`: `{ id, tier: 'CRITICAL'|'HIGH'|'PENDING'|'MEDIUM', ruleCode, exhibitId, exhibitLabel, objectionId?, objectionGrounds: string | null, detectedAt, summary, availableAction: 'RECORD_RULING'|'REMOVE_FROM_PACKAGE'|'TRANSFER_CUSTODY'|null }` — new; `availableAction` is `null` only for the `CRITICAL` tier's link-through case (§Process step 4), never for `HIGH`/`PENDING`/`MEDIUM`. `objectionGrounds` *(added Phase 9)* is non-null only for `HIGH`/`PENDING` tier entries (§Process step 9); it is `null` for `CRITICAL`/`MEDIUM` entries, which have no associated `objectionId`.
 
 **Validation:**
 - This screen issues no write requests of its own beyond the two inline actions wired up by F24 — every other panel's validation rules live entirely in the underlying F1/F2/F3/F6/F13 service functions it calls
 - `since`, if supplied, must be a valid ISO 8601 datetime not in the future (unchanged)
 - An objection thread must never be counted in both the `HIGH` and `PENDING` attention-feed tiers simultaneously (§Process step 4) — the exhibit's `currentStatus` at evaluation time is the sole disambiguator
 - An inline action rendered on an attention-feed entry must resolve to the exact same server-side endpoint and validation F24 specifies — this screen introduces no parallel or abbreviated validation path
+- *(Phase 9)* `objectionGrounds` must be `null` for any entry whose tier is `CRITICAL` or `MEDIUM` (§Process step 9) — it is populated only when the entry carries a specific `objectionId` (`HIGH`/`PENDING` tiers). The dense attention-feed DataTable must render entries in the exact service-returned order (tier precedence, then newest-first within tier per step 5) regardless of whether `objectionGrounds` is present — no client-side re-sort keyed on grounds text or any other field
 
 **Error States:**
 | Scenario | HTTP Status | Error Code | Message |
@@ -58,6 +60,6 @@
 | `getAttentionFeed` query failure | 500 | ATTENTION_FEED_LOAD_FAILED | "Unable to load the attention feed — please retry" |
 | Inline action (Record Ruling / Transfer Custody) failure | — | — | *(see `F24-write-action-ui-coverage.md` §Error States — unchanged from F02/F03/F19/F20)* |
 
-**API Surface (this feature):** see `Y1-api.md` §Command Center for `GET /api/cases/:id/activity` (amended: `statusCounts` added), `GET /api/cases/:id/custody-by-custodian` (new), `GET /api/cases/:id/attention-feed` (new). Also composes `GET /api/cases/:id/objections?status=unresolved` (F2) and `GET /api/cases/:id/discrepancies` (F6). Inline actions invoke F24's unchanged endpoints.
+**API Surface (this feature):** see `Y1-api.md` §Command Center for `GET /api/cases/:id/activity` (amended: `statusCounts` added), `GET /api/cases/:id/custody-by-custodian` (new), `GET /api/cases/:id/attention-feed` (amended Phase 9: `objectionGrounds` added to each entry — see §Process step 9). Also composes `GET /api/cases/:id/objections?status=unresolved` (F2) and `GET /api/cases/:id/discrepancies` (F6). Inline actions invoke F24's unchanged endpoints. The Phase 9 `objectionGrounds` addition introduces no new error code — it is a purely additive read-time field with no new rejection path.
 
 **Schema Surface (this feature):** read-only against `ExhibitEvent`, `ExhibitCurrentState`, `ObjectionCurrentState`, `CustodyCurrentState`, `DiscrepancyFlag`, `JuryPackageExhibit` — see `Y0-schema.md`. Introduces no new tables or fields; `getCustodyByCustodian` and `getAttentionFeed` are new read-only aggregation functions over existing projections, not new schema.

@@ -13,6 +13,7 @@
 - Citation-enforcing system prompt (cite-or-decline, no free-generation fallback for factual claims)
 - Role-scoped tool execution identical to UI role-based visibility rules
 - Conversation and citation persistence for audit/replay
+- *(Phase 9)* Context-aware example/suggested-question prompts — when the assistant is opened with an optional exhibit-context parameter (e.g., via F10's "Ask Pivota about {exhibitLabel}" header action), the chip set references that specific exhibit's label (e.g., "Why is P-7 flagged?", "What happened to P-7?") instead of the case-wide generic example set F15 already sources from real `exhibitLabel` values
 
 **Tool Set:**
 | Tool Name | Wraps Service Function | Purpose |
@@ -28,6 +29,7 @@
 
 **Process:**
 1. An authorized user submits a natural-language question via the chat panel (`useChat`), tagged with their `userId`/`role` from the active session (role switcher, per PROJECT.md scope).
+1a. **(Phase 9) Context-aware example prompts:** if the assistant panel was opened with a `contextExhibitId` (carried as client-side route/URL state, e.g., from F10's "Ask Pivota about {exhibitLabel}" header action), the chip set of suggested questions is generated referencing that specific exhibit's label and known state (e.g., "Why is P-7 flagged?" when the exhibit has an open discrepancy, "What happened to P-7?" generically) rather than the standard case-wide example set F15 already sources from real `exhibitLabel` values. This selection happens entirely client-side against already-loaded exhibit data (the same `getExhibits` result F15's fix relies on) — no new endpoint, tool, or query is introduced for this purpose, and `contextExhibitId` is never sent to or persisted by `POST /api/assistant/chat` (it governs only which example chips render, not the chat request itself).
 2. The server-side route handler calls `streamText` with the fixed tool set, the user's message, and a system prompt (see §System Prompt Requirements below) including the requesting user's role.
 3. The model selects and calls one or more tools; each tool wrapper validates arguments with zod, then calls the identical service-layer function used by the UI — passing the requesting user's role through so role-based visibility filtering (sealed exhibits, etc.) is applied identically to a UI query (see `00-header.md` §Role-Based Visibility).
 4. Each tool returns structured JSON including record IDs and timestamps (e.g., `{ exhibitId, currentStatus, lastStatusEventId, lastStatusAt }`).
@@ -48,6 +50,7 @@
 - `userId` (string/UUID, required, from session/role switcher)
 - `message` (string, required): the user's natural-language question
 - `conversationId` (string/UUID, optional): continues an existing conversation if supplied
+- `contextExhibitId` (string/UUID, optional, Phase 9): supplied when the assistant is opened via an exhibit-scoped entry point (F10's "Ask Pivota about {exhibitLabel}" action); carried as client-side route/URL state only — it governs example-prompt chip generation (§Process step 1a) and is never forwarded to or stored as part of the `AssistantConversation`/`AssistantMessage` record
 
 **Outputs:**
 - Streamed assistant message text
@@ -59,6 +62,7 @@
 - Tool execution must apply the requesting user's role to any visibility-sensitive query exactly as the equivalent UI endpoint would (sealed exhibits excluded identically — see `00-header.md` §Role-Based Visibility); there is no "assistant admin override"
 - A response containing a factual claim with zero associated citation is a defect to be caught in testing (see Success Metrics: "0 instances of ungrounded answers") — not merely discouraged but treated as a release blocker
 - The five named example questions (admitted-yesterday, unresolved-objections, jury-package-membership, current-custodian, exhibit-history) must each resolve via the tool set above with no gaps requiring a new tool at demo time
+- *(Phase 9)* `contextExhibitId`, when supplied, must correspond to an exhibit currently visible to the requesting role under standard role-based visibility (`00-header.md` §Role-Based Visibility) — if the supplied exhibit is sealed/ex-parte and the role is unauthorized, the panel falls back to the standard case-wide example set rather than generating a chip that references (and so reveals the existence of) a masked exhibit
 
 **Error States:**
 | Scenario | HTTP Status | Error Code | Message |
@@ -68,6 +72,8 @@
 | LLM provider unavailable/timeout | 503 | ASSISTANT_UNAVAILABLE | "The assistant is temporarily unavailable — please try again" |
 | User role lacks visibility into the only matching (sealed) record | — (tool returns empty result set, model must decline) | — | Model responds: "I don't have that information" (never reveals the record's existence) |
 
-**API Surface (this feature):** see `Y1-api.md` §Assistant for `POST /api/assistant/chat` (streaming), `GET /api/assistant/conversations/:id`.
+**(Phase 9)** Context-aware example prompts (`contextExhibitId`) introduce no new error code — an unresolvable or unauthorized context exhibit silently falls back to the standard example set (§Validation above), never a surfaced error.
+
+**API Surface (this feature):** see `Y1-api.md` §Assistant for `POST /api/assistant/chat` (streaming), `GET /api/assistant/conversations/:id`. The Phase 9 `contextExhibitId` example-prompt behavior introduces no new endpoint and no change to either request/response shape above — it is a client-side-only chip-generation input, not a chat-request field.
 
 **Schema Surface (this feature):** owns `AssistantConversation`, `AssistantMessage`, `AssistantCitation`; reads (via tools) every projection and ledger table defined across F0–F6 — see `Y0-schema.md` §Assistant.

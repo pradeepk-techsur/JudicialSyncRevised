@@ -3,7 +3,7 @@
 **Project Acronym:** JudicialSync
 **Document Type:** PRD (Product Requirements Document)
 **Status:** Draft
-**Last Updated:** 2026-10-09
+**Last Updated:** 2026-10-10
 
 ---
 
@@ -79,12 +79,15 @@ Specific pain points this demo targets:
 ---
 
 ### F1: Exhibit Status Display
-**Description:** At-a-glance view of each exhibit's current lifecycle state, derived from the event ledger, so any authorized user can instantly see where an exhibit stands.
+**Description:** At-a-glance view of each exhibit's current lifecycle state, derived from the event ledger, so any authorized user can instantly see where an exhibit stands. Phase 9 makes this status presentation a single, audited design-token source rather than ad hoc per-screen coloring, and gives the related attention-severity scale (distinct from exhibit status) its own real, accessible visual language.
 
 **Capabilities:**
 - Status values covering the full admission lifecycle: marked, offered, objected, admitted, excluded, withdrawn
 - Visual status indicators consistent across all screens (Command Center, Case Workspace, Exhibit Detail, Jury Package)
 - Status always reflects the latest event in the ledger — no stale or conflicting state across screens
+- Single `StatusBadge` component is the sole source of the status→Carbon-Tag-type/icon mapping for all six statuses; Command Center legend, Case Workspace pills, filters, and Exhibit Detail header/history all read from this one map — no status renders with a different color or a shared hue family in two places
+- Separately, the four `AttentionFeedTier` severity levels (CRITICAL, HIGH, PENDING, MEDIUM) used on the Command Center attention feed map to four visually distinct Carbon Tag types and icons (using support-error/support-warning/support-info tokens), independently verified for AA contrast (4.5:1) via automated axe checks — severity tiers are a separate scale from exhibit status and must not be conflated with it
+- Service-reported tier/status ordering is authoritative; the UI renders in the order the service returns, never re-sorting independently
 
 **Priority:** P0 (Critical — core to "immediate awareness" value proposition)
 
@@ -163,8 +166,12 @@ Specific pain points this demo targets:
 - Implemented via tool-calling (not retrieval-augmented generation/embeddings) — the assistant's tools are thin 1:1 wrappers around the same service-layer functions the UI screens call, guaranteeing the assistant can never state something a dashboard doesn't also show
 - Streaming chat interface (via Vercel AI SDK `useChat`/`streamText`)
 - Role-scoped retrieval: assistant answers respect the same role-based visibility rules as the UI (e.g., sealed/sidebar information is not surfaced to an unauthorized role)
+- Example/suggested prompts are generated from on-screen context rather than fixed text — when the user opens the assistant from an exhibit page, the chips reference that exhibit (e.g., "Why is P-7 flagged?") instead of a generic prompt set
+- Chat surface fills the available viewport height with the input fixed at the bottom, so the conversation area does not float in an otherwise-empty page
+- On an ASSISTANT_UNAVAILABLE (503) response, the UI shows an explicit message and a Retry action, and preserves the user's typed-but-unsent question rather than clearing it
+- Any client-facing API-key configuration control is either removed or, if retained for non-production use, is hidden outside non-production environments and never stores a supplied key client-side — the Anthropic key itself remains server-side only, per the existing security architecture
 
-**Priority:** P0 (Critical — explicitly the core value proposition: "If this fails, nothing else about the demo matters.")
+**Priority:** P0 (Critical — explicitly the core value proposition: "If this fails, nothing else about the demo matters." Phase 9 removes a judge-facing API-key control inconsistent with the server-side-only key architecture, makes example prompts context-aware, and fixes the chat layout and unavailable-state handling.)
 
 ---
 
@@ -183,6 +190,14 @@ Specific pain points this demo targets:
 
 **Note — design decision supersedes a prior constraint:** Phase 5 locked in "the Command Center exposes no path to record, edit, or acknowledge anything from that screen — it is strictly passive/read-only monitoring" as a success criterion. Phase 8 deliberately reverses this: the inline write actions on the attention feed are an intentional product decision, not a regression, and are recorded here so the reversal is traceable rather than silently contradicting the Phase 5 criterion.
 
+**Phase 9 addendum:** Rebuilds the screen's first viewport so the ranked attention list is visible without scrolling, and adds an explicit, labeled live-data indicator in place of an unexplained timestamp.
+
+**Capabilities (Phase 9 additions):**
+- Compact KPI stat-tile row (each tile <=80px), each tile a clickable `ClickableTile` linking through to its corresponding filtered Case Workspace view, replacing the prior full-width stat-card layout
+- "Needs your attention" feed renders as a dense Carbon DataTable (exhibit, issue, severity, age, action columns) with one primary action per row, instead of full-width attention cards — at 1440x900 at least 6 ranked items are visible without scrolling, and the service's tier ordering (F6) is preserved, never re-sorted in the UI
+- Objection grounds are shown inline on each attention-feed row (sourced from `getAttentionFeed`) so a reviewer does not need an extra click to see why an item is flagged
+- A labeled `LiveIndicator` component in the page header, driven by the existing TanStack Query polling state (dataUpdatedAt/isError) for Command Center queries: shows "Live" with a green dot when data is <60s old, and "Connection lost" in amber with a Refresh action (triggering refetch) once data goes stale — replacing a bare dot and raw "updated Ns ago" text
+
 **Priority:** P0 (Raised from P1 — now carries primary write-action entry points in addition to its original ambient-monitoring role, making it load-bearing for the demo's write-action coverage, not just a glance screen)
 
 ---
@@ -197,6 +212,17 @@ Specific pain points this demo targets:
 - Jury Package eligibility column per row (Included / Not eligible / Blocked), making jury-package readiness visible without navigating to the Jury Package Workspace
 - Surfaces discrepancy flags (F6) inline per exhibit
 - Entry point to drill into an individual Exhibit Detail View (F10)
+
+**Phase 9 addendum:** Fixes the table's jury-package-eligibility signal, filter labeling, and search-rule clarity so the screen's own data reads correctly and its controls are self-explanatory.
+
+**Capabilities (Phase 9 additions):**
+- Jury Package eligibility is computed server-side in `services/exhibits.ts` as four distinct values — Included, Blocked, Not eligible, and Not yet evaluated (a new, explicit "not yet assessed" state distinct from "ineligible") — returned from `getExhibits`, `searchExhibits`, and the Exhibit Detail checklist, and rendered as tags; non-admitted exhibits show no eligibility tag at all
+- Description column takes the remaining table width and wraps rather than truncating with an ellipsis
+- Zebra striping is removed from the table; the existing attention/discrepancy tint is retained as the only row-level visual emphasis
+- Add-exhibit entry point is shown only to DEPUTY/CLERK/ADMIN per the existing role check, hidden or tooltipped for other roles
+- Every filter (Search, Status, Witness, From, To) carries a visible Carbon label; From/To are distinguishably labeled as date-range bounds
+- `getExhibits` (unfiltered) and `searchExhibits` (>=1 filter set) are each called only when appropriate, avoiding an EMPTY_SEARCH_CRITERIA error; a "Showing X of Y" result-count readout with a Clear-filters action replaces the prior ambiguous helper sentence
+- Witness filter is a searchable select built from the distinct `associatedWitness` values already present in the loaded exhibit list, not a free-text field; AND semantics across combined filters are preserved
 
 **Priority:** P0 (Critical — primary browsing surface for the demo scenario)
 
@@ -215,6 +241,12 @@ Specific pain points this demo targets:
 - Header-level "Transfer custody" action (see F24)
 - Header-level "Ask Pivota about {exhibitLabel}" action, opening the assistant (F7) pre-scoped to this exhibit
 
+**Phase 9 addendum:** Replaces the discrepancy banner's small text-link actions with properly sized, unambiguous buttons (see F24 for the shared Record-ruling/Acknowledge pattern) and confirms the exhibit page's assistant entry point is the product's single path into a pre-scoped conversation.
+
+**Capabilities (Phase 9 additions):**
+- Discrepancy banner's "Record ruling" and "Acknowledge" actions are rendered as full Carbon Buttons (not small text links) sharing the same primary-button styling used elsewhere in the product; the banner is the one entry point for recording a ruling on that discrepancy (see F24) and the right-rail Objection card shows details only, not a second action
+- "Ask Pivota about {exhibitLabel}" remains the single way to open the assistant pre-scoped to this exhibit — Phase 9 confirms no second, divergent assistant entry point exists on this screen
+
 **Priority:** P0 (Critical — directly supports the named demo scenario "explain what happened to an exhibit," and is now also a primary write-action surface via F24)
 
 ---
@@ -229,6 +261,12 @@ Specific pain points this demo targets:
 - Displays the computed jury-ready exhibit list
 - Surfaces discrepancy warnings prominently and blocks/flags finalization until addressed
 - Export/curated presentation suitable for handoff to the next step in the trial process
+
+**Phase 9 addendum:** Turns the empty state into actionable guidance and introduces a role-agnostic, read-only readiness preview (see F25) so any user — including a Judge — can see what is blocking jury-package readiness before anyone starts a package.
+
+**Capabilities (Phase 9 additions):**
+- Empty state (before any package is started) spans the full content width and names which roles (DEPUTY/CLERK/ADMIN) can start a package, with a "Start package" action shown only to those roles; the action calls `POST /api/cases/:id/jury-package` only on explicit click, never as a side effect of viewing the page
+- Links to the new read-only readiness preview (F25) for every role, including Judge, before any package exists
 
 **Priority:** P0 (Critical — named core demo scenario: "build a jury package")
 
@@ -283,6 +321,16 @@ Specific pain points this demo targets:
 - The unlabeled numeric element displayed near the role selector in the header is either clearly labeled with its purpose or removed if it serves no user-facing function
 - Activity feed entries display both date and time (not time only), so that same-second seeded events and day-boundary crossings remain unambiguous to a reader
 - Activity feed entries display the exhibit's label alongside each state-transition description (e.g., "P-1: MARKED → OFFERED" rather than "from (none) to MARKED"), so a reader can identify which exhibit changed without opening it
+
+**Phase 9 addendum:** Continues this cluster with a second wave of fixes: a reworked Recent Activity feed (no nested scroll, grouped near-duplicate rows, one consistent timestamp format) and navigation/entry-point clarity (clear active-nav styling, an accurate or removed Jury Package nav badge, and a single Pivota Assistant entry point).
+
+**Capabilities (Phase 9 additions):**
+- Recent Activity no longer scrolls inside a fixed-height nested box; the page scrolls normally, showing the latest 10 entries with a "View all" link to a full activity page (via the existing `getRecentActivity` capability, no backend change)
+- Consecutive STATUS_CHANGE events on the same exhibit within a 60-second window collapse into one expandable summary row — a pure presentation grouping, computed in a UI helper, with no status logic duplicated from the service layer
+- All activity timestamps render through one shared formatter that includes seconds, eliminating the prior one-timestamp-format-for-everything inconsistency
+- The "today" heading and "yesterday" group label are reconciled to a single definition of a day boundary (matching the server's `since` = start-of-current-trial-day semantics from `03-api.md` §4.9), so the two never disagree
+- Active navigation item is visually unambiguous (route-driven styling plus an icon from `@carbon/icons-react`), and the Jury Package nav badge is shown only when its count demonstrably matches something the destination page displays — otherwise it is removed or tooltipped
+- Exactly one Pivota Assistant entry point exists in the navigation/header; the exhibit page's "Ask Pivota about {label}" action opens that same assistant, pre-selecting the exhibit via URL state, rather than a second, parallel assistant surface
 
 **Priority:** P1 (High — usability/clarity defects that undermine the "assistant, not system to learn" positioning but do not affect data integrity)
 
@@ -353,6 +401,14 @@ Specific pain points this demo targets:
 - Permission matrix is enforced at the shared service layer, so UI, API, and assistant tool-call paths cannot diverge in what they allow
 - Does not introduce full production authentication (OAuth/OIDC/session hardening remains explicitly out of scope) — this feature hardens *authorization* (what a known, seeded role may do), not *authentication* (proving who the user is)
 
+**Phase 9 addendum:** Adds UI-side safeguards around the role switcher itself — since it remains a demo-only control, not production auth — so a role change is unmistakable to the user and immediately reflected in what the UI shows as permitted, while the server-side matrix above remains the sole source of actual authorization truth.
+
+**Capabilities (Phase 9 additions):**
+- The role switcher is visibly labeled as a demo/test control and rendered only behind a non-production environment flag — it is not, and must not appear to be, a production authentication mechanism
+- After switching roles, a persistent banner names the active role and offers a switch-back action, so the acting role is never ambiguous during a session
+- The acting role is included in every TanStack Query cache key, so switching roles invalidates and refetches affected data automatically; permission-matrix-gated controls (Add exhibit, Record ruling, Transfer custody) update their visible availability immediately on switch, without a page reload
+- All of the above is a client-side usability/legibility layer only — `assertRole` and the server-side permission matrix remain the sole authority on whether an action actually succeeds
+
 **Priority:** P0 (Critical — product-owner-flagged gap, and a direct reversal of a recorded v1 exclusion; partial server-side role checks were assessed as insufficient after the live demo review)
 
 ---
@@ -410,7 +466,28 @@ Specific pain points this demo targets:
 - Successful submission updates the originating screen (Command Center feed entry clears/re-ranks, Exhibit Detail Objection/Custody cards refresh) through the same live-sync mechanism already used for read data, with no screen-local optimistic state that could diverge from the ledger
 - Failed submission (validation error, role rejection, stale-state conflict) surfaces the specific rejection reason inline, matching the "reject-with-reason" pattern established by F12/F17/F18, never a silent failure or generic error
 
+**Phase 9 addendum:** Consolidates the Record-ruling and Acknowledge actions down to one unambiguous, properly styled entry point each, and resolves the duplicate Record-ruling control found during UI review.
+
+**Capabilities (Phase 9 additions):**
+- Exactly one "Record ruling" entry point exists per discrepancy/objection — the Exhibit Detail discrepancy banner's primary button (invoking the existing judge-only, objection-scoped `RecordRulingAction`) — with any previously duplicated button elsewhere on the page removed or re-pointed to the same action
+- "Acknowledge" opens a dialog requiring a justification before submission, using the existing `POST /api/discrepancies/:id/acknowledge` endpoint unchanged; the result (actor, role, timestamp, justification) appears in history per F14, with no new acknowledgment semantics introduced
+- Whether Acknowledge should be hidden for HIGH-severity items with a ruling still pending is treated as an open product decision, not a default UI behavior — Phase 9 raises it explicitly rather than silently hiding or silently keeping the control
+
 **Priority:** P0 (Critical — closes a product gap where two core backend capabilities had no way to be exercised by an actual courtroom user; also the explicit trigger for this phase's supersession of the Command Center's prior read-only constraint)
+
+---
+
+### F25: Jury Package Readiness Preview (Read-Only)
+**Description:** A new, read-only capability letting any authorized user — including a Judge, who cannot start or finalize a package — see which admitted exhibits are ready for the jury package and which are currently blocked, without creating or mutating a jury-package record. This closes the gap where readiness information was only visible by actually starting a draft package.
+
+**Capabilities:**
+- New read-only preview function in `services/juryPackage.ts` that reuses the existing candidate/discrepancy-eligibility logic (F5, F6, F13) without performing any write — no jury-package row is created or modified by viewing the preview
+- Exposed via a new, dedicated API route (documented in `03-api.md`) separate from the existing draft-start/finalize endpoints
+- Rendered for every role on the Jury Package Workspace prior to (or independent of) any package being started; Judges and other non-starting roles see the identical panel in a read-only presentation
+- Lists every currently admitted exhibit and, for each, whether it is ready or — if not — which specific blocker(s) apply (unresolved objection, incomplete custody, sealed/ex-parte exclusion), using the same eligibility computation the draft/finalize path uses, never a reimplementation in the component layer
+- Eligibility rules themselves are not duplicated into the UI — the preview calls the same service-layer logic the rest of the jury-package feature set already depends on
+
+**Priority:** P2 (Medium-High — a genuinely new capability that improves pre-package visibility; valuable, but the product already has draft-time readiness visibility via F11, so this is additive polish rather than a blocking gap)
 
 ---
 
@@ -425,6 +502,10 @@ Specific pain points this demo targets:
 - **Non-technical usability:** All screens and assistant interactions must be understandable to non-technical judges and court staff — clarity and trustworthiness of answers matter more than technical sophistication or feature density.
 - **Realistic seed data complexity:** Seed data must include deliberate edge cases (unresolved objections, custody gaps, jury-package discrepancies) — overly clean seed data would make discrepancy detection undemonstrable.
 - **Design-system foundation:** All screens are built on IBM Carbon Design System as the component foundation. As of Phase 8, the visual language layered on top of Carbon is the reviewed dark-dashboard theme (replacing the original Carbon-light theme) across Command Center, Case Workspace, Exhibit Detail, and Jury Package Workspace, while retaining Carbon's accessibility-conformant component behavior underneath.
+- **Typography and design-token discipline (Phase 9):** All text renders through Carbon type-style tokens (heading-04 for the page title, code-01 for monospace exhibit labels, body-compact-01 for table/feed timestamps, 12px reserved for tags/labels/helper text only per label-01/helper-text-01) — no raw font-size/weight/line-height values in component styles, and this is lint-checkable. IBM Plex Sans and Plex Mono are verified loaded (via `document.fonts`) on every main screen, loaded exactly once, with no silent fallback to a system font. Tables, counts, and timestamps use tabular figures (`font-variant-numeric: tabular-nums`). Section-title capitalization follows one rule (sentence case) everywhere.
+- **Surface and spacing discipline (Phase 9):** Layering follows Carbon's Layer model (page/layer-01/layer-02) with no unnecessary nested white-card-in-panel wrapping; spacing uses Carbon's spacing-token scale ($spacing-01..13) exclusively; every primary action uses one Button size/kind convention app-wide rather than ad hoc widths and padding.
+- **No parallel styling system (Phase 9):** All UI work reuses existing Carbon components and tokens — no second component library, no CSS-in-JS, and no new npm dependency is introduced without explicit approval (Next.js's built-in `next/font` is not considered a new dependency for this purpose).
+- **Derived values stay server-side (Phase 9):** Any UI ticket that needs a new field (e.g., jury-package eligibility's "not yet evaluated" state, or the read-only readiness preview) computes it in `services/*.ts` and returns it from the relevant API response — never computed client-side in a component — with `03-api.md` and the FRD updated whenever a ticket adds or changes a field.
 
 ---
 
@@ -452,6 +533,8 @@ Specific pain points this demo targets:
 | Demo positioning drifts toward "new system to learn" instead of "assistant augmenting existing workflow" | Medium — undermines the explicit sales positioning goal | Favor conversational/assistive UX over heavy data-entry forms on every screen; review each screen against the "assistant, not system" framing |
 | Live multi-screen sync (e.g., Command Center vs. Exhibit Detail) feels laggy or inconsistent during a live walkthrough | Medium — undercuts "immediate awareness" claim | Use polling-based live sync tuned against realistic demo pacing; revisit SSE/WebSocket only if polling proves visibly insufficient |
 | Command Center's new inline write actions (record ruling, transfer custody) are triggered accidentally from what was designed as a passive glance screen | Medium — could produce an erroneous ruling/custody record during live proceedings | Inline actions require the same explicit confirmation and role-gating (F20) as their Exhibit Detail/dedicated-flow equivalents; no inline action auto-submits without an explicit confirm step |
+| Demo-only role switcher's added UI polish (persistent banner, clearer labeling) is mistaken by a reviewer for production-grade authentication | Medium — could misrepresent the product's actual security posture to a court customer | Label the switcher explicitly as a demo/test control, gate it behind a non-production environment flag, and keep `assertRole`/the server-side permission matrix as the only real authorization boundary |
+| Typography and font-loading standardization (Phase 9) touches every screen's rendered text simultaneously | Medium — a broad, cross-cutting change that could introduce visual regressions across all 5 screens at once | Verify font loading via `document.fonts` and Carbon type-token conformance with automated checks (axe + token lint) on all 4 main pages before considering the pass complete; one PR per ticket rather than one broad sweep |
 
 ---
 
@@ -484,11 +567,13 @@ Specific pain points this demo targets:
 | F22 | Multi-Case Support with Case Selector | Scope Reversal | P1 |
 | F23 | Versioned Jury Packages with PDF Export | Differentiator | P1 |
 | F24 | Write-Action UI Coverage — Record Ruling & Transfer Custody | Write Actions | P0 |
+| F25 | Jury Package Readiness Preview (Read-Only) | Usability | P2 |
 
 **Priority Summary:**
 - **P0 (Critical — MVP):** F0, F1, F2, F3, F5, F6, F7, F8, F9, F10, F11, F12, F13, F16, F17, F18, F19, F20, F24 — 19 features
 - **P1 (High):** F4, F14, F15, F21, F22, F23 — 6 features
-- **P2 / P3:** None at this stage — all defined features are considered necessary for a credible end-to-end demo
+- **P2 (Medium-High):** F25 — 1 feature
+- **P3:** None at this stage
 
 ---
 

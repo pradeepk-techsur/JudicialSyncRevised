@@ -35,12 +35,12 @@ Fetches a single exhibit's identity fields (F0).
 **`GET /api/cases/:id/exhibits`**
 Lists all visible exhibits for a case with current-state summary (F9).
 - Query: none (full list; use §Search for filtered)
-- 200: `Array<{ exhibitId, exhibitLabel, description, offeringParty, associatedWitness, currentStatus, currentCustodianName, discrepancyFlags[], juryPackageEligibility }>` *(amended Phase 8, F9: `juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'` added — derived from the case's most-recently-computed `JuryPackage`'s `JuryPackageExhibit` rows, see F09 §Process step 3)*
+- 200: `Array<{ exhibitId, exhibitLabel, description, offeringParty, associatedWitness, currentStatus, currentCustodianName, discrepancyFlags[], juryPackageEligibility }>` *(amended Phase 8, F9: `juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'` added — derived from the case's most-recently-computed `JuryPackage`'s `JuryPackageExhibit` rows, see F09 §Process step 3. Amended Phase 9, F9: value set extended to `'INCLUDED' | 'BLOCKED' | 'NOT_ELIGIBLE' | 'NOT_YET_EVALUATED'` — `NOT_YET_EVALUATED` distinguishes "never run through package computation" from `NOT_ELIGIBLE`'s now-narrower "structurally excluded" meaning; see F09 §Process steps 3–4. This value must be returned consistently by this endpoint, `searchExhibits` below, and `GET /api/exhibits/:id/history`'s `juryPackageChecklist.eligibility`.)*
 - Errors: `CASE_NOT_FOUND` (404)
 
 **`GET /api/exhibits/:id/history`**
 Full chronological event timeline for one exhibit (F10).
-- 200: `{ exhibit: {...}, currentStatus, currentCustodianName, discrepancyFlags[], timeline: Array<{ eventId, eventType, summary, actorName, recordedAt }>, objections[], custodyCard, juryPackageChecklist }` *(amended Phase 8, F10: `objections[]` — `UNRESOLVED` `ObjectionCurrentState` rows for the right-rail Objection card; `custodyCard` — `{ current, pendingTransfer, history[] }` for the Chain of Custody card; `juryPackageChecklist` — `{ admitted, objectionsResolved, custodianOnRecord, classificationTrial, eligibility }` for the Jury Package checklist card. All three are read-time projections of data already returned elsewhere in this response — no new query.)*
+- 200: `{ exhibit: {...}, currentStatus, currentCustodianName, discrepancyFlags[], timeline: Array<{ eventId, eventType, summary, actorName, recordedAt }>, objections[], custodyCard, juryPackageChecklist }` *(amended Phase 8, F10: `objections[]` — `UNRESOLVED` `ObjectionCurrentState` rows for the right-rail Objection card; `custodyCard` — `{ current, pendingTransfer, history[] }` for the Chain of Custody card; `juryPackageChecklist` — `{ admitted, objectionsResolved, custodianOnRecord, classificationTrial, eligibility }` for the Jury Package checklist card. All three are read-time projections of data already returned elsewhere in this response — no new query. Amended Phase 9, F9/F10: `juryPackageChecklist.eligibility` value set extended to `'INCLUDED' | 'BLOCKED' | 'NOT_ELIGIBLE' | 'NOT_YET_EVALUATED'`, computed via the identical precedence `GET /api/cases/:id/exhibits` uses — see F09 §Validation's three-surface consistency rule.)*
 - Errors: `EXHIBIT_NOT_FOUND` (404 — also returned for sealed/unauthorized, per F10 §Validation)
 
 ---
@@ -124,7 +124,7 @@ Full ordered chain-of-custody.
 **`GET /api/cases/:id/exhibits/search`**
 Multi-criteria combinable exhibit search.
 - Query: `keyword?, status?, witness?, dateFrom?, dateTo?`
-- 200: same shape as `GET /api/cases/:id/exhibits` *(amended Phase 8, F9: includes `juryPackageEligibility`, same as the unfiltered list)*
+- 200: same shape as `GET /api/cases/:id/exhibits` *(amended Phase 8, F9: includes `juryPackageEligibility`, same as the unfiltered list. Amended Phase 9, F9: same `NOT_YET_EVALUATED` value-set extension as the unfiltered list above — identical precedence, identical consistency requirement.)*
 - Errors: `EMPTY_SEARCH_CRITERIA` (422), `INVALID_DATE_RANGE` (422), `VALIDATION_ERROR` (422)
 
 ---
@@ -139,8 +139,13 @@ Computes/refreshes the draft jury-eligible exhibit set.
 
 **`GET /api/cases/:id/jury-package`**
 Fetches the current (draft or finalized) jury package with live discrepancy status per exhibit.
-- 200: `{ juryPackage: JuryPackage, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*. `juryPackage` additionally includes `finalizationRequestedAt`/`finalizationRequestedBy` *(added Phase 8, F11)*, both `null` if no request is currently outstanding.
+- 200: `{ juryPackage: JuryPackage | null, exhibits: JuryPackageExhibit[] }` — `exhibits[]` includes only `status: INCLUDED` rows by default *(added Phase 7, F13: `EXCLUDED` rows are retained for audit but omitted from this default read)*. `juryPackage.version` is `null` while `DRAFT` *(added Phase 7.1, F23)*. `juryPackage` additionally includes `finalizationRequestedAt`/`finalizationRequestedBy` *(added Phase 8, F11)*, both `null` if no request is currently outstanding. **Amended Phase 9, F11:** this endpoint no longer auto-creates a `DRAFT` package as a side effect of being called — if no `JuryPackage` row exists yet for the case, it returns `{ juryPackage: null, exhibits: [] }` (a normal `200`, not an error); package creation now happens only via an explicit `POST /api/cases/:id/jury-package` call (below), triggered by a user clicking "Start package" (F11 §Process step 10).
 - Errors: `CASE_NOT_FOUND` (404)
+
+**`GET /api/cases/:id/jury-package/preview`** *(added Phase 9, F25)*
+Read-only readiness preview — lists every currently admitted exhibit visible to the requesting role and whether it is ready for jury-package inclusion or blocked, without creating or modifying any `JuryPackage`/`JuryPackageExhibit` row. Reuses the identical eligibility logic `POST /api/cases/:id/jury-package` (F5/F6/F13) already applies; no role gate — every role, including `JUDGE`, receives a `200` for a valid `caseId`.
+- 200: `{ preview: Array<{ exhibitId, exhibitLabel, ready: boolean, blockers: Array<{ code: 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN' | 'SEALED_EXPARTE', detail: string }> }>, summary: { totalAdmitted, readyCount, blockedCount } }`
+- Errors: `CASE_NOT_FOUND` (404), `JURY_PACKAGE_PREVIEW_LOAD_FAILED` (500)
 
 **`POST /api/jury-package/:id/finalize`**
 Attempts finalization — hard-gated by discrepancy re-check.
@@ -223,7 +228,7 @@ Exhibits grouped by current custodian, for the Command Center "Custody at a Glan
 
 **`GET /api/cases/:id/attention-feed`** *(added Phase 8, F8)*
 Severity-ranked "Needs your attention" feed combining four discrepancy/objection rule sources into one prioritized list. Did not exist prior to this phase.
-- 200: `Array<{ id, tier: 'CRITICAL'|'HIGH'|'PENDING'|'MEDIUM', ruleCode, exhibitId, exhibitLabel, objectionId?, detectedAt, summary, availableAction: 'RECORD_RULING'|'REMOVE_FROM_PACKAGE'|'TRANSFER_CUSTODY'|null }>` — ordered by tier (`CRITICAL` > `HIGH` > `PENDING` > `MEDIUM`), newest-first within each tier; see F08 §Process step 4 for the exact rule-to-tier mapping
+- 200: `Array<{ id, tier: 'CRITICAL'|'HIGH'|'PENDING'|'MEDIUM', ruleCode, exhibitId, exhibitLabel, objectionId?, objectionGrounds: string | null, detectedAt, summary, availableAction: 'RECORD_RULING'|'REMOVE_FROM_PACKAGE'|'TRANSFER_CUSTODY'|null }>` — ordered by tier (`CRITICAL` > `HIGH` > `PENDING` > `MEDIUM`), newest-first within each tier; see F08 §Process step 4 for the exact rule-to-tier mapping. `objectionGrounds` *(added Phase 9, F8)* is non-null only for `HIGH`/`PENDING` tier entries (the two objection-scoped tiers), `null` for `CRITICAL`/`MEDIUM` — see F08 §Process step 9. This is an additive field; it does not affect tier precedence or sort order.
 - Errors: `ATTENTION_FEED_LOAD_FAILED` (500)
 
 *(Command Center also composes `GET /api/cases/:id/objections?status=unresolved` and `GET /api/cases/:id/discrepancies`, defined above. Inline actions on attention-feed entries invoke F24's unchanged endpoints — see §Objections, §Custody.)*

@@ -5,6 +5,38 @@
 **Journeys:** JRN-02.1 (Assemble), JRN-01.2 (Present/Accept), JRN-03.1 (Verify Integrity)
 **Route:** `/jury-package` · **Nav:** Sidebar "Jury Package"
 
+#### Layout — No Package Yet (new, Phase 9, T-10, F11/F25 Phase 9 addenda)
+
+**Supersedes the implicit pre-Phase-9 assumption that a `DRAFT` package already exists whenever this screen loads.** Prior to Phase 9, `GET /api/cases/:id/jury-package` auto-created a `DRAFT` package as a side effect of simply viewing the screen — so this "no package yet" state was never actually reachable in the UI. Phase 9 removes that auto-create behavior (F11 §Process step 10); the screen must now explicitly render a full-content-width empty state before any package exists, visible to every role, including a `JUDGE` who can never start one directly:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ JudicialSync  [Case: 2026-CR-0142 ▾] [⚠ 1] [Role: Judge ▾][Ask Pivota]│
+├───────────────┬──────────────────────────────────────────────────┤
+│ Command Ctr   │  Jury Package Workspace                            │
+│ Case          │  ┌────────────────────────────────────────────────┐│
+│ ▸ Jury Pkg    │  │  No jury package has been started for this case.││
+│ Assistant     │  │  A Deputy, Clerk, or Admin can start one.        ││
+│               │  │                                                  ││
+│               │  │        [ Start package ]  ← Deputy/Clerk/Admin   ││
+│               │  │          only; absent for Judge/Chambers/Attorney││
+│               │  └────────────────────────────────────────────────┘│
+│               │  Jury Package Readiness Preview (read-only)        │
+│               │  ┌────────────────────────────────────────────────┐│
+│               │  │ 7 admitted · 4 ready · 3 blocked                 ││
+│               │  │ Ex. 14  ✗ No custodian                           ││
+│               │  │ Ex. 9   ✗ Unresolved objection                   ││
+│               │  │ S-2     ✗ Sealed / ex parte                      ││
+│               │  │ Ex. 3   ✓ Ready                                  ││
+│               │  │ ... (same panel shown identically to every role) ││
+│               │  └────────────────────────────────────────────────┘│
+└───────────────┴──────────────────────────────────────────────────┘
+```
+
+- **Empty-state copy spans the full content width** (not a small centered card) and explicitly names which roles can act: "A Deputy, Clerk, or Admin can start one."
+- **"Start package"** renders only for `DEPUTY`/`CLERK`/`ADMIN` (F20) — absent, not disabled, for `JUDGE`/`CHAMBERS_STAFF`/`ATTORNEY`. Clicking it calls `POST /api/cases/:id/jury-package` (F5, unchanged) **only on this explicit click** — viewing the page performs no write under any circumstance, closing the gap where a `JUDGE` merely opening this screen could previously trigger a `DRAFT` package to spring into existence with no action of their own. `data-testid="start-jury-package-button"`.
+- **Jury Package Readiness Preview panel (new, F25):** rendered beneath the empty-state message for **every** role, including `JUDGE` — the identical read-only panel described in full below (§Readiness Preview Panel). This is the only way a non-starting role can see what is blocking jury-package readiness before anyone has started a package.
+
 #### Layout — Draft State (Phase 8: Card-Per-Exhibit, Blockers/Clean)
 
 As of Phase 8, the prior flat table (shown immediately below for traceability) is replaced by a per-exhibit card layout: a top progress banner, a **Blockers** section (one card per blocking exhibit, each carrying its specific remediation action), and a **Clean** section (lightweight cards for exhibits already ready). No underlying computation changes — every card reads the same `JuryPackageExhibit.discrepancyStatus`/`status` fields the prior table rendered.
@@ -106,6 +138,17 @@ A finalize-authorized role (`DEPUTY`/`CLERK`/`ADMIN`) viewing the same `DRAFT` p
 
 **⚠ New `data-testid`/`aria-label` contract needed:** `data-testid="request-finalization-button"` (rendered only for non-finalizing roles, in place of the Finalize button); `data-testid="finalization-requested-banner"` (rendered only for finalize-authorized roles when a request is outstanding) with `aria-label="Finalization requested by {requesterName} at {time}"`.
 
+#### Readiness Preview Panel (new, Phase 9, T-10, F25)
+
+A read-only panel listing every currently `ADMITTED` exhibit visible to the requesting role and, for each, whether it is ready or — if not — which specific blocker(s) apply (`UNRESOLVED_OBJECTION`, `NO_CUSTODIAN`, `SEALED_EXPARTE`; an exhibit can carry more than one simultaneously). Backed by the new, dedicated `GET /api/cases/:id/jury-package/preview` route (F25) — **this call never creates or mutates a `JuryPackage` row**, under any circumstance, no matter how many times it is invoked.
+
+- **Rendered for every role, identically, including `JUDGE`** — there is no "preview with actions" variant and no role-gating on this read path (F25 is the one jury-package-adjacent endpoint with no `ROLE_NOT_PERMITTED` gate); a sealed/ex-parte exhibit the requesting role cannot see at all is simply omitted from the list, never shown as a masked or blocked row (consistent with `Y0-patterns.md` §Pattern: Sealed-Exhibit Invisibility).
+- **Available before, during, and after a package exists** — on the "No Package Yet" empty state (§Layout — No Package Yet above), and as a collapsible panel alongside the normal Draft/Finalized views, so a user never has to start a package just to see what's blocking readiness.
+- **Summary line:** "{totalAdmitted} admitted · {readyCount} ready · {blockedCount} blocked," followed by one row per admitted exhibit — label, a ✓/✗ ready indicator, and (if blocked) each applicable blocker's plain-language detail.
+- **Polls on the standard live-sync interval** while visible, so a ruling, custody fix, or reclassification recorded elsewhere updates the ready/blocked breakdown without manual refresh — identical polling behavior to every other read surface in the product.
+- **Never reflects any existing `JuryPackage`'s membership** — it is computed fresh from the exhibit/objection/custody/classification data every time, so it remains accurate even when no package has ever been started, and never drifts out of sync with a package that does exist.
+- `data-testid="jury-package-readiness-preview"`; each row `data-testid="readiness-preview-row"` with `aria-label` stating exhibit + ready/blocked state, e.g. `aria-label="Exhibit 14: blocked — no custodian of record"`; summary `data-testid="readiness-preview-summary"`.
+
 #### Layout — Finalized State
 
 ```
@@ -160,6 +203,8 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 | Secondary | Acknowledgment role-eligibility and permanent-record disclosure, and the full acknowledgment audit record (actor, role, timestamp, justification) once acknowledged | Inline, always visible — never hover/tooltip-only (US-14.1, US-14.2, US-14.3) |
 | Secondary | "Request finalization from Clerk" action / "Finalization requested by..." banner (added Phase 8, US-11.3) | Same position the Finalize control occupies, for non-finalizing roles; banner directly above Finalize for finalize-authorized roles |
 | Secondary | Version History (prior finalized versions + their independent export actions) (F23) | Collapsed by default, one click away from both Draft and Finalized states |
+| Secondary | "No Package Yet" empty state — full-content-width copy + role-gated "Start package" button (new, Phase 9, T-10) | Replaces the Draft/Finalized layout entirely until a package is explicitly started |
+| Secondary | Readiness Preview Panel — read-only, every role including Judge (new, Phase 9, T-10, F25) | Beneath the empty state; also available as a collapsible panel alongside the normal Draft/Finalized views |
 | Tertiary | Exhibit status badges (all rows are `ADMITTED` by construction, so this is confirmatory, not discriminating) | Card-level, de-emphasized relative to the blocker detail |
 
 #### States
@@ -189,7 +234,12 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 | Export/generation failure (`PDF_GENERATION_FAILED`) | Inline error: "Unable to generate the jury package PDF — please retry" with a retry button | Never a silently-failed download — an explicit, retryable error (US-23.2) |
 | New draft started after a finalized version (F23) | "Start New Draft" creates a fresh `DRAFT` package (version `null` until its own future finalization); the just-finalized version remains independently visible and exportable from Version History, untouched | Finalizing is no longer a one-shot, draft-replacing action — each version is permanent and a new draft can begin independently (US-23.1) |
 | Viewing a prior (non-most-recent) version from Version History | Opens that specific version in the same read-only Finalized-state layout, labeled "Version N" without "(most recent)"; its own "Export as PDF" works independently of the current draft or most-recent version's state | Confirms every historical version remains fully, independently retrievable (US-23.3) |
-| No admitted exhibits yet | "No admitted exhibits are available to form a jury package yet" | Non-error, informative empty state |
+| No admitted exhibits yet (package already exists) | "No admitted exhibits are available to form a jury package yet" | Non-error, informative empty state |
+| No package has ever been started (reworked Phase 9, T-10) | Full-content-width empty state naming which roles (`DEPUTY`/`CLERK`/`ADMIN`) can start one; "Start package" button rendered only for those roles; Readiness Preview panel rendered beneath for every role | Replaces the pre-Phase-9 auto-create-on-view behavior — viewing this screen now never creates a `JuryPackage` row under any circumstance (F11 §Process step 10) |
+| "Start package" clicked (new, Phase 9) | Button shows a brief inline spinner; on success the screen transitions to the normal Draft card layout | Explicit click is now the only path to package creation — never a side effect of navigation (T-10) |
+| Readiness Preview — viewed by any role, including Judge (new, Phase 9) | Identical read-only panel for every role; summary line + per-exhibit ready/blocked rows; no action controls of any kind | Confirms a `JUDGE` can see exactly what's blocking readiness without ever starting or finalizing a package (T-10, F25) |
+| Readiness Preview — a sealed/ex-parte exhibit, unauthorized role (new, Phase 9) | Row simply absent from the preview list | Confirms existence is never revealed, consistent with `Y0-patterns.md` §Pattern: Sealed-Exhibit Invisibility |
+| Readiness Preview load failure | Inline error: "Unable to load the jury package readiness preview — please retry" (`JURY_PACKAGE_PREVIEW_LOAD_FAILED`) with a retry button | Independent of the main package load — a preview failure never blocks the empty state or Draft/Finalized views from rendering |
 | Load failure | Inline error with retry | — |
 | Viewed by non-finalizing role (Judge/Attorney/Chambers Staff) | Identical layout, but Finalize/Acknowledge/Remove-from-Package/Start-New-Draft controls render as view-only (absent, not disabled-with-explanation) — "Export as PDF" and "View Version History" remain available to every role; a sealed/ex-parte blocker row is still visible in its full critical-severity treatment, just without the removal action | Supports JRN-01.2 (judge review) and JRN-03.1 (attorney verification) from the same screen, no separate "audit view" needed (US-13.3) |
 
@@ -207,7 +257,9 @@ Each historical row exports independently via its own `JuryPackage` id — expor
 | "Start New Draft" (finalized state only) | Action | Creates a new `DRAFT` `JuryPackage` for the case, independent of and without altering the just-finalized version; rendered only for `DEPUTY`/`CLERK`/`ADMIN` (same role set as Finalize, unchanged by F20) — absent otherwise (US-23.1) |
 | "View Version History ▾" | Disclosure toggle | Expands the per-case list of every `FINALIZED` version plus the current `DRAFT` (if any), each with its own independent "Export as PDF" action and an `isMostRecent` indicator on exactly one row; available to every viewing role from both Draft and Finalized states (US-23.3) |
 | Blockers / Clean card (any state) | Click target | Navigates to Exhibit Detail View for full context — same click-through behavior the prior table's row offered |
+| "Start package" (new, Phase 9, T-10) | Primary action button, empty state only | Calls `POST /api/cases/:id/jury-package` only on this explicit click — never as a side effect of viewing the page; rendered only for `DEPUTY`/`CLERK`/`ADMIN`; `data-testid="start-jury-package-button"` |
+| Readiness Preview Panel (new, Phase 9, T-10, F25) | Read-only display, no write controls | Lists every admitted exhibit's ready/blocked state; identical for every role including `JUDGE`; polls on the standard live-sync interval; `data-testid="jury-package-readiness-preview"` |
 
-**⚠ New `data-testid`/`aria-label` contract needed (flagged for UX-researcher/planner, US-24.3):** `jury-package-progress-banner`, `jury-package-blockers-section`, `jury-package-blocker-card`, `jury-package-blocker-acknowledge-textarea`, `jury-package-blocker-record-ruling-button`, `jury-package-blocker-assign-custodian-button`, `jury-package-clean-section`, `jury-package-clean-card`, `request-finalization-button`, `finalization-requested-banner` — all additive; the pre-existing `jury-exhibit-row` selector family referenced by the Phase 1–7 Playwright suite (per US-24.3's named example) must continue to resolve against whatever element the card layout uses for its equivalent row/card, so the suite passes unmodified.
+**`data-testid`/`aria-label` contract (amended Phase 9, US-24.3):** `jury-package-progress-banner`, `jury-package-blockers-section`, `jury-package-blocker-card`, `jury-package-blocker-acknowledge-textarea`, `jury-package-blocker-record-ruling-button`, `jury-package-blocker-assign-custodian-button`, `jury-package-clean-section`, `jury-package-clean-card`, `request-finalization-button`, `finalization-requested-banner` — unchanged from Phase 8; the pre-existing `jury-exhibit-row` selector family referenced by the Phase 1–7 Playwright suite (per US-24.3's named example) continues to resolve against whatever element the card layout uses for its equivalent row/card. New as of Phase 9 (T-10): `start-jury-package-button`, `jury-package-readiness-preview`, `readiness-preview-row`, `readiness-preview-summary`.
 
-**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce. The sealed/ex-parte exclusion (F13/F16) is structural at the candidate-query level, not a client-side filter — this screen's "Remove from Package" action exists purely as an auditable remediation path for the regression/legacy-data case, never as the primary mechanism keeping sealed material out of the package. As of Phase 7.1 (F23), finalization is no longer a one-shot action that replaces the draft in place — it mints a new, immutable, numbered version and leaves every prior version independently retrievable and exportable; "Start New Draft" is the explicit action that begins the next version's lifecycle, never an automatic side effect of finalizing. As of Phase 8, the Blockers/Clean card layout and the "Request finalization from Clerk" path are presentation- and workflow-additive only — F5's discrepancy gate, F13's structural exclusion, and F20's role matrix are unchanged and remain the sole source of what is actually enforced server-side.
+**Design intent note:** This screen is a pure presentation + action-trigger layer per FRD F11 — it never computes eligibility or discrepancy status client-side, eliminating any possibility of showing a "clean" state the server wouldn't also enforce. The sealed/ex-parte exclusion (F13/F16) is structural at the candidate-query level, not a client-side filter — this screen's "Remove from Package" action exists purely as an auditable remediation path for the regression/legacy-data case, never as the primary mechanism keeping sealed material out of the package. As of Phase 7.1 (F23), finalization is no longer a one-shot action that replaces the draft in place — it mints a new, immutable, numbered version and leaves every prior version independently retrievable and exportable; "Start New Draft" is the explicit action that begins the next version's lifecycle, never an automatic side effect of finalizing. As of Phase 8, the Blockers/Clean card layout and the "Request finalization from Clerk" path are presentation- and workflow-additive only — F5's discrepancy gate, F13's structural exclusion, and F20's role matrix are unchanged and remain the sole source of what is actually enforced server-side. As of Phase 9, package *creation* itself becomes explicit-click-only (T-10) and the read-only Readiness Preview (F25) gives every role, including non-starting roles, visibility into readiness without that click.

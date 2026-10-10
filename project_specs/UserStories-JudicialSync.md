@@ -83,6 +83,9 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] Current status badge uses a consistent visual convention across Command Center, Case Workspace, Exhibit Detail, and Jury Package screens
 - [ ] Status shown always reflects the latest `STATUS_CHANGE` event in the ledger — no cached or divergent state across screens
 - [ ] Status changes recorded by another user appear on an open screen within the live-sync polling interval (3–5s) without manual refresh
+- [ ] *(Phase 9)* A single `StatusBadge` component (`components/StatusBadge.tsx`) owns the status→Carbon-Tag-type/icon mapping for all six admission-lifecycle statuses; the Command Center legend, Case Workspace status pills and filters, any status-distribution chart segment, and the Exhibit Detail header/timeline all import and render through this one component/map — no screen defines its own color/icon logic or a parallel lookup table
+- [ ] *(Phase 9)* The four `AttentionFeedTier` severities (`CRITICAL`/`HIGH`/`PENDING`/`MEDIUM`, F8) use a separate, independently defined color-token mapping and must never share a color/hue family with this six-status mapping — status and attention-tier are deliberately distinct scales that are never visually conflated
+- [ ] *(Phase 9)* Service-reported tier/status ordering is authoritative; no screen re-sorts status or attention-tier entries independently of the order the service returns
 
 **Priority:** P0 | **Feature Ref:** F1
 
@@ -320,6 +323,43 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] This outage message is visually and textually distinct from a Decline Response ("I don't have that information") — a judge or clerk must never confuse a system outage with a grounded absence-of-record answer
 - [ ] The user's typed question is preserved in the chat input and can be resubmitted without retyping
 - [ ] All other screens (Trial Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) remain fully usable for manual lookup during an assistant outage, since they read the same service layer independent of the assistant route
+- [ ] *(Phase 9)* The `ASSISTANT_UNAVAILABLE` (503) message is accompanied by an explicit Retry action, not just the preserved input, so the user has a direct way to resubmit without hunting for how to try again
+
+**Priority:** P1 | **Feature Ref:** F7
+
+---
+
+### US-7.6: See Context-Aware Example Prompts When Opening the Assistant From an Exhibit
+**As a** Judge Elena Marsh, **I want to** see the assistant's suggested-question chips reference the specific exhibit I came from, **so that** I can try a relevant example and get a real, grounded answer instead of a generic case-wide prompt.
+
+**Acceptance Criteria:**
+- [ ] When the assistant panel is opened with a `contextExhibitId` (e.g., via F10's "Ask Pivota about {exhibitLabel}" header action), the chip set of suggested questions references that specific exhibit's label and known state (e.g., "Why is P-7 flagged?" when the exhibit has an open discrepancy, "What happened to P-7?" generically) instead of the standard case-wide example set
+- [ ] This chip selection happens entirely client-side against already-loaded exhibit data (the same `getExhibits` result F15's example-prompt fix relies on) — no new endpoint, tool, or query is introduced
+- [ ] `contextExhibitId` is never sent to or persisted by `POST /api/assistant/chat` — it governs only which example chips render, not the chat request itself
+- [ ] If the supplied `contextExhibitId` corresponds to a sealed/ex-parte exhibit the requesting role is unauthorized to view, the panel falls back to the standard case-wide example set rather than generating a chip that references (and so reveals the existence of) a masked exhibit — no error is surfaced for this fallback
+
+**Priority:** P1 | **Feature Ref:** F7
+
+---
+
+### US-7.7: Use an Assistant Chat Panel That Fills the Viewport Instead of Floating
+**As a** Judge Elena Marsh, **I want to** have the assistant's chat surface fill the available viewport height with the input fixed at the bottom, **so that** the conversation area doesn't float awkwardly in an otherwise-empty page.
+
+**Acceptance Criteria:**
+- [ ] The chat surface fills the available viewport height, with the message input fixed at the bottom
+- [ ] The conversation area does not float in an otherwise-empty page regardless of how few messages exist in the current conversation
+
+**Priority:** P2 | **Feature Ref:** F7
+
+---
+
+### US-7.8: Trust No Client-Facing API-Key Control Exists Outside Non-Production
+**As a** Administrator Priya Nair, **I want to** confirm the assistant exposes no client-facing API-key configuration control in a production-like environment, **so that** the product's server-side-only key architecture is never undermined or misrepresented by a stray judge-facing setting.
+
+**Acceptance Criteria:**
+- [ ] Any client-facing API-key configuration control is either removed entirely, or — if retained for non-production use — is hidden outside non-production environments
+- [ ] No supplied key is ever stored client-side under any circumstance
+- [ ] The Anthropic key itself remains server-side only, per the existing security architecture
 
 **Priority:** P1 | **Feature Ref:** F7
 
@@ -375,8 +415,38 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] Each `HIGH`/`PENDING` entry's inline action is "Record ruling" and each `MEDIUM` entry's inline action is "Transfer custody"/"Assign custodian," and the control renders only if the viewing user's role is F20-authorized for that specific action — an unauthorized role (e.g. `ATTORNEY`) sees the entry's context but no actionable control
 - [ ] The `CRITICAL` tier's action is a link-through to the Jury Package Workspace's existing "Remove from Package" remediation (F13), not a new inline control
 - [ ] A successful inline action clears or re-ranks its originating feed entry on the next poll tick, with no screen-local optimistic state that could diverge from the ledger
+- [ ] *(Phase 9)* Each of the four severity tiers renders with a visually distinct Carbon Tag type and icon drawn from a centralized `AttentionFeedTier` color-token mapping (Carbon support-error/support-warning/support-info tokens), independently verified for AA contrast (4.5:1) via automated axe checks
+- [ ] *(Phase 9)* The severity-tier color/icon mapping never shares a color or hue family with the six-status `StatusBadge` mapping (F1) — status and attention-tier are deliberately distinct, non-conflated scales
 
 **Priority:** P0 | **Feature Ref:** F8, F24
+
+---
+
+### US-8.5: See the Full Ranked Attention List Without Scrolling the First Viewport
+**As a** Judge Elena Marsh, **I want to** see the Command Center's KPI counts and ranked attention list in a compact first viewport, **so that** I can glance at everything most urgent without scrolling during a live proceeding.
+
+**Acceptance Criteria:**
+- [ ] The compact KPI stat-tile row renders each tile at no more than 80px in height, replacing the prior full-width stat-card layout
+- [ ] Each KPI stat tile is a clickable `ClickableTile` linking through to its corresponding filtered Case Workspace (F9) view
+- [ ] The "Needs your attention" feed renders as a dense Carbon DataTable with exhibit, issue, severity, age, and action columns, with exactly one primary action per row, replacing the prior full-width attention cards
+- [ ] At a 1440x900 viewport, at least 6 ranked attention items are visible without scrolling
+- [ ] The service's tier ordering (F8 §Process) is preserved exactly as returned — the DataTable never re-sorts independently
+- [ ] `HIGH` and `PENDING` tier rows additionally display the associated objection's grounds inline (sourced from `getAttentionFeed`'s `objectionGrounds` field) so a reviewer does not need an extra click to see why an item is flagged; `objectionGrounds` is never shown for `CRITICAL`/`MEDIUM` rows, which have no associated `objectionId`
+
+**Priority:** P0 | **Feature Ref:** F8
+
+---
+
+### US-8.6: Trust the Live Data Indicator Reflects Actual Freshness
+**As a** Judge Elena Marsh, **I want to** see a clearly labeled indicator showing whether the Command Center's data is current or stale, **so that** I know whether to trust what's on screen or hit refresh.
+
+**Acceptance Criteria:**
+- [ ] A labeled `LiveIndicator` component renders in the page header, driven by the existing TanStack Query polling state (`dataUpdatedAt`/`isError`) for Command Center queries
+- [ ] The indicator shows "Live" with a green dot when the underlying data is less than 60 seconds old
+- [ ] Once data goes stale (60 seconds old or more) or a query errors, the indicator shows "Connection lost" in amber with a Refresh action that triggers a refetch
+- [ ] This replaces the prior bare dot and raw "updated Ns ago" text — no unlabeled timestamp or dot renders anywhere in the header
+
+**Priority:** P1 | **Feature Ref:** F8
 
 ---
 
@@ -411,12 +481,29 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 **Acceptance Criteria:**
 - [ ] Four quick-filter chips are available — All, Needs attention, In my custody, Awaiting ruling — and selecting one narrows the visible row set without requiring the search bar
 - [ ] "Needs attention" matches exhibits with at least one `OPEN` discrepancy flag or at least one `UNRESOLVED` objection thread; "In my custody" matches exhibits where `CustodyCurrentState.currentCustodianUserId` equals the signed-in user; "Awaiting ruling" matches exhibits with at least one `UNRESOLVED` objection thread
-- [ ] Each row renders a Jury Package eligibility badge of exactly one value — `Included`, `Not eligible`, or `Blocked` — computed as `Included` only when a `JuryPackageExhibit` row exists with `status = 'INCLUDED'` and `discrepancyStatus = 'CLEAN'`, `Blocked` when `INCLUDED` and `FLAGGED`, and `Not eligible` for every other case (no row at all, or a row with `status = 'EXCLUDED'`)
-- [ ] If no `JuryPackage` has ever been computed for the case, every row's eligibility reads `Not eligible` rather than erroring or omitting the column
-- [ ] The eligibility badge is never computed independently of what the Jury Package Workspace (F11) shows for the same exhibit — applying a quick-filter chip never changes this computation
+- [ ] *(Phase 9)* Each row renders a Jury Package eligibility value of exactly one of four states — `Included`, `Blocked`, `Not eligible`, or `Not yet evaluated` — in precedence order: `Included` only when a `JuryPackageExhibit` row exists with `status = 'INCLUDED'` and `discrepancyStatus = 'CLEAN'`; `Blocked` when `INCLUDED` and `FLAGGED`; `Not eligible` only for a structural, permanent exclusion (a `JuryPackageExhibit` row with `status = 'EXCLUDED'`, or `classification != 'TRIAL'`); `Not yet evaluated` for every other case (no `JuryPackageExhibit` row exists at all for this exhibit)
+- [ ] *(Phase 9)* For any exhibit whose `currentStatus` is not `ADMITTED`, the row renders no eligibility tag at all — the value is still computed and returned server-side, but the UI suppresses rendering it for not-yet-admitted exhibits since it would be noise, not signal
+- [ ] *(Phase 9)* An `ADMITTED` exhibit that has never been run through jury-package candidate computation (no `JuryPackage` ever computed for the case, or computed before this exhibit was admitted) renders a visible `Not yet evaluated` tag — this replaces the prior behavior where every such exhibit incorrectly read `Not eligible` regardless of its actual admission state
+- [ ] *(Phase 9)* `Not eligible` is never returned for an exhibit solely because it hasn't yet been run through package computation — that case is always `Not yet evaluated`; `Not eligible` is reserved exclusively for a structural exclusion no future package computation will reverse
+- [ ] The eligibility badge is never computed independently of what the Jury Package Workspace (F11) shows for the same exhibit, or of the Exhibit Detail checklist (F10) for the same exhibit — all three surfaces compute the identical four-value precedence from the identical underlying query; applying a quick-filter chip never changes this computation
 - [ ] Rows continue to poll on the standard 3–5s interval so a filter's membership and eligibility badges update without manual refresh
 
 **Priority:** P0 | **Feature Ref:** F9
+
+---
+
+### US-9.4: Use Clearly Labeled, Appropriately-Scoped Filters and a Readable Exhibit Table
+**As a** Courtroom Deputy Dana Reyes, **I want to** see every Case Workspace filter clearly labeled and the exhibit table laid out so nothing is truncated or visually noisy, **so that** I can trust the controls I'm using and read the full exhibit description without guessing what got cut off.
+
+**Acceptance Criteria:**
+- [ ] The Description column takes the remaining table width and wraps rather than truncating with an ellipsis
+- [ ] Zebra striping is removed from the table; the existing attention/discrepancy tint is retained as the only row-level visual emphasis
+- [ ] The Add-exhibit entry point is shown only to `DEPUTY`/`CLERK`/`ADMIN` per the existing role check, hidden or tooltipped for other roles
+- [ ] Every filter (Search, Status, Witness, From, To) carries a visible Carbon label; From/To are distinguishably labeled as date-range bounds
+- [ ] `getExhibits` (unfiltered) and `searchExhibits` (≥1 filter set) are each called only when appropriate, avoiding an `EMPTY_SEARCH_CRITERIA` error; a "Showing X of Y" result-count readout with a Clear-filters action replaces the prior ambiguous helper sentence
+- [ ] The Witness filter is a searchable select built from the distinct `associatedWitness` values already present in the loaded exhibit list, not a free-text field; AND semantics across combined filters are preserved
+
+**Priority:** P1 | **Feature Ref:** F9
 
 ---
 
@@ -502,6 +589,20 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] Requesting finalization on an already-`FINALIZED` package is rejected with 409 `JURY_PACKAGE_ALREADY_FINALIZED`
 
 **Priority:** P0 | **Feature Ref:** F11
+
+---
+
+### US-11.4: Get Actionable Guidance and a Readiness-Preview Path From an Empty Jury Package Workspace
+**As a** Judge Elena Marsh, **I want to** see clear guidance and a path to a readiness preview when no jury package has been started yet, **so that** I'm never stuck on a dead-end screen simply because my role cannot start a package.
+
+**Acceptance Criteria:**
+- [ ] The empty state (before any package is started) spans the full content width and names which roles (`DEPUTY`/`CLERK`/`ADMIN`) can start a package
+- [ ] A "Start package" action is shown only to those roles; it calls `POST /api/cases/:id/jury-package` only on explicit click, never as a side effect of viewing the page
+- [ ] `GET /api/cases/:id/jury-package` no longer auto-creates a `DRAFT` package as a side effect of being viewed; when no `JuryPackage` row exists yet, it returns `{ juryPackage: null, exhibits: [] }`
+- [ ] A `JUDGE` or other non-starting role never sees a disabled "Start package" control — they see the empty state's explanation and the readiness-preview link (F25) instead, never a dead-end control
+- [ ] The empty state — and the normal Draft/Finalized views — link to the new read-only Jury Package Readiness Preview (F25) for every role, including `JUDGE`, before any package exists
+
+**Priority:** P1 | **Feature Ref:** F11, F25
 
 ---
 
@@ -677,6 +778,7 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] Every activity-feed entry — Command Center's `recentActivity` rows and Exhibit Detail's timeline rows — renders both the date and the time of `recordedAt` (e.g., "Oct 8, 2026, 2:14:03 PM")
 - [ ] No activity-feed row renders a time-only timestamp under any circumstance
 - [ ] Two events recorded on different days, or events spanning a day boundary, are visually distinguishable to a reader scanning the feed
+- [ ] *(Phase 9)* The "today"/"yesterday" activity-feed group label is reconciled to a single definition of a day boundary, matching the server's `since` = start-of-current-trial-day semantics — the heading and the underlying data window never disagree
 
 **Priority:** P2 | **Feature Ref:** F15
 
@@ -689,6 +791,44 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 - [ ] Every activity-feed row — including rows describing a raw `STATUS_CHANGE` event — displays the exhibit's label as part of the row's rendered summary (e.g., "P-1: MARKED → OFFERED" rather than a summary with no exhibit identified)
 - [ ] This uses the `exhibitLabel` field already present in the `GET /api/cases/:id/activity` response — no API contract or schema change is required, only row-rendering/summary-formatting logic
 - [ ] No activity-feed row anywhere renders a summary string without that event's associated `exhibitLabel`, for any `eventType` value
+
+**Priority:** P1 | **Feature Ref:** F15
+
+---
+
+### US-15.6: Scroll the Recent Activity Feed Naturally, With Near-Duplicate Events Grouped
+**As a** Chambers Staff member, **I want to** scroll the Recent Activity feed as part of the normal page instead of a cramped inner scrollbox, and see repeated status changes on the same exhibit grouped, **so that** I can read the feed without fighting a nested scroll area or wading through near-duplicate rows.
+
+**Acceptance Criteria:**
+- [ ] Recent Activity no longer scrolls inside a fixed-height nested box; the page scrolls normally
+- [ ] The feed shows the latest 10 entries with a "View all" link to a full activity page, via the existing `getRecentActivity` capability — no backend change
+- [ ] Consecutive `STATUS_CHANGE` events on the same exhibit within a 60-second window collapse into one expandable summary row
+- [ ] This grouping is a pure presentation grouping computed in a UI helper, with no status logic duplicated from the service layer
+- [ ] All activity timestamps render through one shared formatter that includes seconds, eliminating any one-timestamp-format-for-everything inconsistency
+
+**Priority:** P1 | **Feature Ref:** F15
+
+---
+
+### US-15.7: Always Know Which Nav Item Is Active and Trust the Jury Package Badge
+**As a** Courtroom Deputy Dana Reyes, **I want to** see unambiguous active-navigation styling and a Jury Package badge count I can trust, **so that** I always know where I am and never act on a number that doesn't match what I'd see on the destination page.
+
+**Acceptance Criteria:**
+- [ ] The active navigation item is visually unambiguous, using route-driven styling plus an icon from `@carbon/icons-react`
+- [ ] The Jury Package nav badge is shown only when its count demonstrably matches something the destination page displays
+- [ ] If the badge's count cannot be demonstrated to match the destination page, it is removed or tooltipped rather than shown unexplained
+
+**Priority:** P2 | **Feature Ref:** F15
+
+---
+
+### US-15.8: Reach the Pivota Assistant From Exactly One Entry Point
+**As a** Judge Elena Marsh, **I want to** have exactly one Pivota Assistant entry point in the product, **so that** I'm never confused about which chat surface is the real one or whether two conversations might diverge.
+
+**Acceptance Criteria:**
+- [ ] Exactly one Pivota Assistant entry point exists in the navigation/header
+- [ ] The exhibit page's "Ask Pivota about {exhibitLabel}" action opens that same assistant, pre-selecting the exhibit via URL state, rather than a second, parallel assistant surface
+- [ ] No screen offers a second, divergent chat surface or assistant launcher
 
 **Priority:** P1 | **Feature Ref:** F15
 
@@ -910,6 +1050,20 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+### US-20.7: Use the Role Switcher Safely as a Clearly Labeled Demo-Only Control
+**As a** Administrator Priya Nair, **I want to** have the demo-only role switcher visibly labeled and immediately reflected everywhere the UI shows permitted actions, **so that** no reviewer mistakes it for production authentication and no one acts under a role the UI silently failed to update for.
+
+**Acceptance Criteria:**
+- [ ] The role switcher is visibly labeled as a demo/test control and rendered only behind a non-production environment flag — it is not, and must not appear to be, a production authentication mechanism
+- [ ] After switching roles, a persistent banner names the active role and offers a switch-back action, so the acting role is never ambiguous during a session
+- [ ] The acting role is included in every TanStack Query cache key, so switching roles invalidates and refetches affected data automatically
+- [ ] Permission-matrix-gated controls (Add exhibit, Record ruling, Transfer custody) update their visible availability immediately on switch, without a page reload
+- [ ] This is a client-side usability/legibility layer only — `assertRole` and the server-side permission matrix remain the sole authority on whether an action actually succeeds
+
+**Priority:** P1 | **Feature Ref:** F20
+
+---
+
 ## Epic 21: Pending-Ruling Queue (F21)
 
 ### US-21.1: View All Unresolved Objections Sorted by Longest Wait
@@ -1068,6 +1222,91 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 
 ---
 
+### US-24.4: See Exactly One Properly-Sized Record-Ruling and Acknowledge Entry Point
+**As a** user viewing Exhibit Detail's discrepancy banner, **I want to** see properly sized, unambiguous action buttons instead of small text links, **so that** I can confidently invoke the single correct control for recording a ruling or acknowledging the discrepancy, with no second, divergent control hiding elsewhere on the page.
+
+**Acceptance Criteria:**
+- [ ] Exactly one "Record ruling" entry point exists per discrepancy/objection: the Exhibit Detail discrepancy banner's primary button, invoking the same judge-only, objection-scoped `RecordRulingAction`, carrying the specific `objectionId` as context
+- [ ] Any previously duplicated "Record ruling" control elsewhere on the Exhibit Detail page (e.g., a second button independently rendered by the right-rail Objection card) is removed or re-pointed to invoke the identical `RecordRulingAction` component/handler — there is no second, parallel implementation of the ruling form, dialog, or submit call
+- [ ] The right-rail Objection card shows objection details only (objecting party, grounds, elapsed time) — it is not a second action surface
+- [ ] The discrepancy banner's "Record ruling" and "Acknowledge" actions are rendered as full Carbon Buttons (not small text links) sharing the same primary-button styling used elsewhere in the product
+- [ ] "Acknowledge" opens a dialog requiring a non-empty justification before submission, using the existing `POST /api/discrepancies/:id/acknowledge` endpoint unchanged (422 `JUSTIFICATION_REQUIRED` if empty) — no new field, no new validation rule, no new endpoint
+- [ ] The result of a successful acknowledgment (actor, role, timestamp, justification) appears in the exhibit's history exactly as F14 already specifies — no new acknowledgment semantics are introduced by this consolidation
+
+**Priority:** P0 | **Feature Ref:** F24, F10
+
+---
+
+## Epic 25: Jury Package Readiness Preview (Read-Only) (F25)
+
+### US-25.1: View Which Admitted Exhibits Are Ready for the Jury Package, Without Starting One
+**As a** Judge Elena Marsh, **I want to** see which admitted exhibits are ready for the jury package and which are blocked — and why — even though my role cannot start or finalize a package, **so that** I'm never excluded from readiness visibility just because I lack starting authority.
+
+**Acceptance Criteria:**
+- [ ] The preview lists every exhibit with `currentStatus = 'ADMITTED'` visible to the requesting role under standard role-based visibility
+- [ ] For each exhibit, the preview reports `ready: boolean` and a `blockers[]` array with codes `UNRESOLVED_OBJECTION`, `NO_CUSTODIAN`, and/or `SEALED_EXPARTE`, each with a detail message; an exhibit may carry more than one blocker simultaneously, and all applicable blockers are returned, not just the first found
+- [ ] A summary (`totalAdmitted`, `readyCount`, `blockedCount`) is returned alongside the list
+- [ ] No role-gating error applies to this read-only route — every role (`JUDGE`, `CHAMBERS_STAFF`, `ATTORNEY`, `DEPUTY`, `CLERK`, `ADMIN`) receives an identical `200` response shape for the same case, modulo standard role-based visibility masking
+- [ ] A sealed/ex-parte exhibit the requesting role is not authorized to see at all is omitted from the list entirely (not shown as a `SEALED_EXPARTE`-blocked row) — existence is never revealed to an unauthorized role; a role that is authorized to see classified material (e.g., `ADMIN`) sees it listed with the `SEALED_EXPARTE` blocker
+- [ ] The screen polls this endpoint on the standard live-sync interval while visible, so a ruling, custody transfer, or reclassification recorded elsewhere updates the ready/blocked breakdown without manual refresh
+
+**Priority:** P2 | **Feature Ref:** F25
+
+---
+
+### US-25.2: Trust the Readiness Preview Never Creates or Mutates a Jury Package
+**As a** Administrator Priya Nair, **I want to** confirm that viewing the jury package readiness preview can never create or modify a `JuryPackage` record, **so that** readiness visibility can be opened freely by any role without risk of an accidental side effect.
+
+**Acceptance Criteria:**
+- [ ] Viewing the preview performs no write under any circumstance — no `JuryPackage` or `JuryPackageExhibit` row is created, updated, or referenced for computation purposes; calling the endpoint any number of times produces zero new rows in either table
+- [ ] The preview is computed directly from `Exhibit`/`ExhibitCurrentState`/`ObjectionCurrentState`/`CustodyCurrentState` — never from any existing package's membership — so it remains accurate even when no package has ever been started
+- [ ] Eligibility/blocker logic calls the identical service-layer predicates F5 (`computeJuryCandidates`), F6 (discrepancy rules), and F13 (classification exclusion) already use — no reimplementation of any eligibility rule in the route handler, service function, or client component
+- [ ] The preview is exposed via a new, dedicated API route (`GET /api/cases/:id/jury-package/preview`), separate from the existing draft-start and finalize endpoints
+
+**Priority:** P2 | **Feature Ref:** F25
+
+---
+
+## Epic 26: Design System Consistency (Cross-Cutting NFR)
+
+### US-26.1: Trust Typography, Font Loading, and Contrast Are Consistent Across Every Screen
+**As a** Administrator Priya Nair, **I want to** confirm all text renders through one disciplined set of design tokens with fonts loading reliably and accessible contrast holding everywhere, **so that** I can trust the product's visual presentation is professional and consistent enough to put in front of a court customer.
+
+**Acceptance Criteria:**
+- [ ] All text renders through Carbon type-style tokens — heading-04 for the page title, code-01 for monospace exhibit labels, body-compact-01 for table/feed timestamps, and 12px reserved for tags/labels/helper text only (label-01/helper-text-01) — with no raw font-size/weight/line-height values in component styles, enforced by a lint check
+- [ ] IBM Plex Sans and Plex Mono are verified loaded (via `document.fonts`) on every main screen, loaded exactly once, with no silent fallback to a system font
+- [ ] Tables, counts, and timestamps use tabular figures (`font-variant-numeric: tabular-nums`)
+- [ ] Section-title capitalization follows one rule (sentence case) everywhere
+- [ ] Font loading (`document.fonts`) and Carbon type-token conformance are verified via automated checks (axe + token lint), including WCAG AA color-contrast rules, on all 4 main pages (Command Center, Case Workspace, Exhibit Detail, Jury Package Workspace) with zero violations before the ticket is considered complete
+
+**Priority:** P1 | **Feature Ref:** Cross-Cutting NFR
+
+---
+
+### US-26.2: See Consistent Surface Layering and Spacing Across Every Screen
+**As a** Administrator Priya Nair, **I want to** confirm every screen follows one layering and spacing convention instead of ad hoc card nesting and padding, **so that** the product reads as one coherent system rather than a collection of inconsistently styled screens.
+
+**Acceptance Criteria:**
+- [ ] Layering follows Carbon's Layer model (page/layer-01/layer-02) with no unnecessary nested white-card-in-panel wrapping
+- [ ] Spacing uses Carbon's spacing-token scale ($spacing-01..13) exclusively — no ad hoc pixel spacing values
+- [ ] Every primary action uses one Button size/kind convention app-wide rather than ad hoc widths and padding
+
+**Priority:** P2 | **Feature Ref:** Cross-Cutting NFR
+
+---
+
+### US-26.3: Trust No Parallel Styling System or Client-Side-Computed Derived Value Was Introduced
+**As a** Administrator Priya Nair, **I want to** confirm the Phase 9 visual cleanup reused existing Carbon components/tokens and kept every derived value server-side, **so that** the redesign doesn't quietly introduce a second styling system or a client-computed value that could drift from what the service layer actually returns.
+
+**Acceptance Criteria:**
+- [ ] All Phase 9 UI work reuses existing Carbon components and tokens — no second component library and no CSS-in-JS is introduced
+- [ ] No new npm dependency is introduced without explicit approval (Next.js's built-in `next/font` is not considered a new dependency for this purpose)
+- [ ] Any UI ticket that needs a new field (e.g., jury-package eligibility's "not yet evaluated" state, or the readiness preview) computes it in `services/*.ts` and returns it from the relevant API response — never computed client-side in a component — with `03-api.md` and the FRD updated whenever a ticket adds or changes a field
+
+**Priority:** P2 | **Feature Ref:** Cross-Cutting NFR
+
+---
+
 ## Summary Table
 
 | Epic | Story Count | P0 | P1 | P2 |
@@ -1079,25 +1318,27 @@ Acceptance criteria are listed beneath each story. Stories are grouped by epic (
 | Epic 4: Exhibit Search (F4) | 2 | 0 | 2 | 0 |
 | Epic 5: Jury-Ready Exhibit List Generation (F5) | 2 | 2 | 0 | 0 |
 | Epic 6: Discrepancy Identification (F6) | 3 | 3 | 0 | 0 |
-| Epic 7: Pivota Assistant (F7) | 5 | 4 | 1 | 0 |
-| Epic 8: Trial Command Center Screen (F8) | 4 | 2 | 2 | 0 |
-| Epic 9: Case Workspace Screen (F9) | 3 | 3 | 0 | 0 |
+| Epic 7: Pivota Assistant (F7) | 8 | 4 | 3 | 1 |
+| Epic 8: Trial Command Center Screen (F8) | 6 | 3 | 3 | 0 |
+| Epic 9: Case Workspace Screen (F9) | 4 | 3 | 1 | 0 |
 | Epic 10: Exhibit Detail View Screen (F10) | 3 | 2 | 1 | 0 |
-| Epic 11: Jury Package Workspace Screen (F11) | 3 | 3 | 0 | 0 |
+| Epic 11: Jury Package Workspace Screen (F11) | 4 | 3 | 1 | 0 |
 | Epic 12: Admission Integrity Gating (F12) | 3 | 3 | 0 | 0 |
 | Epic 13: Jury Package Ex Parte / Sealed Exclusion (F13) | 3 | 3 | 0 | 0 |
 | Epic 14: Discrepancy Acknowledgment Transparency (F14) | 3 | 0 | 3 | 0 |
-| Epic 15: Courtroom Usability Fixes (F15) | 5 | 1 | 2 | 2 |
+| Epic 15: Courtroom Usability Fixes (F15) | 8 | 1 | 4 | 3 |
 | Epic 16: Exhibit Classification Taxonomy (F16) | 2 | 2 | 0 | 0 |
 | Epic 17: Objection-to-Admission State-Machine Hardening (F17) | 2 | 1 | 1 | 0 |
 | Epic 18: Custodian Required at Intake (F18) | 2 | 2 | 0 | 0 |
 | Epic 19: Custody Handoff Confirmation (F19) | 4 | 3 | 1 | 0 |
-| Epic 20: Server-Side Role Enforcement Matrix (F20) | 6 | 5 | 1 | 0 |
+| Epic 20: Server-Side Role Enforcement Matrix (F20) | 7 | 5 | 2 | 0 |
 | Epic 21: Pending-Ruling Queue (F21) | 2 | 0 | 2 | 0 |
 | Epic 22: Multi-Case Support (F22) | 3 | 1 | 2 | 0 |
 | Epic 23: Versioned Jury Packages + PDF Export (F23) | 3 | 2 | 1 | 0 |
-| Epic 24: Write-Action UI Coverage (F24) | 3 | 3 | 0 | 0 |
-| **Total** | **77** | **54** | **21** | **2** |
+| Epic 24: Write-Action UI Coverage (F24) | 4 | 4 | 0 | 0 |
+| Epic 25: Jury Package Readiness Preview (F25) | 2 | 0 | 0 | 2 |
+| Epic 26: Design System Consistency (Cross-Cutting NFR) | 3 | 0 | 1 | 2 |
+| **Total** | **94** | **56** | **30** | **8** |
 
 ---
 

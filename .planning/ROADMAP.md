@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 7: Fix admission integrity and UI usability issues** - Close the ex-parte-into-jury-package gap, block admission over open objections/missing custody, and fix Case Workspace/assistant/header/activity-feed usability issues (completed 2026-10-09)
 - [ ] **Phase 7.1: Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export** (INSERTED) - Chambers/sealed classification enforced at intake, full state-machine + server-side role enforcement, custody handoff confirmation, pending-ruling queue, multi-case support, and versioned jury packages with PDF export
 - [x] **Phase 8: UI Redesign and Write-Action Coverage** - Replace the Carbon-light visual foundation with the reviewed dark-dashboard design across Command Center, Case Workspace, Exhibit Detail, and Jury Package, and build the two write actions (record ruling, transfer/assign custody) the product has never had a UI for (completed 2026-10-10)
+- [ ] **Phase 9: UI tickets and typography standard** - 16 prioritized UI/UX tickets (Command Center redesign, severity/status color system, activity feed rework, discrepancy actions, filters, navigation, role-switcher safeguards, jury-package guidance, assistant rework) plus a typography/font-loading standardization pass
 
 ## Phase Details
 
@@ -199,10 +200,20 @@ Plans:
 - [ ] 08-15-PLAN.md — Command Center Part B: Needs-Your-Attention feed (inline write actions) + Jury Package summary widget
 - [ ] 08-16-PLAN.md — Gap closure (UAT test 2): fix sidebar/header overlap + remove segmented status-distribution bar (keep count legend)
 
+### Phase 9: UI tickets and typography standard
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /pivota_spec-plan-phase 9 to break down)
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 → 8
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 → 8 → 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -214,5 +225,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 �
 | 6. Carbon Design System UI Upgrade | 9/9 | Complete | — |
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
-| 8. UI Redesign and Write-Action Coverage | 15/15 | Complete | — |
-**Status**: Complete (2026-10-10)
+| 8. UI Redesign and Write-Action Coverage | 15/15 | Complete | 2026-10-10 |
+| 9. UI tickets and typography standard | 0/TBD | Not planned | — |
