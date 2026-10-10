@@ -215,6 +215,15 @@ export function useAssistantChat(): UseAssistantChatResult {
         if (id && id !== useAssistantStore.getState().activeConversationId) {
           setActiveConversationId(id);
         }
+        // SUCCESS path: the server only writes the data-citations part on a
+        // completed stream, so this is the earliest reliable "the send succeeded"
+        // signal. Clear the input box HERE — not at submit time — so that a 503 /
+        // ASSISTANT_UNAVAILABLE (which rides the error channel and never emits this
+        // part) leaves the user's typed question IN the field, ready to edit or
+        // re-send (F7 criterion 5 / T-11: "keep the user's typed question"). The
+        // Send button is disabled while streaming, so the still-populated input
+        // between submit and finish can't cause a double-send.
+        setInput('');
       }
     },
     // onError is intentionally a no-op body: the SDK sets `chat.error`, which the
@@ -288,7 +297,11 @@ export function useAssistantChat(): UseAssistantChatResult {
     const text = input.trim();
     if (!text) return;
     lastSentRef.current = text;
-    setInput('');
+    // NOTE: the input is deliberately NOT cleared here. It is cleared on the
+    // SUCCESS path only (onData, above) so that a 503 / ASSISTANT_UNAVAILABLE
+    // leaves the typed question in the field (F7 criterion 5 / T-11). The Send
+    // button is disabled while streaming, preventing a double-send in the window
+    // between submit and finish.
     void sendMessage({ text });
   }, [input, sendMessage]);
 
@@ -297,7 +310,8 @@ export function useAssistantChat(): UseAssistantChatResult {
       const trimmed = text.trim();
       if (!trimmed) return;
       lastSentRef.current = trimmed;
-      setInput('');
+      // Chips don't populate the input field, so there is nothing to preserve or
+      // clear here on submit; a successful stream still clears via onData.
       void sendMessage({ text: trimmed });
     },
     [sendMessage],

@@ -14,6 +14,9 @@
 
 // ---- header -----------------------------------------------------------------
 .header {
+  // Non-shrinking: the header keeps its height so the messages area is the only
+  // element that flexes to fill the thread.
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -36,7 +39,13 @@
 
 // ---- messages scroll area ---------------------------------------------------
 .messages {
+  // The ONLY flexing element: grows/shrinks to fill the space between the fixed
+  // header and the bottom-pinned input, scrolling its own overflow. min-height:0
+  // is required so a tall message list actually scrolls inside the flex column
+  // instead of pushing the input row off the bottom (flex items default to
+  // min-height:auto, which would let the content dictate height).
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: $spacing-05;
   display: flex;
@@ -68,6 +77,11 @@
 
 // ---- input row --------------------------------------------------------------
 .inputRow {
+  // Non-shrinking: the input row stays pinned to the bottom of the thread at its
+  // natural height — it never collapses, and the message list scrolls above it
+  // rather than the page scrolling (criterion: fixed-bottom input filling the
+  // viewport).
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   gap: $spacing-03;

@@ -372,6 +372,105 @@ test.describe('Pivota Assistant', () => {
     }
   });
 
+  // T-11 (09-11): opening the assistant from an Exhibit Detail page via
+  // "Ask Pivota about {label}" scopes the panel to that exhibit — at least one
+  // empty-state example chip must reference the exhibit the user came from. This
+  // is the context-aware-prompts requirement AND T-08's "opens pre-selected"
+  // acceptance criterion, exercised end-to-end through the real ExhibitHeader
+  // button → assistantStore.openPanelForExhibit → ExampleChips scoping path.
+  test('Ask Pivota from an Exhibit Detail page scopes the example chips to that exhibit (T-11 / T-08)', async ({
+    page,
+    request,
+  }) => {
+    // P-7 is the Phase-8 legacy-admit fixture with a full custody chain, so both
+    // the jury-package and custody prompts resolve sensibly to it.
+    const exhibitId = await getExhibitId(request, 'P-7');
+    await page.goto(`/exhibit/${exhibitId}`);
+
+    // The header's scoped entry point (not the generic app-shell Ask button).
+    await page.getByTestId('header-ask-pivota').click();
+
+    const panel = page.getByTestId('assistant-panel');
+    await expect(panel).toHaveAttribute('data-open', 'true');
+
+    // The five empty-state chips render, and AT LEAST ONE references the scoped
+    // exhibit's label — the context the user carried over from the detail page.
+    // The Exhibit Detail page does not itself consume useExhibitList, so the chip
+    // labels bias to the scoped exhibit only once that query resolves — poll for
+    // it (this mirrors the real async: the chips re-render when the list arrives).
+    const chips = panel.getByTestId('example-chip');
+    await expect(chips).toHaveCount(5);
+    await expect
+      .poll(async () => (await chips.allTextContents()).some((t) => /\bP-7\b/.test(t)))
+      .toBe(true);
+  });
+
+  // T-11 (09-11): the chat area fills the panel height with the input pinned to
+  // the bottom — the message list scrolls internally rather than the page
+  // scrolling, and the input row sits below the message area, flush to the panel
+  // bottom. Asserted via getBoundingClientRect geometry.
+  test('the chat area fills the panel height with the input pinned at the bottom (T-11)', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    await page.getByTestId('ask-assistant').click();
+
+    const panel = page.getByTestId('assistant-panel');
+    await expect(panel).toHaveAttribute('data-open', 'true');
+
+    const panelBox = await panel.boundingBox();
+    const thread = panel.getByTestId('assistant-thread');
+    const threadBox = await thread.boundingBox();
+    const messages = thread.locator('div').filter({ has: page.getByTestId('example-chips') }).first();
+    const input = panel.getByTestId('assistant-input');
+    const inputBox = await input.boundingBox();
+    const sendBox = await panel.getByTestId('assistant-send').boundingBox();
+
+    if (!panelBox || !threadBox || !inputBox || !sendBox) {
+      throw new Error('panel/thread/input not laid out');
+    }
+
+    // The thread fills (near) the full panel height — not collapsed to content.
+    expect(threadBox.height).toBeGreaterThan(panelBox.height * 0.8);
+
+    // The input + send row sits at the BOTTOM of the panel: its bottom edge is
+    // within a small margin of the panel's bottom edge (pinned, not mid-panel).
+    const rowBottom = Math.max(inputBox.y + inputBox.height, sendBox.y + sendBox.height);
+    const panelBottom = panelBox.y + panelBox.height;
+    expect(Math.abs(panelBottom - rowBottom)).toBeLessThan(48);
+
+    // And the input row is BELOW the message/scroll area (the area starts above
+    // the input), confirming a column layout with the input last — not overlapping.
+    const messagesBox = await messages.boundingBox();
+    if (messagesBox) {
+      expect(messagesBox.y).toBeLessThan(inputBox.y);
+    }
+  });
+
+  // T-11 (09-11): a 503 ASSISTANT_UNAVAILABLE must show the distinct notice AND
+  // KEEP the user's typed question IN the input field (not just internally for the
+  // retry), so the user can edit or re-send it. This is the stricter form of the
+  // existing criterion-5 test above: it asserts the INPUT VALUE itself is
+  // preserved, not merely that Try again re-submits.
+  test('a 503 keeps the typed question in the input field with a visible Retry (T-11)', async ({
+    page,
+  }) => {
+    routeChatUnavailable(page);
+    await page.goto('/case');
+    await page.getByTestId('ask-assistant').click();
+
+    const input = page.getByTestId('assistant-input');
+    await input.fill('What is the custody chain of P-7?');
+    await page.getByTestId('assistant-send').click();
+
+    // The distinct unavailable notice + Retry control appear.
+    await expect(page.getByTestId('assistant-unavailable')).toBeVisible();
+    await expect(page.getByTestId('assistant-retry')).toBeVisible();
+
+    // The typed question is STILL in the input field (preserved, not cleared).
+    await expect(input).toHaveValue('What is the custody chain of P-7?');
+  });
+
   test('/assistant renders the shared thread and the sidebar link works', async ({ page }) => {
     await page.goto('/case');
     await page.getByRole('link', { name: 'Assistant' }).click();
