@@ -73,8 +73,9 @@ test.describe('Trial Command Center', () => {
     await expect(rows.first()).toBeVisible();
     expect(await rows.count()).toBeGreaterThanOrEqual(1);
 
-    // Freshness indicator renders.
-    await expect(page.getByTestId('freshness-indicator')).toContainText(/updated .* ago|updating/i);
+    // T-15: the labeled Live indicator renders (replaced the former
+    // "updated Xs ago" freshness text). Under normal polling it reads "Live".
+    await expect(page.getByTestId('live-indicator')).toContainText(/live/i);
   });
 
   // Criterion 1 — default landing + sidebar (non-regression on Jury/Assistant).
@@ -1123,5 +1124,70 @@ test.describe('Trial Command Center', () => {
     await expect(page.getByRole('heading', { name: /recent activity/i })).toContainText(/today/i);
     const headers = page.getByTestId('activity-date-group-header');
     await expect(headers.first()).toContainText(/^TODAY · /);
+  });
+
+  // ===================================================================
+  // 09-13 (T-15) — LiveIndicator: green "Live" <60s; amber "Connection
+  // lost" + working Refresh once the activity query errors (a reliably
+  // fast, deterministic e2e trigger). The time-based 60s isStale boundary
+  // is covered by the src/hooks/useFreshness.test.ts unit test. F8.
+  // ===================================================================
+
+  test('under normal polling the Live indicator shows green "Live" (not the old "updated Xs ago")', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const live = page.getByTestId('live-indicator');
+    await expect(live).toBeVisible();
+    await expect(live).toHaveAttribute('data-state', 'live');
+    await expect(live).toContainText('Live');
+    // The former phrasing is fully retired for the fresh state.
+    await expect(live).not.toContainText(/updated .* ago/i);
+    // No Refresh affordance while fresh.
+    await expect(page.getByTestId('live-indicator-refresh')).toHaveCount(0);
+  });
+
+  test('when the activity query errors, the indicator flips to amber "Connection lost" with a working Refresh', async ({
+    page,
+  }) => {
+    // Force the activity endpoint to fail: react-query (retry:false) enters its
+    // error state, so the LiveIndicator must render the stale treatment. The
+    // Refresh button triggers activity.refetch() — proven to work by serving a
+    // healthy payload on the retry and asserting the indicator recovers to "Live".
+    let failing = true;
+    await page.route('**/api/cases/**/activity**', async (route) => {
+      if (failing) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'x' } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_ACTIVITY),
+      });
+    });
+
+    await page.goto('/command-center');
+
+    const live = page.getByTestId('live-indicator');
+    await expect(live).toBeVisible();
+    await expect(live).toHaveAttribute('data-state', 'stale');
+    await expect(live).toContainText('Connection lost');
+
+    const refresh = page.getByTestId('live-indicator-refresh');
+    await expect(refresh).toBeVisible();
+
+    // Flip the endpoint healthy, then click Refresh — the indicator recovers,
+    // proving onRefetch() is wired to the query's own refetch.
+    failing = false;
+    await refresh.click();
+    await expect(live).toHaveAttribute('data-state', 'live', { timeout: 6_000 });
+    await expect(live).toContainText('Live');
   });
 });
