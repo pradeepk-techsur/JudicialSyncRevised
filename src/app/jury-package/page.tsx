@@ -6,6 +6,7 @@ import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 import { JuryPackageEmpty } from '@/components/jury/JuryPackageEmpty';
 import { JuryPackageDraft } from '@/components/jury/JuryPackageDraft';
 import { JuryPackageFinalized } from '@/components/jury/JuryPackageFinalized';
+import { JuryPackageReadinessPreview } from '@/components/jury/JuryPackageReadinessPreview';
 
 // The /jury-package route (F11) — a pure presentation + action-trigger layer over
 // the 03-02 endpoints. It READS on mount (the GET never creates a draft — ROADMAP
@@ -45,46 +46,62 @@ export default function JuryPackagePage() {
 
   const pkg = data.juryPackage;
 
+  // F25: the read-only readiness preview renders in ALL THREE states (empty /
+  // draft / finalized) — it "remains available alongside the normal
+  // Draft/Finalized views regardless of package state" (F25 §Process step 1).
+  // In the empty state it sits directly below JuryPackageEmpty's guidance; in the
+  // draft/finalized states it sits ABOVE the package section so a user scanning
+  // top-down sees "what's ready across the whole case" before "what's already in
+  // this specific package" — related but distinct questions.
   if (pkg === null) {
     return (
-      <JuryPackageEmpty
-        onInitiate={() => initiate.mutate()}
-        pending={initiate.isPending}
-        error={initiate.error}
-      />
+      <>
+        <JuryPackageEmpty
+          onInitiate={() => initiate.mutate()}
+          pending={initiate.isPending}
+          error={initiate.error}
+        />
+        <JuryPackageReadinessPreview />
+      </>
     );
   }
 
   if (pkg.status === 'FINALIZED') {
     return (
-      <JuryPackageFinalized
-        juryPackage={pkg}
-        exhibits={data.exhibits}
-        onStartNewDraft={() => initiate.mutate()}
-        startDraftPending={initiate.isPending}
-      />
+      <>
+        <JuryPackageReadinessPreview />
+        <JuryPackageFinalized
+          juryPackage={pkg}
+          exhibits={data.exhibits}
+          onStartNewDraft={() => initiate.mutate()}
+          startDraftPending={initiate.isPending}
+        />
+      </>
     );
   }
 
   // DRAFT
   return (
-    <JuryPackageDraft
-      juryPackage={pkg}
-      exhibits={data.exhibits}
-      caseFlags={caseFlags}
-      dataUpdatedAt={dataUpdatedAt}
-      onFinalize={(id) => finalize.mutate(id)}
-      onExclude={(exhibitId) =>
-        exclude.mutate({ juryPackageId: pkg.id, exhibitId, reason: 'SEALED_EXPARTE' })
-      }
-      onAcknowledge={(flagId, justification) =>
-        acknowledge.mutateAsync({ flagId, justification })
-      }
-      onRequestFinalization={(id) => requestFinalization.mutate(id)}
-      requestFinalizationPending={requestFinalization.isPending}
-      finalizePending={finalize.isPending}
-      finalizeError={finalize.error}
-      acknowledgePending={acknowledge.isPending}
-    />
+    <>
+      <JuryPackageReadinessPreview />
+      <JuryPackageDraft
+        juryPackage={pkg}
+        exhibits={data.exhibits}
+        caseFlags={caseFlags}
+        dataUpdatedAt={dataUpdatedAt}
+        onFinalize={(id) => finalize.mutate(id)}
+        onExclude={(exhibitId) =>
+          exclude.mutate({ juryPackageId: pkg.id, exhibitId, reason: 'SEALED_EXPARTE' })
+        }
+        onAcknowledge={(flagId, justification) =>
+          acknowledge.mutateAsync({ flagId, justification })
+        }
+        onRequestFinalization={(id) => requestFinalization.mutate(id)}
+        requestFinalizationPending={requestFinalization.isPending}
+        finalizePending={finalize.isPending}
+        finalizeError={finalize.error}
+        acknowledgePending={acknowledge.isPending}
+      />
+    </>
   );
 }
