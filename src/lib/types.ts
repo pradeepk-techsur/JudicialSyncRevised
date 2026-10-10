@@ -15,14 +15,23 @@ export interface ExhibitListRow {
   currentStatus: ExhibitStatus | null;
   currentCustodianName: string | null;
   discrepancyFlags: DiscrepancyFlagSummary[];
-  // Added Phase 8 (F09 §Process step 3): Included (INCLUDED+CLEAN) > Blocked
-  // (INCLUDED+FLAGGED) > Not eligible (no JuryPackageExhibit row at all, OR a
-  // row with status EXCLUDED). Computed from the case's single
-  // most-recently-computed JuryPackage — never independently re-derived. The
-  // single source of this precedence is loadJuryEligibilityByExhibit in
-  // exhibits.ts (08-08's single-exhibit checklist calls it too, so the two
-  // screens can never drift).
-  juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED';
+  // Added Phase 8; precedence amended Phase 9 (F09 §Process step 3) to FOUR
+  // values:
+  //   INCLUDED          — INCLUDED+CLEAN member row
+  //   BLOCKED           — INCLUDED+FLAGGED member row
+  //   NOT_ELIGIBLE      — a *structural, permanent* exclusion only: the exhibit
+  //                       is sealed (isSealed, the F16-classification substitute),
+  //                       OR a member row with status EXCLUDED
+  //   NOT_YET_EVALUATED — no member row exists at all (not-yet-admitted, or
+  //                       admitted-but-never-run-through-package-computation).
+  //                       Phase 8 incorrectly folded this into NOT_ELIGIBLE; the
+  //                       Phase 9 split exists so a user distinguishes "never
+  //                       assessed" from "structurally excluded".
+  // Computed from the case's single most-recently-computed JuryPackage — never
+  // independently re-derived. The single source of this precedence is
+  // loadJuryEligibilityByExhibit in exhibits.ts (08-08's single-exhibit checklist
+  // calls it too, so the two screens can never drift).
+  juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED' | 'NOT_YET_EVALUATED';
   // Added Phase 8 (readable Flags column): true iff >=1 ObjectionCurrentState
   // row for this exhibit has status UNRESOLVED, REGARDLESS of currentStatus —
   // this is NOT the same condition as any DiscrepancyFlag rule (an unresolved

@@ -144,7 +144,7 @@ function toListRow(
     custodyState: { custodian: { name: string } } | null;
   },
   discrepancyFlags: DiscrepancyFlagSummary[],
-  juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED',
+  juryPackageEligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED' | 'NOT_YET_EVALUATED',
   hasUnresolvedObjection: boolean,
 ): ExhibitListRow {
   return {
@@ -203,53 +203,96 @@ async function loadDiscrepancyFlagsByExhibit(
  * Batch-compute juryPackageEligibility for a page of exhibits in ONE query,
  * mirroring loadDiscrepancyFlagsByExhibit's batch-load shape (no N+1). Reads
  * the case's single most-recently-computed JuryPackage's JuryPackageExhibit
- * rows — an exhibit absent from that set (no package ever computed, not yet a
- * member, or excluded) is NOT_ELIGIBLE by the precedence rule's final branch.
+ * rows, plus each exhibit's isSealed flag (one extra batched query — see below).
  *
- * Precedence (F09 §Process step 3, exactly):
- *   Included  = an INCLUDED member row whose discrepancyStatus is CLEAN
- *   Blocked   = an INCLUDED member row whose discrepancyStatus is FLAGGED
- *   Not eligible = everything else (no package ever computed for the case; an
- *                  exhibit with no member row; or a member row with status
- *                  EXCLUDED)
+ * Precedence (F09 §Process step 3, exactly — FRD-authoritative; amended Phase 9
+ * from three values to FOUR):
+ *   INCLUDED          = an INCLUDED member row whose discrepancyStatus is CLEAN
+ *   BLOCKED           = an INCLUDED member row whose discrepancyStatus is FLAGGED
+ *   NOT_ELIGIBLE      = a *structural, permanent* exclusion that no future
+ *                       package computation reverses: the exhibit is sealed
+ *                       (isSealed=true — the established Phase-8 substitute for
+ *                       F16's non-existent `classification != 'TRIAL'` column,
+ *                       the SAME substitution attentionFeed.ts/juryPackage.ts
+ *                       already make), OR a member row exists with status
+ *                       EXCLUDED (F13's sealed/ex-parte or manual-removal
+ *                       remediation).
+ *   NOT_YET_EVALUATED = every other case — no member row exists for this exhibit
+ *                       at all. Covers (a) not-yet-ADMITTED exhibits, (b)
+ *                       ADMITTED but no JuryPackage ever computed for the case,
+ *                       and (c) ADMITTED after the latest package's computation.
  *
- * EXPORTED (not module-private): this is the ONLY implementation of the
- * Included/Blocked/Not-eligible precedence rule anywhere in the codebase.
- * 08-08's getExhibitHistory computes the SAME eligibility for a single
- * exhibit's juryPackageChecklist and MUST call this function (passing a
- * 1-element exhibitIds array and reading that one Map entry) rather than
- * re-deriving the branch logic — both plans' own tests assert cross-screen
- * parity between Case Workspace and Exhibit Detail, and a second hand-written
- * copy of this precedence would silently drift from this one over time.
+ * Phase 9 precedence change: the former "no package ever computed → NOT_ELIGIBLE
+ * for everyone" branch (and the "no member row → NOT_ELIGIBLE" fall-through) are
+ * now NOT_YET_EVALUATED. NOT_ELIGIBLE is reserved strictly for the two
+ * structural exclusions above, so the Case Workspace never reads "Not eligible"
+ * merely because nobody has run package computation yet (the T-06 defect).
+ *
+ * isSealed takes precedence over row existence/state: a sealed exhibit is
+ * NOT_ELIGIBLE regardless of whether it has a member row or what that row says,
+ * because the sealed classification is the permanent structural fact.
+ *
+ * EXPORTED (not module-private): this is the ONLY implementation of this
+ * precedence rule anywhere in the codebase. 08-08's getExhibitHistory computes
+ * the SAME eligibility for a single exhibit's juryPackageChecklist and MUST call
+ * this function (passing a 1-element exhibitIds array and reading that one Map
+ * entry) rather than re-deriving the branch logic — the FRD's three-surface
+ * consistency rule (F09 §Validation) requires getExhibits / searchExhibits /
+ * getExhibitHistory to agree by construction, and a second hand-written copy of
+ * this precedence would silently drift from this one over time.
  */
 export async function loadJuryEligibilityByExhibit(
   caseId: string,
   exhibitIds: string[],
-): Promise<Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'>> {
-  const result = new Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED'>();
+): Promise<Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED' | 'NOT_YET_EVALUATED'>> {
+  const result = new Map<string, 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED' | 'NOT_YET_EVALUATED'>();
   if (exhibitIds.length === 0) return result;
 
-  const latestPackage = await prisma.juryPackage.findFirst({
-    where: { caseId },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true },
-  });
-  if (!latestPackage) {
-    // No package ever computed — every exhibit is NOT_ELIGIBLE (F09 §Process
-    // step 4, expected behavior, not a defect).
-    for (const id of exhibitIds) result.set(id, 'NOT_ELIGIBLE');
-    return result;
+  // Batch-fetch each exhibit's isSealed flag. This is a genuinely new query:
+  // the function previously read only juryPackageExhibit rows and never needed
+  // the exhibit rows themselves. Batched once over the (already role-filtered)
+  // id list — never per-row, never a sealed leak (the caller sealed-filters the
+  // id list before this function sees it, threat T-09-10).
+  const [latestPackage, sealedRows] = await Promise.all([
+    prisma.juryPackage.findFirst({
+      where: { caseId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    }),
+    prisma.exhibit.findMany({
+      where: { id: { in: exhibitIds } },
+      select: { id: true, isSealed: true },
+    }),
+  ]);
+  const sealedById = new Map(sealedRows.map((e) => [e.id, e.isSealed]));
+
+  // Member rows from the latest package (if any). Absent → the whole set is
+  // either sealed (NOT_ELIGIBLE) or NOT_YET_EVALUATED, resolved per-exhibit below.
+  const byExhibit = new Map<string, { status: string; discrepancyStatus: string }>();
+  if (latestPackage) {
+    const rows = await prisma.juryPackageExhibit.findMany({
+      where: { juryPackageId: latestPackage.id, exhibitId: { in: exhibitIds } },
+      select: { exhibitId: true, status: true, discrepancyStatus: true },
+    });
+    for (const r of rows) {
+      byExhibit.set(r.exhibitId, { status: r.status, discrepancyStatus: r.discrepancyStatus });
+    }
   }
 
-  const rows = await prisma.juryPackageExhibit.findMany({
-    where: { juryPackageId: latestPackage.id, exhibitId: { in: exhibitIds } },
-    select: { exhibitId: true, status: true, discrepancyStatus: true },
-  });
-  const byExhibit = new Map(rows.map((r) => [r.exhibitId, r]));
-
   for (const id of exhibitIds) {
+    // 1. Sealed → NOT_ELIGIBLE, the permanent structural exclusion, regardless
+    //    of row existence or package state.
+    if (sealedById.get(id)) {
+      result.set(id, 'NOT_ELIGIBLE');
+      continue;
+    }
     const row = byExhibit.get(id);
-    if (!row || row.status === 'EXCLUDED') {
+    // 2. No latest package at all, or no member row for this exhibit →
+    //    NOT_YET_EVALUATED (replacing Phase 8's incorrect NOT_ELIGIBLE).
+    if (!row) {
+      result.set(id, 'NOT_YET_EVALUATED');
+    } else if (row.status === 'EXCLUDED') {
+      // 3. Explicit structural exclusion from the package.
       result.set(id, 'NOT_ELIGIBLE');
     } else if (row.discrepancyStatus === 'FLAGGED') {
       result.set(id, 'BLOCKED');
@@ -311,7 +354,7 @@ export async function getExhibits(
     toListRow(
       e,
       flagsByExhibit.get(e.id) ?? [],
-      eligibilityByExhibit.get(e.id) ?? 'NOT_ELIGIBLE',
+      eligibilityByExhibit.get(e.id) ?? 'NOT_YET_EVALUATED',
       unresolvedObjectionIds.has(e.id),
     ),
   );
@@ -411,7 +454,7 @@ export async function searchExhibits(criteria: SearchExhibitsCriteria): Promise<
     toListRow(
       e,
       flagsByExhibit.get(e.id) ?? [],
-      eligibilityByExhibit.get(e.id) ?? 'NOT_ELIGIBLE',
+      eligibilityByExhibit.get(e.id) ?? 'NOT_YET_EVALUATED',
       unresolvedObjectionIds.has(e.id),
     ),
   );

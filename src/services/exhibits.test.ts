@@ -190,13 +190,14 @@ describe('exhibits service', () => {
       );
     });
 
-    it('a visible exhibit with no jury package ever computed is NOT_ELIGIBLE and carries the additive booleans', async () => {
+    it('a visible exhibit with no jury package ever computed is NOT_YET_EVALUATED and carries the additive booleans', async () => {
       const list = await getExhibits(fixture.caseId, 'JUDGE');
       const row = list.find((e) => e.exhibitId === visibleId);
       expect(row).toBeDefined();
-      // No JuryPackage exists for this freshly-created case → every exhibit is
-      // NOT_ELIGIBLE (F09 §Process step 3 final branch, "no package yet").
-      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+      // No JuryPackage exists for this freshly-created case → an unsealed exhibit
+      // is NOT_YET_EVALUATED (F09 §Process step 3, Phase 9: "no member row →
+      // never assessed", NOT the structural NOT_ELIGIBLE exclusion).
+      expect(row?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
       expect(row?.hasUnresolvedObjection).toBe(false);
       expect(row?.isSealed).toBe(false);
     });
@@ -274,14 +275,16 @@ describe('exhibits service', () => {
       expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
     });
 
-    it('exhibit absent from the computed package → NOT_ELIGIBLE', async () => {
+    it('exhibit absent from the computed package → NOT_YET_EVALUATED', async () => {
       const memberId = await makeExhibit('JP-MEMBER');
       const nonMemberId = await makeExhibit('JP-NONMEMBER');
       const pkgId = await makePackage();
-      // Only memberId is in the package; nonMemberId has no row at all.
+      // Only memberId is in the package; nonMemberId has no row at all. Phase 9:
+      // a package exists but this exhibit was never run through computation → it
+      // is NOT_YET_EVALUATED, NOT the structural NOT_ELIGIBLE.
       await addMember(pkgId, memberId, 'CLEAN');
       const nonMember = await rowFor(nonMemberId);
-      expect(nonMember?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+      expect(nonMember?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
     });
 
     it('eligibility is read from the MOST RECENT package only', async () => {
