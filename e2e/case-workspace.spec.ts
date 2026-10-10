@@ -264,4 +264,104 @@ test.describe('Case Workspace', () => {
     }
     expect(sawAtLeastOne, 'at least one write-role option should exist in the seed').toBe(true);
   });
+
+  // ---- Phase 9 (09-07, T-07) search-filter labeling + witness select + readout ----
+  test.describe('T-07 search filter labels, witness select, result-count readout', () => {
+    // Every filter control carries a VISIBLE text label (not merely an
+    // accessible name on a visually-hidden <label>). Assert each label is a
+    // visible text node within the filter bar — getByLabel alone would pass even
+    // for a hideLabel'd control, so we assert visibility of the text itself.
+    test('every filter shows a visible text label (Search, Status, Witness, From, To)', async ({
+      page,
+    }) => {
+      await page.goto('/case');
+      const bar = page.getByTestId('search-filter-bar');
+      await expect(bar).toBeVisible();
+      for (const label of ['Search', 'Status', 'Witness', 'From', 'To']) {
+        await expect(
+          bar.getByText(label, { exact: true }),
+          `"${label}" label must be a visible text node`,
+        ).toBeVisible();
+      }
+    });
+
+    // The Witness control is a real combobox (Carbon ComboBox → role="combobox"
+    // inside a .cds--list-box) that opens a dropdown of real seeded witness names
+    // when clicked/typed into — not a free-text input.
+    test('Witness is a combobox that opens real seeded witness names', async ({ page }) => {
+      await page.goto('/case');
+      const witness = page.locator('#exhibit-witness-filter');
+      await expect(witness).toHaveAttribute('role', 'combobox');
+      // The control lives inside Carbon's list-box wrapper.
+      await expect(
+        page.locator('.cds--list-box').filter({ has: witness }).first(),
+      ).toBeVisible();
+      // Opening it reveals seeded witness names (P-3 → "Dr. Amara Finch", P-1 →
+      // "Det. Raymond Cole") — real values derived from the loaded list, never
+      // free text.
+      await witness.click();
+      await expect(page.getByRole('option', { name: 'Dr. Amara Finch' })).toBeVisible();
+      await expect(page.getByRole('option', { name: 'Det. Raymond Cole' })).toBeVisible();
+    });
+
+    // After applying any filter, the page shows "Showing N of M" with N <= M.
+    test('applying a filter shows "Showing N of M" with N <= M', async ({ page }) => {
+      await page.goto('/case');
+      const readout = page.getByTestId('result-count');
+      await expect(readout).toBeVisible();
+      // Wait for the list to load before reading the total — the initial render
+      // shows "Showing 0 of 0" until the query resolves. P-1 visible ⇒ loaded.
+      await expect(page.getByText('P-1')).toBeVisible();
+      await expect(readout).not.toHaveText('Showing 0 of 0');
+
+      // Capture the unfiltered total.
+      const fullText = (await readout.textContent()) ?? '';
+      const fullMatch = fullText.match(/Showing (\d+) of (\d+)/);
+      expect(fullMatch, 'readout must read "Showing N of M"').not.toBeNull();
+      const total = Number(fullMatch![2]);
+      expect(total).toBeGreaterThan(0);
+
+      // Narrow with the witness select.
+      const witness = page.locator('#exhibit-witness-filter');
+      await witness.click();
+      await page.getByRole('option', { name: 'Dr. Amara Finch' }).click();
+
+      await expect(readout).toHaveText(/Showing \d+ of \d+/);
+      const narrowedText = (await readout.textContent()) ?? '';
+      const nm = narrowedText.match(/Showing (\d+) of (\d+)/)!;
+      const visible = Number(nm[1]);
+      const totalWhileFiltered = Number(nm[2]);
+      expect(visible).toBeLessThanOrEqual(totalWhileFiltered);
+      // The total stays the full unfiltered count; the visible count shrinks.
+      expect(totalWhileFiltered).toBe(total);
+      expect(visible).toBeLessThan(total);
+    });
+
+    // Clicking "Clear filters" resets to the full unfiltered list and the readout
+    // updates accordingly.
+    test('Clear filters resets to the full list and updates the readout', async ({ page }) => {
+      await page.goto('/case');
+      const readout = page.getByTestId('result-count');
+      // Wait for the list to load before reading the total.
+      await expect(page.getByText('P-1')).toBeVisible();
+      await expect(readout).not.toHaveText('Showing 0 of 0');
+      const fullText = (await readout.textContent()) ?? '';
+      const total = Number(fullText.match(/Showing (\d+) of (\d+)/)![2]);
+
+      // Apply a filter → Clear filters appears.
+      const witness = page.locator('#exhibit-witness-filter');
+      await witness.click();
+      await page.getByRole('option', { name: 'Dr. Amara Finch' }).click();
+      const clear = page.getByTestId('clear-filters-readout');
+      await expect(clear).toBeVisible();
+
+      await clear.click();
+
+      // Readout returns to the full count (N === M === total), Clear filters hides.
+      await expect(readout).toHaveText(`Showing ${total} of ${total}`);
+      await expect(page.getByTestId('clear-filters-readout')).toHaveCount(0);
+      await expect(page.getByText('P-1')).toBeVisible();
+      await expect(page.getByText('P-3')).toBeVisible();
+    });
+  });
 });

@@ -42,7 +42,7 @@ export function SearchFilterBar({
   const hasAny = chips.length > 0;
 
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} data-testid="search-filter-bar">
       <div className={styles.row}>
         {/* Carbon's Search renders `labelText` as a visually-hidden <label> even
             in non-compact mode, so a sighted user never sees it. Pair it with a
