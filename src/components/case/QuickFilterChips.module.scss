@@ -3,6 +3,7 @@
 // as the Command Center Recent Activity filter pills.
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
 @use '@carbon/colors';
 
 .chipRow {
@@ -21,9 +22,10 @@
   border-radius: 1rem;
   background-color: transparent;
   color: $text-primary;
-  font-size: 0.8125rem;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.8125rem / 1.25;
+  // the chip keeps its medium weight (500) for a filter-group look.
+  @include type-style('body-compact-01');
   font-weight: 500;
-  line-height: 1.25;
   cursor: pointer;
 
   &:hover {

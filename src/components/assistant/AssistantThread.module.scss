@@ -5,6 +5,7 @@
 
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
 
 .thread {
   display: flex;
@@ -26,7 +27,9 @@
 
 .title {
   margin: 0;
-  font-size: 0.875rem;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.875rem; the
+  // thread title keeps its bold weight for emphasis.
+  @include type-style('body-compact-01');
   font-weight: 600;
   color: $text-primary;
 }

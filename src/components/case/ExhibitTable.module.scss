@@ -153,6 +153,8 @@
 
 .chevron {
   color: $text-secondary;
-  font-size: 1.125rem;
+  // Decorative affordance glyph routed onto Carbon's heading-compact-01 token
+  // (16px) instead of a raw 1.125rem, keeping it on the type scale.
+  @include type-style('heading-compact-01');
   line-height: 1;
 }

@@ -1,5 +1,6 @@
 @use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
 @use '../styles/statusColors' as status;
 
 // Small colored status dot rendered INSIDE the Carbon Tag, preserving the
@@ -61,7 +62,8 @@
 .nullBadge {
   display: inline-flex;
   align-items: center;
-  font-size: 0.875rem;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.875rem.
+  @include type-style('body-compact-01');
   color: $text-secondary;
 }
 

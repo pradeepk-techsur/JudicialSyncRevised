@@ -1,4 +1,5 @@
 @use '@carbon/colors';
+@use '@carbon/styles/scss/type' as *;
 
 // Exhibit-label chip. A small, bold, monospace-ish token with a subtle
 // background tint and rounded corners — a chip, NOT plain text — so an exhibit
@@ -9,11 +10,18 @@
 .tag {
   display: inline-flex;
   align-items: center;
-  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+  // Carbon's code-01 type token (12px / 16px line-height) replaces the former
+  // hand-rolled 0.75rem / line-height:1, which risked glyph clipping. The chip
+  // keeps its deliberate bold weight (600) — the one intentional design
+  // override on top of code-01's regular weight, so the label still reads as a
+  // distinct bold token — and points its font-family at the self-hosted
+  // --font-ibm-plex-mono CSS variable from 09-12's src/lib/fonts.ts so this
+  // chip renders in the correctly-loaded self-hosted mono font instead of
+  // relying on a system-installed "IBM Plex Mono".
+  @include type-style('code-01');
+  font-family: var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
   font-weight: 600;
-  font-size: 0.75rem;
-  line-height: 1;
   letter-spacing: 0.01em;
   padding: 0.1875rem 0.375rem;
   border-radius: 0.25rem;
