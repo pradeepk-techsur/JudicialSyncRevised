@@ -1,0 +1,107 @@
+// 09-04 (T-04) — full Activity History page. Mirrors the Command Center Recent
+// Activity panel's row/date-group presentation (RecentActivityPanel.module.scss)
+// with the same Carbon tokens, minus the panel chrome / filter pills / 10-cap.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.backLink {
+  display: inline-block;
+  margin-bottom: $spacing-05;
+  @include type-style('body-compact-01');
+  color: $link-primary;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.title {
+  @include type-style('heading-03');
+  color: $text-primary;
+}
+
+.subtitle {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+  margin-top: $spacing-02;
+  margin-bottom: $spacing-06;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rowWrapper {
+  list-style: none;
+}
+
+.dateGroupHeader {
+  @include type-style('label-01');
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: $text-secondary;
+  padding: $spacing-04 $spacing-02 $spacing-02;
+  text-transform: uppercase;
+}
+
+.row {
+  border-top: 1px solid $border-subtle;
+}
+
+.link {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-02;
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  text-decoration: none;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+}
+
+.bullet {
+  color: $icon-secondary;
+}
+
+.summary {
+  flex: 1 1 auto;
+  color: $text-primary;
+}
+
+.time {
+  flex-shrink: 0;
+  @include type-style('label-01');
+  color: $text-helper;
+}
+
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.mergedDetails {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.mergedSummary {
+  cursor: pointer;
+  list-style: revert;
+}
+
+.mergedList {
+  list-style: disc;
+  margin: $spacing-02 0 0;
+  padding-left: $spacing-06;
+  color: $text-secondary;
+}
+
+.mergedItem {
+  padding: $spacing-02 0;
+}

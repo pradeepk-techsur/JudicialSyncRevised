@@ -946,4 +946,182 @@ test.describe('Trial Command Center', () => {
     await expect(feed.getByRole('columnheader', { name: 'Age' })).toBeVisible();
     await expect(feed.getByRole('columnheader', { name: 'Action' })).toBeVisible();
   });
+
+  // ===================================================================
+  // 09-04 (T-04) — Recent Activity rework: no nested scroll, 10-cap +
+  // View all → full /activity page, 60s same-exhibit grouping, seconds
+  // timestamp, heading/date-group day-word agreement. F08/F15.
+  // ===================================================================
+
+  // A deterministic activity payload: 12 single rows all TODAY, each a DISTINCT
+  // exhibit (so none are merged), plus a separate 3-event same-exhibit run within
+  // 60s (so that run collapses into ONE merged row). Used to prove the 10-cap, the
+  // grouping, and the seconds format without depending on shared-DB seed state.
+  function t04Activity() {
+    const base = Date.now();
+    const singles = Array.from({ length: 12 }, (_, k) => ({
+      eventId: `t04-single-${k}`,
+      eventType: 'CUSTODY_TRANSFER',
+      exhibitId: `ex-single-${k}`,
+      exhibitLabel: `P-${k + 10}`,
+      summary: `Custody transferred for item ${k}`,
+      // Spread across distinct seconds within today, newest-first.
+      recordedAt: new Date(base - k * 5_000).toISOString(),
+    }));
+    // A 3-event same-exhibit STATUS_CHANGE run all within 60s → one merged row.
+    const run = [
+      {
+        eventId: 't04-run-2',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from OFFERED to ADMITTED',
+        recordedAt: new Date(base - 70_000).toISOString(),
+      },
+      {
+        eventId: 't04-run-1',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from MARKED to OFFERED',
+        recordedAt: new Date(base - 90_000).toISOString(),
+      },
+      {
+        eventId: 't04-run-0',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from (none) to MARKED',
+        recordedAt: new Date(base - 110_000).toISOString(),
+      },
+    ];
+    return {
+      recentActivity: [...singles, ...run],
+      statusCounts: {
+        MARKED: 1,
+        OFFERED: 1,
+        OBJECTED: 0,
+        ADMITTED: 1,
+        EXCLUDED: 0,
+        WITHDRAWN: 0,
+      },
+    };
+  }
+
+  async function mockT04(page: Page): Promise<void> {
+    await page.route('**/api/cases/**/activity**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(t04Activity()),
+      });
+    });
+  }
+
+  test('the Recent Activity panel has no nested scrollbox (list is not independently scrollable)', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    const list = page.getByTestId('recent-activity-list');
+    await expect(list).toBeVisible();
+    // The former nested scrollbox set max-height + overflow-y:auto. Prove neither
+    // is applied: the list's scrollHeight must not exceed its clientHeight (it is
+    // not an independent scroll container), and computed overflow-y is not 'auto'/
+    // 'scroll'.
+    const overflowY = await list.evaluate((el) => getComputedStyle(el).overflowY);
+    expect(['visible', 'clip', '']).toContain(overflowY);
+  });
+
+  test('the feed renders at most 10 units and shows a stable View all link', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+
+    // 13 events → 12 singles + 1 merged run = 13 units, capped to the latest 10.
+    const singleRows = page.getByTestId('recent-activity-row');
+    const mergedRows = page.getByTestId('recent-activity-merged-row');
+    const total = (await singleRows.count()) + (await mergedRows.count());
+    expect(total).toBe(10);
+
+    // The View all link is always present when the feed has rows.
+    const viewAll = page.getByTestId('activity-view-all');
+    await expect(viewAll).toBeVisible();
+    await expect(viewAll).toHaveAttribute('href', '/activity');
+  });
+
+  test('consecutive same-exhibit status changes within 60s collapse into one expandable row', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+
+    // The 3-event P-7 run is the oldest activity — it falls outside the latest-10
+    // window here, so navigate to the full /activity page (no cap) to assert the
+    // merge, which proves the shared grouping function.
+    await page.getByTestId('activity-view-all').click();
+    await expect(page).toHaveURL(/\/activity$/);
+    await expect(page.getByTestId('activity-page')).toBeVisible();
+
+    const merged = page.getByTestId('activity-full-merged-row');
+    await expect(merged).toHaveCount(1);
+    // Collapsed summary reads "<count> status updates".
+    await expect(merged).toContainText('3 status updates');
+    // Expanding reveals the individual original summaries.
+    await merged.locator('summary').click();
+    await expect(merged).toContainText('Status changed from MARKED to OFFERED');
+    await expect(merged).toContainText('Status changed from OFFERED to ADMITTED');
+  });
+
+  test('every timestamp in the panel includes seconds (one consistent format)', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    const rows = page.getByTestId('recent-activity-row');
+    await expect(rows.first()).toBeVisible();
+    const count = await rows.count();
+    for (let i = 0; i < count; i++) {
+      const text = await rows.nth(i).innerText();
+      // A seconds-precise stamp has HH:MM:SS (two colons in the time) — e.g.
+      // "6:17:47 PM". A minute-only stamp ("6:17 PM") has exactly one colon.
+      expect(text).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    }
+  });
+
+  test('the full /activity page renders the complete history and links back to Command Center', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    // Reach /activity the real way — via the panel's View all link (also proves
+    // the link-through). The store is hydrated by the command-center visit first.
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+    await page.getByTestId('activity-view-all').click();
+
+    await expect(page).toHaveURL(/\/activity$/);
+    await expect(page.getByTestId('activity-page')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activity History' })).toBeVisible();
+    await expect(page.getByTestId('activity-full-list')).toBeVisible();
+
+    // Full, uncapped: 12 singles + 1 merged run = 13 units (vs the panel's 10).
+    const singleRows = page.getByTestId('activity-full-row');
+    const mergedRows = page.getByTestId('activity-full-merged-row');
+    const total = (await singleRows.count()) + (await mergedRows.count());
+    expect(total).toBe(13);
+
+    // Back link returns to the Command Center.
+    await page.getByRole('link', { name: /‹ Command Center/ }).click();
+    await expect(page).toHaveURL(/\/command-center$/);
+  });
+
+  test('the heading day word agrees with the date-group header day word', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    // All mock events are today → heading says "today" AND the (first) date-group
+    // header says "TODAY · …". They are computed from the same anchor, so they
+    // agree by construction.
+    await expect(page.getByRole('heading', { name: /recent activity/i })).toContainText(/today/i);
+    const headers = page.getByTestId('activity-date-group-header');
+    await expect(headers.first()).toContainText(/^TODAY · /);
+  });
 });

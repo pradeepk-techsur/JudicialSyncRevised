@@ -24,7 +24,8 @@ import styles from './RecentActivityPanel.module.scss';
 // freshness indicator) and passes it in as `query` — this panel does not call
 // the hook itself, so the screen never runs a duplicate activity query.
 
-function formatTime(iso: string): string {
+// Exported so the full /activity page renders timestamps IDENTICALLY (09-04 T-04).
+export function formatTime(iso: string): string {
   // Render BOTH date and time (e.g. "Oct 8, 2026, 2:14:07 PM") — never a
   // time-only stamp, so two events on different days are distinguishable across a
   // day boundary / multi-day recess (UX-Mockup §Activity Feed Row Format).
@@ -137,11 +138,12 @@ const FILTER_TO_EVENT_TYPES: Record<FilterKey, EventType[] | null> = {
 // a plain uppercase date for older days (UX Screen-00). Computed from each row's
 // recordedAt vs now; the feed is already sorted newest-first, so we only need to
 // detect when the calendar day changes walking the list.
-function dayKey(d: Date): string {
+export function dayKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function dateGroupLabel(iso: string): string {
+// Exported so the full /activity page renders date-group headers IDENTICALLY.
+export function dateGroupLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const yesterday = new Date(now);
