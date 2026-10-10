@@ -140,6 +140,37 @@ test.describe('App shell', () => {
     ).toBeVisible();
   });
 
+  test('Jury Package badge counts jury-package blockers (FLAGGED or sealed), matching the page (09-08 T-08)', async ({ page }) => {
+    // 09-08 changed the Jury Package nav badge from the case-wide open-discrepancy
+    // count (useDiscrepancyCount) to the jury-package blocker count (useJuryPackage,
+    // the SAME FLAGGED-or-sealed formula the Jury Package page's "Blockers (N)"
+    // heading and the Command Center stat card use). Mock the jury-package endpoint
+    // with 2 FLAGGED blocker rows + 1 clean row → the sidebar badge must read "2".
+    const blockers = {
+      juryPackage: {
+        id: 'pkg-badge', caseId: 'case-1', status: 'DRAFT',
+        createdAt: new Date().toISOString(), finalizedAt: null, finalizedBy: null,
+        finalizationRequestedAt: null, finalizationRequestedBy: null,
+      },
+      exhibits: [
+        { exhibitId: 'ex-1', exhibitLabel: 'P-7', currentStatus: 'ADMITTED', discrepancyStatus: 'FLAGGED', flags: [{ ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE', status: 'OPEN', label: 'x' }], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+        { exhibitId: 'ex-2', exhibitLabel: 'P-6', currentStatus: 'ADMITTED', discrepancyStatus: 'FLAGGED', flags: [{ ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN', label: 'y' }], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+        { exhibitId: 'ex-3', exhibitLabel: 'P-4', currentStatus: 'ADMITTED', discrepancyStatus: 'CLEAN', flags: [], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+      ],
+    };
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(blockers) });
+    });
+
+    await page.goto('/case');
+    const badge = page.getByTestId('jury-count-badge');
+    // Badge shows the blocker count (2), NOT a case-wide discrepancy count, and
+    // carries the new jury-package-blockers semantics in its aria-label.
+    await expect(badge).toHaveText('2');
+    await expect(badge).toHaveAttribute('aria-label', '2 jury package blockers');
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command
