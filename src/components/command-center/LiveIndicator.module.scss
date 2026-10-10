@@ -1,0 +1,72 @@
+// F8 Command Center — T-15 LiveIndicator styles.
+//
+// Replaces the former tiny "🕐 updated Xs ago" freshness text with a labeled
+// Live / Connection-lost indicator. Two states, driven purely by TanStack Query
+// state (dataUpdatedAt / isError), never a bespoke timer:
+//   fresh (<60s, not errored) → green pulsing dot + "Live"
+//   stale (>=60s or errored)  → amber dot + "Connection lost" + Refresh button
+//
+// The green pulse animation lives here now (the dot moved into this component),
+// so the page's former standalone `.liveDot` / `@keyframes livePulse` block is
+// removed as dead code.
+@use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  @include type-style('label-01');
+}
+
+// Shared dot base; color + animation are tone-specific below.
+.dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+// Fresh / live: Carbon support-success green, gentle outward pulse (migrated
+// verbatim from page.module.scss's removed `.liveDot` / `@keyframes livePulse`).
+.liveLabel {
+  color: $support-success;
+  font-weight: 600;
+}
+
+.liveDot {
+  background-color: $support-success;
+  box-shadow: 0 0 0 0 rgba(colors.$green-50, 0.6);
+  animation: livePulse 2s ease-out infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(colors.$green-50, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 0.375rem rgba(colors.$green-50, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(colors.$green-50, 0);
+  }
+}
+
+// Stale / connection lost: Carbon support-warning amber, no pulse (a static
+// warning reads as "stopped", not "actively alive").
+.staleLabel {
+  color: $support-warning-inverse;
+  font-weight: 600;
+}
+
+.staleDot {
+  background-color: $support-warning-inverse;
+}
+
+// Keep the inline Refresh button tight against the label.
+.refreshButton {
+  min-height: auto;
+}
