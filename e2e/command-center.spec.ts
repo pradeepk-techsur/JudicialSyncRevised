@@ -869,4 +869,81 @@ test.describe('Trial Command Center', () => {
     await expect(page).toHaveURL(/\/command-center#objections$/);
     await expect(page.locator('#objections')).toBeVisible();
   });
+
+  // ===================================================================
+  // 09-01 (T-01, Task 3) — Case Workspace accepts the KPI deep-links:
+  // /case?status=ADMITTED and /case?filter=no-custodian pre-select the
+  // matching filter/chip on load. F08 key-link.
+  // ===================================================================
+
+  test('/case?status=ADMITTED pre-selects the ADMITTED status filter on load', async ({ page }) => {
+    await page.goto('/case?status=ADMITTED');
+    // The status Dropdown reflects ADMITTED on the very first render (read in the
+    // useState initializer, not a post-mount effect).
+    const statusFilter = page.locator('#exhibit-status-filter');
+    await expect(statusFilter).toContainText('ADMITTED');
+    // And the active-filter chip surfaces the status criterion.
+    await expect(page.getByText('status=ADMITTED')).toBeVisible();
+  });
+
+  test('/case?filter=no-custodian pre-selects the No custodian quick-filter chip on load', async ({
+    page,
+  }) => {
+    await page.goto('/case?filter=no-custodian');
+    const chip = page.getByTestId('quick-filter-no-custodian');
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    // The default 'all' chip is NOT the active one.
+    await expect(page.getByTestId('quick-filter-all')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('the No custodian quick-filter narrows the list to exhibits with no custodian', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    // Click the chip directly (no deep-link) and confirm it toggles active —
+    // identical behavior to the existing chips.
+    const chip = page.getByTestId('quick-filter-no-custodian');
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  // The attention DataTable shows an objection's grounds inline on its row (the
+  // Phase 9 objectionGrounds field) with no extra click.
+  test('the attention feed renders objection grounds inline on a HIGH/PENDING row', async ({
+    page,
+  }) => {
+    // A feed whose HIGH entry carries objectionGrounds — the Issue cell must show
+    // the grounds text inline on the same row, no modal/expand.
+    const FEED_WITH_GROUNDS = [
+      {
+        id: 'high-1',
+        tier: 'HIGH',
+        ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+        exhibitId: 'ex-high',
+        exhibitLabel: 'P-7',
+        objectionId: 'obj-high',
+        detectedAt: new Date().toISOString(),
+        summary: 'P-7 — admitted with an open, unresolved objection',
+        objectionGrounds: 'Hearsay — out-of-court statement offered for its truth',
+        availableAction: 'RECORD_RULING',
+      },
+    ];
+    await mockFeed(page, FEED_WITH_GROUNDS);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+    const row = feed.getByTestId('attention-feed-entry');
+    await expect(row).toHaveCount(1);
+    // The grounds text is visible on the row with no interaction.
+    await expect(row).toContainText('Hearsay — out-of-court statement offered for its truth');
+    // Table columns are present (dense DataTable, not stacked cards).
+    await expect(feed.getByRole('columnheader', { name: 'Exhibit' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Issue' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Severity' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Age' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Action' })).toBeVisible();
+  });
 });

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button, InlineLoading, InlineNotification } from '@carbon/react';
 import { useExhibitList, type ExhibitFilters } from '@/hooks/useExhibitList';
 import { useRoleStore } from '@/stores/roleStore';
@@ -19,13 +20,25 @@ function hasAnyCriterion(filters: ExhibitFilters): boolean {
   );
 }
 
-export default function CaseWorkspacePage() {
-  const [filters, setFilters] = useState<ExhibitFilters>({});
+function CaseWorkspaceInner() {
+  // Phase 9 (09-01): the Command Center KPI tiles deep-link here with a URL that
+  // pre-selects the matching filter/chip. We read the query params ONCE, in the
+  // useState initializers (not a useEffect), so the very first render already
+  // reflects the URL — no flash of the unfiltered list. Only `status` and
+  // `filter` are deep-linkable from the Command Center per this ticket's scope;
+  // keyword/witness/date are untouched. An unrecognized `filter` value falls
+  // through to 'all' (threat T-09-01).
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<ExhibitFilters>(() => ({
+    status: searchParams.get('status') ?? undefined,
+  }));
   // Quick-filter is a PURELY client-side narrowing on top of the server-returned
   // list — it never changes what useExhibitList fetches (mirrors the
   // hasAnyCriterion separation of concerns: the search bar drives the query, the
   // quick filter only reshapes what renders). Zero new query.
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>(() =>
+    searchParams.get('filter') === 'no-custodian' ? 'no-custodian' : 'all',
+  );
   const { data, isLoading, isError } = useExhibitList(filters);
 
   const caseNumber = useRoleStore((s) => s.caseNumber);
@@ -88,5 +101,16 @@ export default function CaseWorkspacePage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function CaseWorkspacePage() {
+  // useSearchParams requires a Suspense boundary (Next 16) — wrap the workspace
+  // so the deep-link read doesn't opt the whole route out of static handling
+  // (same pattern as src/app/exhibit/[id]/page.tsx).
+  return (
+    <Suspense fallback={<InlineLoading description="Loading exhibits…" />}>
+      <CaseWorkspaceInner />
+    </Suspense>
   );
 }
