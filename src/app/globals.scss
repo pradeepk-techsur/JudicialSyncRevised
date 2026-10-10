@@ -7,6 +7,36 @@
   $css--font-face: false
 );
 
+// Point Carbon's sans/mono type styles at the self-hosted IBM Plex fonts loaded
+// via next/font (src/lib/fonts.ts, applied as CSS custom properties on <html> in
+// layout.tsx). We KEEP `$css--font-face: false` above — re-enabling Carbon's own
+// @font-face emission would reintroduce the broken `~@ibm/plex/...` webpack path
+// Turbopack cannot resolve (09-CONTEXT decision #3). next/font self-hosts the real
+// IBM Plex files and registers @font-face under the literal "IBM Plex Sans"/"IBM
+// Plex Mono" family names, so this override routes Carbon's type tokens to the
+// next/font CSS variables while preserving Carbon's exact system-font fallback
+// stack (valuable during the brief pre-swap window, not merely a broken-font net).
+//
+// $font-families is only a `!default` inside @carbon/type and is NOT forwarded by
+// @carbon/styles/@carbon/react's config surface, so it cannot be overridden via the
+// `@use ... with (...)` map above — the font-family is instead redirected here at
+// the CSS layer, after the @use so these rules win.
+$plex-sans-stack: var(--font-ibm-plex-sans), 'IBM Plex Sans', system-ui,
+  -apple-system, BlinkMacSystemFont, '.SFNSText-Regular', sans-serif;
+$plex-mono-stack: var(--font-ibm-plex-mono), 'IBM Plex Mono', system-ui,
+  -apple-system, BlinkMacSystemFont, '.SFNSText-Regular', monospace;
+
+body {
+  font-family: $plex-sans-stack;
+}
+
+code,
+.cds--snippet,
+.cds--code-snippet,
+pre {
+  font-family: $plex-mono-stack;
+}
+
 /* Print rules (CONTEXT print CSS) — produce a clean FINALIZED jury-package
    handoff. App chrome (header, sidebar, nav) and in-app action buttons carry the
    `.no-print` utility and are hidden; the finalized content (banner + exhibit
