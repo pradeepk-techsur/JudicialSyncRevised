@@ -14,30 +14,35 @@
   margin-bottom: $spacing-05;
 }
 
-// Each entry is the shared Card chrome (not a plain div) — CRITICAL-tier entries
-// inherit the Card's red-left-border critical treatment via `critical`.
-.entry {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-03;
-  margin-bottom: $spacing-04;
+// Phase 9 (09-01): the feed is a dense DataTable, not stacked Cards. The table
+// fills the tile width; the Issue cell stacks the summary over the optional
+// inline objection grounds.
+.table {
+  width: 100%;
 }
 
-.entryHeader {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
-}
-
+// Issue-cell summary — the primary line of the Issue column.
 .summary {
   @include type-style('body-compact-01');
   color: $text-primary;
+  display: block;
 }
 
-.detectedAt {
+// Objection grounds rendered inline beneath the summary in the SAME Issue cell
+// (Phase 9 "objection text shows inline on the row, no extra click").
+.grounds {
   @include type-style('label-01');
   color: $text-secondary;
+  display: block;
+  font-style: italic;
+  margin-top: $spacing-02;
+}
+
+// Age column — compact elapsed-time text.
+.age {
+  @include type-style('label-01');
+  color: $text-secondary;
+  white-space: nowrap;
 }
 
 .empty {
