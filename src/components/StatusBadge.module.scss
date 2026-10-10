@@ -11,6 +11,15 @@
 //   bg-slate-600 → $cool-gray-70 (WITHDRAWN)
 //   bg-gray-300  → $gray-40      (null / not-yet-entered, plain-text branch)
 
+// Status icon rendered inside the Tag, BEFORE the colored dot (icon + dot +
+// label text — three redundant status signals, never color alone). Aligned
+// with the dot/text baseline and spaced consistently with the dot.
+.statusIcon {
+  margin-right: 0.25rem;
+  vertical-align: text-bottom;
+  flex-shrink: 0;
+}
+
 .dot {
   display: inline-block;
   width: 0.5rem;
