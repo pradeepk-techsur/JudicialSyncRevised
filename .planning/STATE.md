@@ -2,15 +2,16 @@
 pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-10-10T01:48:40.851Z"
-last_activity: "2026-10-10 — Phase 8 complete"
+status: verifying
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-10-10T17:40:49.969Z"
+last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 8
-  total_plans: 59
-  completed_plans: 59
-  percent: 89
+  total_plans: 76
+  completed_plans: 60
+  percent: 100
 ---
 
 # Project State
@@ -24,8 +25,10 @@ See: .planning/PROJECT.md (updated 2026-10-06)
 
 ## Current Position
 
-Phase: 8 (UI Redesign and Write-Action Coverage) — Wave 5, UAT-CLEAN.
-Status: 08-16 (gap-closure, Wave 5, autonomous) complete — closed Phase 8's one remaining open UAT gap (08-UAT.md test 2, severity major). Task 1 (bacbd20): fixed the dark-navy sidebar visually overlapping the shared header's role-switcher — root cause independently re-verified against the vendored @carbon/styles v1.117.0 source (not assumed from the UAT's own hypothesis): Carbon's `.cds--header ~ .cds--side-nav` sibling-combinator rule never matches because the rendered SideNav is nested two levels inside a sibling `.body` div, not a literal DOM sibling of the Header, so the SideNav defaults to `inset-block:0` at the SAME z-index (8000) as the fixed Header, with DOM-order tie-breaking letting it paint over the Header's band. Fix: added `inset-block-start: 3rem` / `block-size: calc(100% - 3rem)` directly to `.cds--side-nav` in `Sidebar.module.scss` (replicating Carbon's own would-be offset, no DOM restructure, no risk to `.body`'s `padding-left:16rem` layout assumption). New Playwright regression test proves zero vertical bounding-box overlap AND a center-point hit-test on the role-switcher resolving to the select itself. Task 2 (0dfa3be): removed `StatusDistributionBar`'s loud multi-colored segmented bar entirely per locked user decision (not replaced with a single-tone bar, not deleted as a whole panel) — component now renders ONLY the existing `status-distribution-legend` (dot+label+count per status); `command-center.spec.ts`'s legend test now explicitly asserts the bar's permanent absence. Verification: `tsc --noEmit` EXIT 0, `npm run build` EXIT 0, combined `app-shell.spec.ts` (8/8) + `command-center.spec.ts` (24/24) = 32/32 green, 0 skipped. 0 deviations, 2 atomic commits. Phase 8 now has zero open UAT gaps.
+Phase: 9 (UI tickets and typography standard) — Wave 1, in progress.
+Status: 09-02 (T-02 severity color scale, Wave 1, autonomous) complete — replaced the attention-feed/condition-pill SeverityPill's four near-identical yellow-family tones (high `$yellow-30`, pending `$yellow-10`+border, medium `$yellow-20`, + critical `$red-70`) with FOUR DIFFERENT Carbon color families so no two tones share a hue and each reads clearly in greyscale: `critical $red-70`/white, `high $orange-60`/white, `pending $blue-60`/white (Carbon support-info hue — also fixes "Pending has no distinct treatment" outright, blue appears nowhere else in the set), `medium $yellow-30`/`$gray-100` (the only remaining yellow). Each tone now renders a leading `@carbon/icons-react` icon (WarningAltFilled/WarningFilled/Time/Information) `aria-hidden` so the always-visible label + aria-label stay the primary, non-color signal. Computed WCAG AA ratios recorded in-comment: critical 7.79, high 5.03, pending 5.00, medium 10.75 — all ≥4.5:1. Task 1 (6dabae9): SeverityPill.tsx/.module.scss — styling-only, public API (`SeverityTone`, `SeverityPill({tone,label,ariaLabel})`) byte-for-byte unchanged so all six consumers (AttentionFeedPanel, JuryPackageSummaryWidget, JuryPackageChecklistCard, JuryPackageDraft, JuryPackageReadinessPreview, ExhibitTable) compile untouched. Task 2 (820dc5f): new SeverityPill.test.ts — imports the four tones' hex directly from `@carbon/colors` (same source the SCSS `@use`s, so test↔stylesheet cannot drift), local WCAG luminance/contrast pure fn, asserts all four pairs ≥4.5:1 + four pairwise-distinct backgrounds (`Set().size===4`); 6/6 green. Verification: `tsc --noEmit` EXIT 0, `next build` EXIT 0, vitest 6/6. [Rule 3] `npm install --include=dev --ignore-scripts` (fresh clone had no node_modules; plain install died on @carbon/colors's absent `ibmtelemetry` postinstall). SHARED-WORKING-TREE HAZARD (severe this run): a concurrent sibling Phase-9 plan's `git reset` reverted my first uncommitted edits AND my first Task-1 commit (293c151) captured the sibling's staged DiscrepancyBanner/ObjectionCard files under a 09-02 message — per user checkpoint decision, left 293c151 (no sibling work lost, just mislabeled) and re-committed ONLY my files as 6dabae9. A transient out-of-scope tsc error (sibling's jury-package/preview route importing a not-yet-exported error class) logged to deferred-items.md; self-resolved before the final clean build. 0 in-scope deviations beyond the blocking install.
+
+Prior status: 08-16 (gap-closure, Wave 5, autonomous) complete — closed Phase 8's one remaining open UAT gap (08-UAT.md test 2, severity major). Task 1 (bacbd20): fixed the dark-navy sidebar visually overlapping the shared header's role-switcher — root cause independently re-verified against the vendored @carbon/styles v1.117.0 source (not assumed from the UAT's own hypothesis): Carbon's `.cds--header ~ .cds--side-nav` sibling-combinator rule never matches because the rendered SideNav is nested two levels inside a sibling `.body` div, not a literal DOM sibling of the Header, so the SideNav defaults to `inset-block:0` at the SAME z-index (8000) as the fixed Header, with DOM-order tie-breaking letting it paint over the Header's band. Fix: added `inset-block-start: 3rem` / `block-size: calc(100% - 3rem)` directly to `.cds--side-nav` in `Sidebar.module.scss` (replicating Carbon's own would-be offset, no DOM restructure, no risk to `.body`'s `padding-left:16rem` layout assumption). New Playwright regression test proves zero vertical bounding-box overlap AND a center-point hit-test on the role-switcher resolving to the select itself. Task 2 (0dfa3be): removed `StatusDistributionBar`'s loud multi-colored segmented bar entirely per locked user decision (not replaced with a single-tone bar, not deleted as a whole panel) — component now renders ONLY the existing `status-distribution-legend` (dot+label+count per status); `command-center.spec.ts`'s legend test now explicitly asserts the bar's permanent absence. Verification: `tsc --noEmit` EXIT 0, `npm run build` EXIT 0, combined `app-shell.spec.ts` (8/8) + `command-center.spec.ts` (24/24) = 32/32 green, 0 skipped. 0 deviations, 2 atomic commits. Phase 8 now has zero open UAT gaps.
 
 Prior status: 08-15 (F08/F24 Command Center "Needs your attention" feed + Jury Package summary widget, Wave 4, autonomous) complete — the LAST two sub-features of the Command Center redesign and F24's FIFTH/final consuming surface, completing F08 and F24 end-to-end. Task 1 (6cf939f): `useAttentionFeed` — the established 4s-polling live-sync hook (role+caseId query key, retry:false) over GET /api/cases/:id/attention-feed; `AttentionFeedPanel` renders 08-06's server-given tier order (CRITICAL→HIGH→PENDING→MEDIUM, newest-first within tier) VERBATIM with ZERO client re-sort (rendering entries.map(...) as-is IS the correctness guarantee), each entry wrapped in the shared Card (08-03, `critical` red-left-border for CRITICAL tier, data-tier/data-exhibit-id/aria-label forwarded via ...rest) + SeverityPill + ExhibitTag. Inline actions ABSENT-not-disabled per F20 role: Record ruling (RULING_ROLES=['JUDGE']) + Assign custodian (CUSTODY_ROLES=['DEPUTY','CLERK','ADMIN']) expand 08-09's shared forms INLINE (never a modal, never nav-away); CRITICAL's "Review and remove →" links through to /jury-package. MEDIUM's TransferCustodyForm gets currentCustodianUserId={null} (ADMITTED_NO_CUSTODIAN = always first-time assignment). No optimistic removal — a successful action waits for the next invalidation-triggered server read. Task 2 (ff2ad57): `JuryPackageSummaryWidget` — link-through-ONLY (reuses the existing useJuryPackage query, no new fetch), three states (loading/no-package/live), rendering the IDENTICAL clean/total ratio the Jury Package Workspace computes via the SAME TwoColorProgressBar; both wired into command-center/page.tsx (feed full-width between the distribution bar and lower rows; widget alongside CustodyAtAGlancePanel). 8 new e2e + full command-center.spec.ts 24/24 green, 0 skipped. [Rule 1] Widget clean = exhibits.filter(!isSealed && flags.length===0).length (IDENTICAL to JuryPackageDraft.cleanRows), NOT the plan's illustrative total-minus-blocked — an acknowledged-but-flagged row must count identically on both surfaces for true cross-screen parity (proven byte-identical caption in e2e). [Rule 1] Pre-existing blanket "strictly read-only" e2e rescoped to every panel EXCEPT the attention feed — the feed is F08's single deliberate, traceable reversal of Phase 5's read-only criterion. Verification on HEAD: tsc --noEmit EXIT 0, npm run build EXIT 0, command-center.spec.ts 24/24 green on a stable seed. Carbon RadioButton overlay-span .check() interception seen again → clicked label text in the no-optimistic-update test. 2 atomic commits, 2 Rule-1 deviations. Dev server stopped after e2e (DB left healthy); staged only 08-15's own files individually.
 
@@ -164,6 +167,7 @@ Progress: [██████████] 100%
 | Phase 08-ui-redesign-and-write-action-coverage P13 | 30 min | 3 tasks | 11 files |
 | Phase 08 P15 | 18 min | 2 tasks | 7 files |
 | Phase 08 P16 | 18min | 2 tasks | 5 files |
+| Phase 09-ui-tickets-and-typography-standard P02 | 12 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -303,6 +307,7 @@ Recent decisions affecting current work:
 - [Phase 08]: [08-12] DiscrepancyBanner alert-banner escalates exactly ONE rule code (UNRESOLVED_OBJECTION_JURY_ELIGIBLE while OPEN) with inline Record-ruling targeting objections[0].objectionId; every other flag's F14 acknowledge/audit treatment preserved byte-for-byte; new objections prop optional/defaulted [] for F14-mock compatibility
 - [Phase 08-ui-redesign-and-write-action-coverage]: [08-13]: Exhibit Detail right-rail cards read slices of ONE getExhibitHistory payload (zero independent per-card queries); jury eligibility badge is a plain colored span not SeverityPill (positive 'Included' reads oddly through urgency tones); Timeline has no 'Rulings' pill (All/Status/Custody/Objections per Screenshot 2)
 - [Phase 08]: 08-16: Fixed sidebar never overlaps header via explicit inset-block-start:3rem CSS offset on .cds--side-nav (replicating Carbon's own sibling-combinator rule), not a DOM restructure; removed StatusDistributionBar's segmented multi-colored bar entirely per locked user decision while keeping the existing legend-dot pattern
+- [Phase 09-ui-tickets-and-typography-standard]: T-02: SeverityPill uses four distinct Carbon hue families (critical red-70, high orange-60, pending blue-60, medium yellow-30) + per-tone icon; all AA >=4.5:1; public API unchanged
 
 ### Pending Todos
 
@@ -318,6 +323,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-09T20:05:15.191Z
-Stopped at: Completed 08-16-PLAN.md
+Last session: 2026-10-10T17:40:44.068Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
