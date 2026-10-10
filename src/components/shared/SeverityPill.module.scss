@@ -1,21 +1,37 @@
 @use '@carbon/colors';
 
-// Severity/condition pill. The fixed color mapping from 00-overview.md §Visual
-// Foundation + Y0-patterns.md §Severity Tier Badge, applied identically wherever
-// a tier or condition renders:
-//   critical → dark red bg / white text
-//   high     → amber bg / dark text
-//   pending  → amber-light (lighter/desaturated amber, visually distinct from
-//              `high` at a glance) bg / dark text
-//   medium   → yellow bg / dark text
+// Severity/condition pill. The fixed color mapping, applied identically wherever
+// a tier or condition renders. T-02 (external UI/UX review) fix: the previous
+// scale used four YELLOW-family tokens differentiated only by shade (high
+// `$yellow-30`, pending `$yellow-10`+`$yellow-30` border, medium `$yellow-20`),
+// which failed "two similar yellows" and "Pending has no distinct treatment" and
+// was indistinguishable in greyscale. It is replaced here with FOUR DIFFERENT
+// Carbon color families so no two tones share a hue, and each pair reads clearly
+// in greyscale too:
+//   critical → $red-70  bg / white    (darkest, unmistakable top tier)
+//   high     → $orange-60 bg / white  (a true orange — distinct from red above)
+//   pending  → $blue-60 bg / white    (Carbon support-info hue; "awaiting action")
+//   medium   → $yellow-30 bg / $gray-100 (the ONLY yellow left in the set)
+//
+// Proposed palette for design approval (per T-02 "put proposed palette in the PR
+// for design approval"): CRITICAL red-70 / HIGH orange-60 / PENDING blue-60 /
+// MEDIUM yellow-30.
+//
+// WCAG AA (4.5:1) — computed relative-luminance contrast ratios for each pair,
+// cross-checked by SeverityPill.test.ts:
+//   critical  red-70    #a2191f on white  → 7.79:1  PASS
+//   high      orange-60 #ba4e00 on white  → 5.03:1  PASS
+//   pending   blue-60   #0f62fe on white  → 5.00:1  PASS
+//   medium    yellow-30 #f1c21b on gray-100 (#161616) → 10.75:1 PASS
 //
 // The four tones are FOUR visually-distinct, named classes. Color is never the
 // sole signal — the `label` text is always rendered by the component on top of
-// these surfaces.
+// these surfaces, and each tone also carries a leading icon.
 
 .pill {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   font-weight: 600;
   font-size: 0.75rem;
   line-height: 1;
@@ -24,29 +40,39 @@
   white-space: nowrap;
 }
 
+// The leading icon inherits the pill's text color and is sized to the text.
+.icon {
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  fill: currentColor;
+}
+
 // critical → dark red background, white text (the unmistakable top tier).
 .toneCritical {
   background-color: colors.$red-70;
   color: colors.$white;
 }
 
-// high → amber background, dark text.
+// high → true orange background, white text (distinct hue from red and from the
+// blue/yellow tones below; dark enough to read clearly darker-than-medium in
+// greyscale).
 .toneHigh {
-  background-color: colors.$yellow-30;
-  color: colors.$gray-100;
+  background-color: colors.$orange-60;
+  color: colors.$white;
 }
 
-// pending → amber-light: a lighter/desaturated amber, deliberately distinct from
-// `high`'s amber at a glance (lighter fill + a defining border so it is not
-// mistaken for `high` or `medium`).
+// pending → blue background, white text (Carbon's support-info hue family;
+// "awaiting action, informational" — blue appears nowhere else in this tier set,
+// solving "Pending has no distinct treatment" outright).
 .tonePending {
-  background-color: colors.$yellow-10;
-  color: colors.$yellow-70;
-  border: 1px solid colors.$yellow-30;
+  background-color: colors.$blue-60;
+  color: colors.$white;
 }
 
-// medium → yellow background, dark text (the lowest tier of the four).
+// medium → yellow background, dark text (the ONLY yellow remaining in the set, so
+// it cannot be confused with anything else).
 .toneMedium {
-  background-color: colors.$yellow-20;
+  background-color: colors.$yellow-30;
   color: colors.$gray-100;
 }
