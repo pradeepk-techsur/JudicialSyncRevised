@@ -1,5 +1,6 @@
 'use client';
 
+import type { ComponentType } from 'react';
 import Link from 'next/link';
 import { SideNavLink, Tag } from '@carbon/react';
 import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
@@ -17,11 +18,27 @@ import { useDiscrepancyCount } from '@/hooks/useDiscrepancyCount';
 // client-side routing; the amber circle becomes a Carbon red Tag. The two
 // testids (nav-jury-package, jury-count-badge) and the pill's aria-label are
 // preserved verbatim, and the badge is still only rendered when openCount > 0.
-export function JuryPackageNavItem() {
+//
+// 09-08 (T-08): the Sidebar owns the route logic, so it passes `isActive` and the
+// per-entry `renderIcon` down here (this component renders its own SideNavLink,
+// so it must forward both Carbon props itself to get the active wash + leading
+// icon the sibling plain SideNavLinks get).
+interface JuryPackageNavItemProps {
+  renderIcon?: ComponentType;
+  isActive?: boolean;
+}
+
+export function JuryPackageNavItem({ renderIcon, isActive }: JuryPackageNavItemProps) {
   const { openCount } = useDiscrepancyCount();
 
   return (
-    <SideNavLink as={Link} href="/jury-package" data-testid="nav-jury-package">
+    <SideNavLink
+      as={Link}
+      href="/jury-package"
+      data-testid="nav-jury-package"
+      renderIcon={renderIcon}
+      isActive={isActive}
+    >
       Jury Package
       {openCount > 0 && (
         // SideNavLink wraps children in <SideNavLinkText> (a <span>), and a

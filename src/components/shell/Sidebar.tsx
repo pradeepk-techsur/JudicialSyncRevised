@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { SideNav, SideNavItems, SideNavLink } from '@carbon/react';
+import { Dashboard, Folder, DocumentExport, Chat } from '@carbon/icons-react';
 import { JuryPackageNavItem } from './JuryPackageNavItem';
 import styles from './Sidebar.module.scss';
 
@@ -20,6 +22,17 @@ import styles from './Sidebar.module.scss';
 // every link stays in the accessibility tree. The whole sidebar is wrapped in a
 // `no-print` container so 06-01's print CSS hides it during Jury Package export.
 export function Sidebar() {
+  // 09-08 (T-08): route-driven active state. The current route's nav item gets
+  // Carbon's own `isActive` treatment (adds `.cds--side-nav__link--current` ->
+  // the dark-navy active wash from Sidebar.module.scss + Carbon's left bar), so
+  // the active screen is marked by more than default link styling. usePathname
+  // is the same App Router hook AssistantPanel.tsx already uses. Exact-match per
+  // route, EXCEPT Case Workspace, which also owns the /exhibit/[id] detail pages
+  // (the sidebar is the only entry point into an exhibit), so those mark Case
+  // Workspace active via a startsWith check. usePathname can briefly be null
+  // during hydration — coalesce to '' so no item is wrongly marked active then.
+  const pathname = usePathname() ?? '';
+
   return (
     // `styles.darkNav` scopes the dark-navy theme to this sidebar's Carbon
     // SideNav (its `:global(.cds--side-nav)` rules match the descendant Carbon
@@ -33,14 +46,32 @@ export function Sidebar() {
         isChildOfHeader={false}
       >
         <SideNavItems>
-          <SideNavLink as={Link} href="/command-center">
+          <SideNavLink
+            as={Link}
+            href="/command-center"
+            renderIcon={Dashboard}
+            isActive={pathname === '/command-center'}
+          >
             Command Center
           </SideNavLink>
-          <SideNavLink as={Link} href="/case">
+          <SideNavLink
+            as={Link}
+            href="/case"
+            renderIcon={Folder}
+            isActive={pathname === '/case' || pathname.startsWith('/exhibit')}
+          >
             Case Workspace
           </SideNavLink>
-          <JuryPackageNavItem />
-          <SideNavLink as={Link} href="/assistant">
+          <JuryPackageNavItem
+            renderIcon={DocumentExport}
+            isActive={pathname === '/jury-package'}
+          />
+          <SideNavLink
+            as={Link}
+            href="/assistant"
+            renderIcon={Chat}
+            isActive={pathname === '/assistant'}
+          >
             Assistant
           </SideNavLink>
         </SideNavItems>

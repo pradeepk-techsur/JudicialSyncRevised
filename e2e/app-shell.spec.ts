@@ -105,6 +105,41 @@ test.describe('App shell', () => {
     expect(topElementTag).toBe('role-switcher');
   });
 
+  test('the current route\'s nav item is marked active and updates on navigation (09-08 T-08)', async ({ page }) => {
+    // 09-08 gives the sidebar route-driven active feedback via Carbon's
+    // `isActive` prop (adds `.cds--side-nav__link--current`), replacing the
+    // weak default link styling. Assert the active item tracks the route.
+    await page.goto('/case');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+
+    const caseLink = nav.getByRole('link', { name: 'Case Workspace' });
+    const commandLink = nav.getByRole('link', { name: 'Command Center' });
+
+    // On /case, Case Workspace is the current (active) item; Command Center is not.
+    await expect(caseLink).toHaveClass(/cds--side-nav__link--current/);
+    await expect(commandLink).not.toHaveClass(/cds--side-nav__link--current/);
+
+    // Navigating to Command Center flips which item is marked active.
+    await commandLink.click();
+    await expect(page).toHaveURL(/\/command-center$/);
+    await expect(commandLink).toHaveClass(/cds--side-nav__link--current/);
+    await expect(caseLink).not.toHaveClass(/cds--side-nav__link--current/);
+  });
+
+  test('every sidebar nav item renders a leading icon (09-08 T-08)', async ({ page }) => {
+    // Each SideNavLink now gets a Carbon `renderIcon` — the link contains an
+    // <svg> glyph before its text label.
+    await page.goto('/case');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    for (const name of ['Command Center', 'Case Workspace', 'Assistant']) {
+      await expect(nav.getByRole('link', { name }).locator('svg').first()).toBeVisible();
+    }
+    // Jury Package link (its accessible name may include the count badge text).
+    await expect(
+      nav.getByRole('link', { name: /Jury Package/ }).locator('svg').first(),
+    ).toBeVisible();
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command
