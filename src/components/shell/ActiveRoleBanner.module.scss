@@ -1,0 +1,43 @@
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// A single thin informational safety strip (T-09). Deliberately compact — a
+// $spacing-03/$spacing-05 bar, not a modal or a tall banner — so it names the
+// active persona without meaningfully shrinking the main content area. Uses
+// Carbon's subtle-layer tokens ($layer-02 / $border-subtle) and the
+// body-compact-01 type scale to sit quietly below the header.
+.banner {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  background-color: $layer-02;
+  border-block-end: 1px solid $border-subtle;
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.label {
+  flex: 1 1 auto;
+}
+
+.switchBack {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: $link-primary;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+
+  &:hover {
+    color: $link-primary-hover;
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: 2px;
+  }
+}
