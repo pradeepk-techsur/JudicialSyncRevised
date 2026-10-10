@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button, InlineLoading, InlineNotification } from '@carbon/react';
 import { useExhibitList, type ExhibitFilters } from '@/hooks/useExhibitList';
@@ -40,6 +40,33 @@ function CaseWorkspaceInner() {
     searchParams.get('filter') === 'no-custodian' ? 'no-custodian' : 'all',
   );
   const { data, isLoading, isError } = useExhibitList(filters);
+
+  // Unfiltered list — the authoritative "total" for the "Showing X of Y" readout
+  // when a search IS active (data is then the narrowed set). react-query dedupes
+  // this against the already-warm unfiltered cache entry from before any filter
+  // was typed (the page always loads unfiltered first), so in the common case
+  // this is NOT a new network round-trip. When no filter is active, `data` and
+  // `unfiltered.data` resolve to the same cache entry.
+  const hasSearch = hasAnyCriterion(filters);
+  const { data: unfilteredData } = useExhibitList({});
+
+  // Witness ComboBox options — distinct, non-empty `associatedWitness` values
+  // from the loaded list, sorted. Per the ticket's "Build Witness options from
+  // distinct associatedWitness values in loaded list", "loaded list" means
+  // whatever is currently loaded: deriving from `data` directly (accepting that
+  // the option set narrows as other filters narrow the result set) matches the
+  // literal instruction and needs no new query.
+  const witnessOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          (data ?? [])
+            .map((r) => r.associatedWitness)
+            .filter((w): w is string => Boolean(w)),
+        ),
+      ].sort(),
+    [data],
+  );
 
   const caseNumber = useRoleStore((s) => s.caseNumber);
   const activeUserId = useRoleStore((s) => s.activeUserId);
@@ -92,7 +119,18 @@ function CaseWorkspaceInner() {
           </Button>
         )}
       </div>
-      <SearchFilterBar filters={filters} onChange={setFilters} />
+      <SearchFilterBar
+        filters={filters}
+        onChange={setFilters}
+        witnessOptions={witnessOptions}
+        // visibleCount: the filtered/visible rows currently returned by the
+        // (possibly searching) query. totalCount: the full unfiltered total when a
+        // search is active; when no search is active the two are identical, so we
+        // fall back to visibleCount rather than depend on the second query having
+        // resolved.
+        visibleCount={data?.length ?? 0}
+        totalCount={hasSearch ? (unfilteredData?.length ?? data?.length ?? 0) : (data?.length ?? 0)}
+      />
       {data && !genuinelyEmpty && (
         <QuickFilterChips rows={data} active={quickFilter} onChange={setQuickFilter} />
       )}

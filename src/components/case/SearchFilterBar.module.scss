@@ -59,3 +59,11 @@
   @include type-style('label-01');
   color: $text-secondary;
 }
+
+// Result-count readout row ("Showing X of Y" + Clear filters). Keeps the count
+// and the reset affordance on one baseline, vertically centered.
+.readout {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}

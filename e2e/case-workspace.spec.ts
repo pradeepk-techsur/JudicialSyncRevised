@@ -30,12 +30,18 @@ test.describe('Case Workspace', () => {
     page,
   }) => {
     await page.goto('/case');
-    await page.getByLabel('Filter by witness').fill('Finch');
+    // Witness is now a searchable Carbon ComboBox (09-07), not a free-text input.
+    // Type into its text field to narrow the open listbox, then pick the option.
+    const witness = page.locator('#exhibit-witness-filter');
+    await witness.click();
+    await witness.fill('Finch');
+    await page.getByRole('option', { name: /Finch/ }).click();
     await expect(page.getByText('P-3')).toBeVisible();
     await expect(page.getByText('P-1')).not.toBeVisible();
 
-    // AND with a non-matching status narrows to zero.
-    await page.getByLabel('Filter by status').click();
+    // AND with a non-matching status narrows to zero. Status Dropdown now carries
+    // a VISIBLE "Status" label (aria-label removed in 09-07); address it by id.
+    await page.locator('#exhibit-status-filter').click();
     await page.getByRole('option', { name: 'MARKED' }).click();
     await expect(page.getByText('No exhibits match these filters.')).toBeVisible();
 
@@ -44,9 +50,18 @@ test.describe('Case Workspace', () => {
     await expect(page.getByText('P-3')).toBeVisible();
   });
 
-  test('empty search bar shows an inline hint, never a hard error', async ({ page }) => {
+  // 09-07: the former static "Enter at least one filter…" hint is replaced by a
+  // live "Showing X of Y" readout that is ALWAYS present (and the full list still
+  // renders when no filter is active — never a hard error).
+  test('empty search bar shows a live result-count readout, never a hard error', async ({
+    page,
+  }) => {
     await page.goto('/case');
-    await expect(page.getByText(/Enter at least one filter/i)).toBeVisible();
+    const readout = page.getByTestId('result-count');
+    await expect(readout).toBeVisible();
+    await expect(readout).toHaveText(/Showing \d+ of \d+/);
+    // The old hint sentence is gone entirely.
+    await expect(page.getByText(/Enter at least one filter/i)).toHaveCount(0);
     await expect(page.getByText('P-1')).toBeVisible(); // full list still showing, not an error page
   });
 

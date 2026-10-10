@@ -17,6 +17,8 @@ export function SearchFilterBar({
   filters,
   onChange,
   witnessOptions,
+  visibleCount,
+  totalCount,
 }: {
   filters: ExhibitFilters;
   onChange: (next: ExhibitFilters) => void;
@@ -26,10 +28,18 @@ export function SearchFilterBar({
   // a value already present in the list (threat T-09-11), narrowing the
   // searchExhibits validation surface rather than widening it.
   witnessOptions: string[];
+  // Rows currently rendered (the filtered/visible count) and the full unfiltered
+  // total, threaded down from case/page.tsx since this component has no access to
+  // the exhibit list itself. Drives the "Showing X of Y" readout that REPLACES
+  // the former static "Enter at least one filter…" hint sentence.
+  visibleCount: number;
+  totalCount: number;
 }) {
   const chips = (Object.entries(filters) as [keyof ExhibitFilters, string | undefined][]).filter(
     ([, v]) => v,
   );
+
+  const hasAny = chips.length > 0;
 
   return (
     <div className={styles.bar}>
@@ -110,6 +120,28 @@ export function SearchFilterBar({
           onChange={(e) => onChange({ ...filters, dateTo: e.target.value || undefined })}
         />
       </div>
+      {/* Result-count readout — ALWAYS shown (not only when no filter is active),
+          replacing the old static "Enter at least one filter above to search"
+          hint sentence. That sentence only existed because searchExhibits rejects
+          empty criteria, a backend quirk that is handled transparently (the hook
+          calls getExhibits when no filter is set); it should never have been
+          user-facing copy. The Clear-filters button resets all filters and only
+          appears when at least one filter is active. */}
+      <div className={styles.readout}>
+        <span className={styles.hint} data-testid="result-count">
+          Showing {visibleCount} of {totalCount}
+        </span>
+        {hasAny && (
+          <Button
+            kind="ghost"
+            size="sm"
+            onClick={() => onChange({})}
+            data-testid="clear-filters-readout"
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
       {chips.length > 0 && (
         <div className={styles.row}>
           <span className={styles.hint}>Active filters:</span>
@@ -125,9 +157,10 @@ export function SearchFilterBar({
               onClose={() => onChange({ ...filters, [key]: undefined })}
             />
           ))}
-          <Button kind="ghost" size="sm" onClick={() => onChange({})}>
-            Clear filters
-          </Button>
+          {/* The standalone "Clear filters" button formerly lived here; it now
+              lives in the result-count readout above (single source of the
+              reset-all affordance, avoiding two identically-labeled buttons). The
+              per-chip "Clear X" behavior (DismissibleTag onClose) is unchanged. */}
         </div>
       )}
     </div>
