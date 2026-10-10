@@ -92,16 +92,19 @@ test.describe('Case Workspace', () => {
   // ---- Phase 8 (08-11) Case Workspace redesign ----
 
   // Jury Package column (F09 §Process step 3): server-computed, plain-language
-  // colored text, rendered ONLY for ADMITTED rows. P-6 is legacy-ADMITTED; the
-  // demo seed computes no JuryPackage, so P-6 (admitted, unsealed, no member
-  // row) reads the Phase-9 "Not yet evaluated" value — the corrected replacement
-  // for Phase 8's incorrect always-"Not eligible". We assert the column renders a
-  // recognized plain-language value carried verbatim from the server.
+  // colored text, rendered ONLY for ADMITTED rows. P-4 is the stable,
+  // always-ADMITTED, always-present clean exhibit (plan 07-02 seed); the demo
+  // seed computes no JuryPackage, so P-4 (admitted, unsealed, no member row)
+  // reads the Phase-9 "Not yet evaluated" value — the corrected replacement for
+  // Phase 8's incorrect always-"Not eligible". We assert the column renders a
+  // recognized plain-language value carried verbatim from the server. (P-4 is
+  // chosen over the legacy-admit P-6 for independence from the concurrent
+  // re-seeding of those fixtures by sibling suites.)
   test('Jury Package column renders server-computed plain-language text for an admitted row', async ({
     page,
   }) => {
     await page.goto('/case');
-    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-6"]');
+    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-4"]');
     await expect(row).toBeVisible();
     const cell = row.locator('[data-testid="jury-package-eligibility"]');
     await expect(cell).toBeVisible();
