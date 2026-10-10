@@ -1,18 +1,29 @@
 'use client';
 
-import { Card } from '@/components/shared/Card';
+import { ClickableTile } from '@carbon/react';
+import { useRouter } from 'next/navigation';
 import styles from './StatCardRow.module.scss';
 
-// F8 Command Center — the 4-stat-card row (UX Screen-00 §Stat Card Row). Each
-// card is a bold number + plain-language label built on the shared `Card`
-// chrome (08-03). NONE of the cards is clickable in this version (F08: "no card
-// is clickable in this version" — zero drill-in interaction). The one card that
-// gets the critical/red-outline treatment is "Jury package blockers", and ONLY
-// when its count is > 0 (Screenshot 1: that is the single red-outlined card).
+// F8 Command Center — the 4-stat-card row (UX Screen-00 §Stat Card Row). Phase 9
+// (09-01, T-01): each card is rebuilt as a compact, CLICKABLE tile (<=80px tall)
+// linking to its filtered view — the original tall stacked Card row pushed the
+// attention list below the fold, and none of the cards was clickable.
 //
-// Every value is sourced in page.tsx EXACTLY per F08's stat-card sourcing table
-// and passed down — this component derives nothing, so the counts can never
-// drift from their authoritative hooks.
+// Layout: Carbon ClickableTile with the number and label SIDE BY SIDE (not
+// stacked) at a reduced type scale + tighter padding to hold the 80px ceiling.
+// Every value is still sourced in page.tsx EXACTLY per F08's stat-card sourcing
+// table and passed down — this component derives nothing, so the counts can never
+// drift from their authoritative hooks. The destinations are static per tile
+// (not data-driven), so this component builds its own hrefs internally.
+//
+// The one card that gets the critical/red-outline treatment is "Jury package
+// blockers", and ONLY when its count is > 0 (Screenshot 1). ClickableTile has no
+// `critical` prop, so the shared `.critical` CSS Module class is applied
+// conditionally via className.
+//
+// Navigation uses useRouter().push inside onClick (Next.js App Router):
+// ClickableTile does not take a Next `<Link>` `as` prop the way SideNavLink does,
+// mirroring the existing router.push pattern in AttentionFeedPanel.tsx.
 
 export interface StatCardRowProps {
   /** Count of case-wide UNRESOLVED objections. */
@@ -40,33 +51,70 @@ export function StatCardRow({
   excludedCount,
   withdrawnCount,
 }: StatCardRowProps) {
+  const router = useRouter();
+
+  // Admitted sub-caption, compacted onto one thin line; also used as a native
+  // tooltip so the tile stays within 80px without losing the information.
+  const subCaptionParts: string[] = [];
+  if (excludedCount > 0) subCaptionParts.push(`${excludedCount} excluded`);
+  if (withdrawnCount > 0) subCaptionParts.push(`${withdrawnCount} withdrawn`);
+  const subCaption = subCaptionParts.join(' · ');
+
   return (
     <div className={styles.row} data-testid="stat-card-row">
-      <Card>
-        <p className={styles.value}>{openObjections}</p>
-        <p className={styles.label}>Open objections</p>
-      </Card>
-      <Card>
-        <p className={styles.value}>{custodyGaps}</p>
-        <p className={styles.label}>Custody gaps</p>
-      </Card>
-      <Card critical={juryBlockers > 0} data-testid="stat-card-jury-blockers">
-        <p className={styles.value}>{juryBlockers}</p>
-        <p className={styles.label}>Jury package blockers</p>
-      </Card>
-      <Card>
-        <p className={styles.value}>
+      <ClickableTile
+        className={styles.tile}
+        href="/command-center#objections"
+        onClick={(e) => {
+          e.preventDefault();
+          router.push('/command-center#objections');
+        }}
+      >
+        <span className={styles.value}>{openObjections}</span>
+        <span className={styles.label}>Open objections</span>
+      </ClickableTile>
+
+      <ClickableTile
+        className={styles.tile}
+        href="/case?filter=no-custodian"
+        onClick={(e) => {
+          e.preventDefault();
+          router.push('/case?filter=no-custodian');
+        }}
+      >
+        <span className={styles.value}>{custodyGaps}</span>
+        <span className={styles.label}>Custody gaps</span>
+      </ClickableTile>
+
+      <ClickableTile
+        className={juryBlockers > 0 ? `${styles.tile} ${styles.critical}` : styles.tile}
+        data-testid="stat-card-jury-blockers"
+        data-critical={juryBlockers > 0 ? 'true' : 'false'}
+        href="/jury-package"
+        onClick={(e) => {
+          e.preventDefault();
+          router.push('/jury-package');
+        }}
+      >
+        <span className={styles.value}>{juryBlockers}</span>
+        <span className={styles.label}>Jury package blockers</span>
+      </ClickableTile>
+
+      <ClickableTile
+        className={styles.tile}
+        href="/case?status=ADMITTED"
+        onClick={(e) => {
+          e.preventDefault();
+          router.push('/case?status=ADMITTED');
+        }}
+      >
+        <span className={styles.value}>
           {admittedCount} of {totalVisible}
-        </p>
-        <p className={styles.label}>Admitted</p>
-        {(excludedCount > 0 || withdrawnCount > 0) && (
-          <p className={styles.subCaption}>
-            {excludedCount > 0 ? `${excludedCount} excluded` : ''}
-            {excludedCount > 0 && withdrawnCount > 0 ? ' · ' : ''}
-            {withdrawnCount > 0 ? `${withdrawnCount} withdrawn` : ''}
-          </p>
-        )}
-      </Card>
+        </span>
+        <span className={styles.label} title={subCaption || undefined}>
+          Admitted{subCaption ? ` · ${subCaption}` : ''}
+        </span>
+      </ClickableTile>
     </div>
   );
 }

@@ -27,6 +27,7 @@ export function ObjectionsPanel() {
 
   return (
     <Tile
+      id="objections"
       data-testid="objections-panel"
       aria-label="Unresolved objections"
     >

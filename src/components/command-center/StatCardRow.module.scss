@@ -1,11 +1,14 @@
+@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/breakpoint' as *;
 
-// F8 — stat card row. Four equal cards in a responsive grid: a single column on
-// the narrowest viewports collapsing up to four across at the `md` breakpoint,
-// matching the Screenshot-1 horizontal row of four.
+// F8 — stat card row. Four equal, COMPACT, clickable tiles in a responsive grid:
+// a single column on the narrowest viewports collapsing up to four across at the
+// `md` breakpoint, matching the Screenshot-1 horizontal row of four. Phase 9
+// (09-01): each tile is <=80px tall with the number + label laid out side by side
+// so the ranked attention list below it is visible without scrolling at 1440x900.
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -17,20 +20,38 @@
   }
 }
 
+// Each tile: number + label SIDE BY SIDE, tightened padding, capped height.
+// box-sizing:border-box keeps padding inside the 80px measurement.
+.tile {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: $spacing-03;
+  padding: $spacing-04;
+  min-height: 0;
+  max-height: 80px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+// Reduced from heading-04 (28/36) to heading-03 (20/28) to fit the 80px ceiling
+// alongside the side-by-side layout.
 .value {
-  @include type-style('heading-04');
+  @include type-style('heading-03');
   color: $text-primary;
   line-height: 1.1;
+  flex-shrink: 0;
 }
 
 .label {
   @include type-style('label-01');
   color: $text-secondary;
-  margin-top: $spacing-02;
 }
 
-.subCaption {
-  @include type-style('helper-text-01');
-  color: $text-helper;
-  margin-top: $spacing-02;
+// Jury-package-blockers critical treatment — ClickableTile has no `critical`
+// prop, so we reapply the red-outline here conditionally via className (only when
+// the blocker count is > 0).
+.critical {
+  outline: 2px solid colors.$red-60;
+  outline-offset: -2px;
 }

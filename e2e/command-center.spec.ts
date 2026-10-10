@@ -790,4 +790,83 @@ test.describe('Trial Command Center', () => {
     expect(widgetCaption).toBe(workspaceCaption);
     expect(widgetCaption).toContain('2 of 3 exhibits are clean');
   });
+
+  // ===================================================================
+  // 09-01 (T-01) — compact, clickable KPI tiles (<=80px) linking to the
+  // correct filtered views. F08.
+  // ===================================================================
+
+  test('each of the 4 KPI tiles is <=80px tall', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+
+    // Every direct tile in the row measures <=80px tall (the whole point of the
+    // Phase 9 rebuild — the attention list must be visible without scrolling).
+    const tiles = row.locator('> *');
+    const count = await tiles.count();
+    expect(count).toBe(4);
+    for (let i = 0; i < count; i++) {
+      const box = await tiles.nth(i).boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeLessThanOrEqual(80);
+    }
+  });
+
+  test('the Admitted KPI tile links to /case?status=ADMITTED', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    // The Admitted tile is the 4th tile; click it and assert the destination URL.
+    await row.getByText('Admitted', { exact: false }).click();
+    await expect(page).toHaveURL(/\/case\?status=ADMITTED$/);
+  });
+
+  test('the Custody gaps KPI tile links to /case?filter=no-custodian', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    await row.getByText('Custody gaps', { exact: false }).click();
+    await expect(page).toHaveURL(/\/case\?filter=no-custodian$/);
+  });
+
+  test('the Jury package blockers KPI tile links to /jury-package and is red-outlined only when > 0', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const juryTile = page.getByTestId('stat-card-jury-blockers');
+    await expect(juryTile).toBeVisible();
+
+    // The critical treatment flips with the count (invariant: critical iff >0).
+    const critical = await juryTile.getAttribute('data-critical');
+    const text = await juryTile.innerText();
+    const count = Number((text.match(/\d+/) ?? ['0'])[0]);
+    expect(critical).toBe(count > 0 ? 'true' : 'false');
+
+    await juryTile.click();
+    await expect(page).toHaveURL(/\/jury-package$/);
+  });
+
+  test('the Open objections KPI tile links to the #objections anchor on the command center', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    await row.getByText('Open objections', { exact: false }).click();
+    // Same-page anchor scroll to the ObjectionsPanel (which now carries
+    // id="objections").
+    await expect(page).toHaveURL(/\/command-center#objections$/);
+    await expect(page.locator('#objections')).toBeVisible();
+  });
 });
