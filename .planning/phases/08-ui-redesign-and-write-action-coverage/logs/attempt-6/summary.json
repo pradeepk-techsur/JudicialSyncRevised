@@ -1,0 +1,18 @@
+{
+  "duration_secs": 1132.0,
+  "token_usage": {
+    "input": 72,
+    "output": 49153,
+    "total": 2481928,
+    "cache_read": 2048490,
+    "cache_write": 384213,
+    "cost": 1.8619044999999996
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [],
+  "verification_status": "no_changes",
+  "error_message": null,
+  "attempt_number": 6,
+  "created_at": "2026-10-09T19:39:56.692314+00:00",
+  "completed_at": "2026-10-09T19:58:48.843407895+00:00"
+}

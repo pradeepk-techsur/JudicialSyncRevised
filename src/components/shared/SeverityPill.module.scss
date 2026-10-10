@@ -1,0 +1,52 @@
+@use '@carbon/colors';
+
+// Severity/condition pill. The fixed color mapping from 00-overview.md §Visual
+// Foundation + Y0-patterns.md §Severity Tier Badge, applied identically wherever
+// a tier or condition renders:
+//   critical → dark red bg / white text
+//   high     → amber bg / dark text
+//   pending  → amber-light (lighter/desaturated amber, visually distinct from
+//              `high` at a glance) bg / dark text
+//   medium   → yellow bg / dark text
+//
+// The four tones are FOUR visually-distinct, named classes. Color is never the
+// sole signal — the `label` text is always rendered by the component on top of
+// these surfaces.
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.75rem;
+  white-space: nowrap;
+}
+
+// critical → dark red background, white text (the unmistakable top tier).
+.toneCritical {
+  background-color: colors.$red-70;
+  color: colors.$white;
+}
+
+// high → amber background, dark text.
+.toneHigh {
+  background-color: colors.$yellow-30;
+  color: colors.$gray-100;
+}
+
+// pending → amber-light: a lighter/desaturated amber, deliberately distinct from
+// `high`'s amber at a glance (lighter fill + a defining border so it is not
+// mistaken for `high` or `medium`).
+.tonePending {
+  background-color: colors.$yellow-10;
+  color: colors.$yellow-70;
+  border: 1px solid colors.$yellow-30;
+}
+
+// medium → yellow background, dark text (the lowest tier of the four).
+.toneMedium {
+  background-color: colors.$yellow-20;
+  color: colors.$gray-100;
+}

@@ -4,6 +4,7 @@
 // Tailwind pipeline removal (wave 06-09).
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/colors';
 
 // Muted empty-state caption (was: text-sm text-gray-500).
 .empty {
@@ -34,10 +35,73 @@
   }
 }
 
-// Truncated description cell (was: max-w-xs truncate).
+// Truncated description cell (was: max-w-xs truncate). Phase 8 (08-11) narrows
+// this from 20rem to 10rem: the redesign adds the Flags, Jury Package, and
+// trailing-chevron columns, and at the old width the 8-column table overflowed
+// the app-shell <main>'s content box (main has 1.5rem padding on every side).
+// When the table's right edge spills past main's content box, a click in that
+// trailing strip lands on <main>, not the row — breaking F15's "entire row area
+// is clickable" guarantee at the far-right edge. The tighter description keeps
+// the whole table (and therefore the whole clickable row) inside main's content
+// box so every cell, edge-to-edge, stays clickable.
 .descriptionCell {
-  max-width: 20rem;
+  max-width: 10rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+// Rows "needing attention" get a pale tint (Screenshot 5). Applied alongside
+// `.row` so the clickable/hover/focus affordances above still hold. The tint is
+// deliberately subtle so the StatusBadge/SeverityPill colors stay the dominant
+// signal; the row-hover background (from `.row:hover`) still overrides it on
+// hover so the whole-row hit area reads as interactive.
+.tintedRow {
+  background-color: colors.$yellow-10;
+}
+
+// Unassigned custodian — red text, never a blank cell (Screenshot 5). Bold so
+// the missing-custodian state reads as a condition, not merely an empty field.
+.unassigned {
+  color: colors.$red-60;
+  font-weight: 600;
+}
+
+// Flags column: a vertical stack so multiple simultaneous condition pills each
+// get their own line (Y0-patterns.md §Readable Flag Pill — never collapsed).
+.flagStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+// Jury Package column: plain-language colored text (NOT a pill), per Screenshot
+// 5 — green Included / gray Not eligible / red Blocked.
+.juryIncluded {
+  color: colors.$green-60;
+  font-weight: 600;
+}
+
+.juryNotEligible {
+  color: $text-secondary;
+}
+
+.juryBlocked {
+  color: colors.$red-60;
+  font-weight: 600;
+}
+
+// Trailing chevron affordance (VISUAL only — row-clickability already shipped in
+// 07-04). Decorative, aria-hidden; muted so it reads as an affordance, not an
+// action.
+.chevronCell {
+  text-align: right;
+  width: 2rem;
+}
+
+.chevron {
+  color: $text-secondary;
+  font-size: 1.125rem;
+  line-height: 1;
 }

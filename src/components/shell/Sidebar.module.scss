@@ -1,0 +1,48 @@
+@use '@carbon/styles/scss/theme' as *;
+
+// Dark-navy, full-height sidebar — the single most visually distinct region of
+// the shell per UX-Mockup/00-overview.md §Visual Foundation and the Phase 8
+// reference screenshots. Carbon's SideNav ships a light background by default
+// (White theme, 06-01); override the component's own tokens here via the
+// documented global class names rather than fighting Carbon with !important.
+//
+// Selectors verified against the installed @carbon/styles ui-shell/side-nav
+// source: the wrapper is `.cds--side-nav`, each nav link is
+// `.cds--side-nav__link` with its label inside `.cds--side-nav__link-text`, and
+// the active link carries `.cds--side-nav__link--current` (NOT an
+// `[aria-current]` attribute). The CSS Module wraps a plain container; the
+// Carbon classes are reached via `:global`.
+.darkNav {
+  :global(.cds--side-nav) {
+    background-color: #0f1b3d; // dark navy — distinct from the light content area
+    // Carbon's own `.cds--header ~ .cds--side-nav` rule (in @carbon/styles
+    // _side-nav.scss) would apply this exact offset automatically IF our
+    // rendered SideNav were a literal DOM sibling of the Header element. It
+    // is not (AppShell nests Sidebar two levels inside a sibling `.body`
+    // div), so the rule never matches, and the SideNav defaults to
+    // `inset-block: 0` — starting at the true viewport top, UNDER the
+    // same-z-index fixed Header, where DOM-order tie-breaking lets the
+    // SideNav paint over the Header's 48px band. Replicate the offset
+    // manually here. 3rem matches AppShell.module.scss's own `.shell {
+    // padding-top: 3rem }` header-height constant — keep both in sync if
+    // the header height ever changes.
+    inset-block-start: 3rem;
+    block-size: calc(100% - 3rem);
+  }
+
+  // Idle link color: a soft off-white so labels read on the navy field.
+  :global(.cds--side-nav__link),
+  :global(.cds--side-nav__link .cds--side-nav__link-text) {
+    color: #d6dcf0;
+  }
+
+  // Active (current route) + hover: lift with a translucent-white wash and
+  // full-white text, the dark-dashboard convention for the selected nav item.
+  :global(.cds--side-nav__link--current),
+  :global(.cds--side-nav__link--current .cds--side-nav__link-text),
+  :global(.cds--side-nav__link:hover),
+  :global(.cds--side-nav__link:hover .cds--side-nav__link-text) {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+  }
+}

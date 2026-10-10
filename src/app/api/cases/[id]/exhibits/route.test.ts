@@ -34,6 +34,15 @@ async function seedFixture() {
       isSealed: true,
     },
   });
+  // A jury-package member (INCLUDED + FLAGGED) so juryPackageEligibility has a
+  // known non-default value (BLOCKED) to prove it survives the HTTP round-trip —
+  // not merely the NOT_ELIGIBLE default every exhibit would carry anyway.
+  const pkg = await prisma.juryPackage.create({
+    data: { caseId: kase.id, status: 'DRAFT' },
+  });
+  await prisma.juryPackageExhibit.create({
+    data: { juryPackageId: pkg.id, exhibitId: visible.id, discrepancyStatus: 'FLAGGED' },
+  });
   return { caseId: kase.id, visibleId: visible.id, sealedId: sealed.id };
 }
 
@@ -75,9 +84,23 @@ describe('GET /api/cases/:id/exhibits', () => {
       currentStatus: null,
       currentCustodianName: null,
       discrepancyFlags: [],
+      // Additive Phase-8 Flags-column booleans survive the HTTP round-trip.
+      hasUnresolvedObjection: false,
+      isSealed: false,
     });
     expect(row).not.toHaveProperty('id');
-    expect(row).not.toHaveProperty('isSealed');
+  });
+
+  it('juryPackageEligibility rides the HTTP JSON response for a known membership state (route needs no code change)', async () => {
+    // visibleId is an INCLUDED + FLAGGED member of the case's one jury package
+    // (seeded above), so its eligibility is BLOCKED. Proving it arrives intact
+    // through NextResponse.json confirms the route's thin pass-through carries
+    // the additive field automatically — no route code change required.
+    const res = await listExhibitsRoute(fixture.caseId, 'JUDGE');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const row = body.find((r: { exhibitId: string }) => r.exhibitId === fixture.visibleId);
+    expect(row.juryPackageEligibility).toBe('BLOCKED');
   });
 
   it('includes a sealed exhibit for JUDGE but excludes it for ATTORNEY', async () => {

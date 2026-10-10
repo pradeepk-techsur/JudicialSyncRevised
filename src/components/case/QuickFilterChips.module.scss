@@ -1,0 +1,58 @@
+// Quick-filter chip row (Screenshot 5). Rounded, outlined chips that read as a
+// cohesive filter group; the active chip gets a solid fill. Same visual spirit
+// as the Command Center Recent Activity filter pills.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/colors';
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-bottom: $spacing-05;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid colors.$gray-30;
+  border-radius: 1rem;
+  background-color: transparent;
+  color: $text-primary;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+
+  &:hover {
+    background-color: $layer-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: 1px;
+  }
+}
+
+// Active chip — solid navy fill (dark-dashboard primary), white text.
+.chipActive {
+  background-color: colors.$blue-80;
+  border-color: colors.$blue-80;
+  color: colors.$white;
+
+  &:hover {
+    background-color: colors.$blue-80;
+  }
+
+  .count {
+    color: colors.$white;
+  }
+}
+
+// The count numeral — slightly muted against the chip label.
+.count {
+  font-weight: 600;
+  color: $text-secondary;
+}

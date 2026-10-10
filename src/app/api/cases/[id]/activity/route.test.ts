@@ -9,8 +9,9 @@ import { GET } from '@/app/api/cases/[id]/activity/route';
 // carrying the demo X-User-Role header — no running server needed. Backed by the
 // real Postgres. The fixture case is self-contained (unique caseNumber, built via
 // the live service write paths) so it never collides with the shared seed under
-// fileParallelism:false. Proves the RecentActivityEntry[] shape, newest-first,
-// sealed absence (absent, not 404), and 422 for bad/future `since`.
+// fileParallelism:false. Proves the `{ recentActivity, statusCounts }` shape
+// (08-10 wired statusCounts into the route), newest-first ordering, sealed
+// absence (absent, not 404), and 422 for bad/future `since`.
 
 function activityRoute(caseId: string, role?: string, since?: string) {
   const headers = new Headers();
@@ -72,14 +73,17 @@ describe('GET /api/cases/:id/activity', () => {
     await prisma.$disconnect();
   });
 
-  it('returns 200 with a newest-first RecentActivityEntry[] body', async () => {
+  it('returns 200 with a newest-first recentActivity array + a full statusCounts map', async () => {
     const res = await activityRoute(caseId, 'JUDGE');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBeGreaterThanOrEqual(2);
 
-    for (const entry of body) {
+    // 08-10: the route now returns `{ recentActivity, statusCounts }`, not a
+    // bare array.
+    expect(Array.isArray(body.recentActivity)).toBe(true);
+    expect(body.recentActivity.length).toBeGreaterThanOrEqual(2);
+
+    for (const entry of body.recentActivity) {
       expect(Object.keys(entry).sort()).toEqual(
         ['eventId', 'eventType', 'exhibitId', 'exhibitLabel', 'summary', 'recordedAt'].sort(),
       );
@@ -87,24 +91,42 @@ describe('GET /api/cases/:id/activity', () => {
       expect(new Date(entry.recordedAt).toISOString()).toBe(entry.recordedAt);
     }
 
-    const times = body.map((e: { recordedAt: string }) => new Date(e.recordedAt).getTime());
-    const sortedDesc = [...times].sort((a, b) => b - a);
+    const times = body.recentActivity.map((e: { recordedAt: string }) =>
+      new Date(e.recordedAt).getTime(),
+    );
+    const sortedDesc = [...times].sort((a: number, b: number) => b - a);
     expect(times).toEqual(sortedDesc);
+
+    // statusCounts is present with ALL 6 ExhibitStatus keys, every value a
+    // number (zero-filled where no exhibit holds that status).
+    expect(body.statusCounts).toBeTypeOf('object');
+    expect(Object.keys(body.statusCounts).sort()).toEqual(
+      ['MARKED', 'OFFERED', 'OBJECTED', 'ADMITTED', 'EXCLUDED', 'WITHDRAWN'].sort(),
+    );
+    for (const key of Object.keys(body.statusCounts)) {
+      expect(typeof body.statusCounts[key]).toBe('number');
+    }
+    // This fixture advanced its visible exhibit MARKED→OFFERED, so OFFERED≥1.
+    expect(body.statusCounts.OFFERED).toBeGreaterThanOrEqual(1);
   });
 
   it('includes the sealed event for JUDGE but is absent (not 404) for ATTORNEY', async () => {
     const judgeRes = await activityRoute(caseId, 'JUDGE');
-    const judgeIds = (await judgeRes.json()).map((e: { eventId: string }) => e.eventId);
+    const judgeIds = (await judgeRes.json()).recentActivity.map(
+      (e: { eventId: string }) => e.eventId,
+    );
     expect(judgeIds).toContain(sealedEventId);
 
     const attorneyRes = await activityRoute(caseId, 'ATTORNEY');
     // Still 200 — the sealed event is simply absent, never an error/redacted row.
     expect(attorneyRes.status).toBe(200);
     const attorneyBody = await attorneyRes.json();
-    const attorneyIds = attorneyBody.map((e: { eventId: string }) => e.eventId);
+    const attorneyIds = attorneyBody.recentActivity.map((e: { eventId: string }) => e.eventId);
     expect(attorneyIds).not.toContain(sealedEventId);
     expect(
-      attorneyBody.some((e: { exhibitId: string }) => e.exhibitId === visibleExhibitId),
+      attorneyBody.recentActivity.some(
+        (e: { exhibitId: string }) => e.exhibitId === visibleExhibitId,
+      ),
     ).toBe(true);
   });
 
@@ -127,6 +149,6 @@ describe('GET /api/cases/:id/activity', () => {
     const res = await activityRoute(caseId, 'JUDGE');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.length).toBeGreaterThanOrEqual(1);
+    expect(body.recentActivity.length).toBeGreaterThanOrEqual(1);
   });
 });

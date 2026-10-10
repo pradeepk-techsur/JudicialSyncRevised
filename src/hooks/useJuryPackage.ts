@@ -15,9 +15,13 @@ export { JuryPackageError, type BlockingExhibit };
 // Serialized JuryPackage as it crosses the wire (NextResponse.json turns the
 // Date fields into ISO strings). We keep the Prisma JuryPackage shape but relax
 // the date fields to the string | null they actually arrive as.
-export interface JuryPackageDto extends Omit<JuryPackage, 'createdAt' | 'finalizedAt'> {
+export interface JuryPackageDto
+  extends Omit<JuryPackage, 'createdAt' | 'finalizedAt' | 'finalizationRequestedAt'> {
   createdAt: string;
   finalizedAt: string | null;
+  // Serialized over the wire as an ISO string (NextResponse.json), nullable until
+  // a non-finalize-authorized role requests finalization (F11 §Process step 7).
+  finalizationRequestedAt: string | null;
 }
 
 export interface JuryPackageResponse {
@@ -125,9 +129,29 @@ export function useJuryPackage() {
     onSuccess: invalidateAll,
   });
 
+  // F11 §Process step 7: a role that CANNOT finalize directly (JUDGE/ATTORNEY/
+  // CHAMBERS_STAFF) stamps a finalization REQUEST on the package. The server
+  // (08-01) independently gates this with an INVERTED check — a finalize-
+  // authorized role (DEPUTY/CLERK/ADMIN) is rejected 403 — so the UI branch is a
+  // usability affordance only, not the authority. Mirrors the finalize mutation.
+  const requestFinalization = useMutation({
+    mutationFn: async (juryPackageId: string) => {
+      const res = await apiFetch(`/api/jury-package/${juryPackageId}/request-finalization`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorUserId: activeUserId }),
+      });
+      if (!res.ok) {
+        throw await parseError(res);
+      }
+      return res.json();
+    },
+    onSuccess: invalidateAll,
+  });
+
   // Reuse the standalone acknowledge mutation (same invalidation set) so the
   // jury screen and the Exhibit Detail banner share one acknowledge path.
   const acknowledge = useAcknowledgeDiscrepancy();
 
-  return { ...query, initiate, finalize, exclude, acknowledge };
+  return { ...query, initiate, finalize, exclude, acknowledge, requestFinalization };
 }

@@ -40,6 +40,54 @@
   color: $text-helper;
 }
 
+// Blockers / Clean card sections.
+.section {
+  margin-top: $spacing-06;
+}
+
+.sectionHeading {
+  @include type-style('heading-02');
+  color: $text-primary;
+  margin-bottom: $spacing-04;
+}
+
+.blockerCard {
+  margin-bottom: $spacing-04;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.blockerHead {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.blockerTitle {
+  @include type-style('heading-compact-01');
+  color: $text-primary;
+}
+
+.blockerDetail {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+// A simple Clean row — label + confirmation line, not a full card.
+.cleanRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-03 0;
+  border-bottom: 1px solid $border-subtle;
+}
+
+.cleanStatus {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
 // F13: the CRITICAL (sealed/ex-parte) row treatment — deliberately HIGHER
 // severity than the amber FLAGGED badge. Uses Carbon error tokens (red) so it is
 // unmistakably distinct from the warning-amber discrepancy styling.

@@ -9,6 +9,36 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 
+// Client-side filter-pill row above the timeline (All/Status/Custody/
+// Objections). Purely a client-side narrowing affordance — no new query, no
+// change to the entry rendering below.
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  margin-bottom: $spacing-05;
+}
+
+.pill {
+  @include type-style('label-01');
+  cursor: pointer;
+  padding: $spacing-02 $spacing-03;
+  border-radius: 16px;
+  border: 1px solid $border-subtle;
+  background-color: $layer-01;
+  color: $text-secondary;
+
+  &:hover {
+    background-color: $layer-hover-01;
+  }
+}
+
+.pillActive {
+  background-color: $background-inverse;
+  color: $text-inverse;
+  border-color: $background-inverse;
+}
+
 .list {
   list-style: none;
   margin: 0;

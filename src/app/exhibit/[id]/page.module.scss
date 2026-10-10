@@ -5,6 +5,7 @@
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/breakpoint' as *;
 
 .backLink {
   display: inline-block;
@@ -16,4 +17,25 @@
   @include type-style('heading-compact-02');
   margin-bottom: $spacing-03;
   color: $text-primary;
+}
+
+// Two-column body: a wider Timeline column (left) + the three-card right rail.
+// Collapses to a single column on narrow viewports.
+.twoColumn {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: $spacing-07;
+  margin-top: $spacing-05;
+
+  @include breakpoint-down('md') {
+    grid-template-columns: 1fr;
+  }
+}
+
+.timelineColumn {
+  min-width: 0;
+}
+
+.rightRail {
+  min-width: 0;
 }

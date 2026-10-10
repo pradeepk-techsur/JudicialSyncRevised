@@ -517,11 +517,73 @@ export async function finalizeJuryPackage(
 
     return tx.juryPackage.update({
       where: { id: juryPackageId },
-      data: { status: 'FINALIZED', finalizedAt: new Date(), finalizedBy: actorUserId },
+      data: {
+        status: 'FINALIZED',
+        finalizedAt: new Date(),
+        finalizedBy: actorUserId,
+        // F11: finalizing fulfills any outstanding finalization request, so
+        // clear both fields in the SAME write as the FINALIZED transition — a
+        // finalized package never carries a dangling "please finalize" marker.
+        finalizationRequestedAt: null,
+        finalizationRequestedBy: null,
+      },
     });
   });
 
   return { juryPackage: finalized };
+}
+
+/**
+ * Request finalization of a DRAFT jury package (F11 §Process steps 7-8).
+ *
+ * This is the lightweight notification path for a viewer who CANNOT finalize
+ * directly (a JUDGE / CHAMBERS_STAFF / ATTORNEY looking at a DRAFT with open
+ * blockers): instead of a dead disabled button, they can flag an
+ * authorized role to come finalize. It stamps `finalizationRequestedAt`/`By`
+ * (surfaced on the existing GET so a finalize-authorized viewer sees who asked
+ * and when) and confers NO authority and bypasses NO gate.
+ *
+ * Ordering mirrors excludeJuryPackageExhibit's documented posture: existence
+ * (404) → already-finalized immutability (409) → role check (403). The role
+ * check is INVERTED vs assertJuryWriteRole — a role that CAN finalize directly
+ * (DEPUTY/CLERK/ADMIN) must not REQUEST it (F11 §Error States). Per F11's error
+ * table, only the explicit over-authorized case is rejected; an actor with no
+ * User row at all is not a finalize-authorized role and falls through to the
+ * stamp (no stricter unknown-actor rejection is invented beyond the spec).
+ *
+ * At most one outstanding request is tracked — a new request overwrites the
+ * prior one, so `finalizationRequestedBy` always reflects the newest requester.
+ */
+export async function requestFinalization(
+  juryPackageId: string,
+  actorUserId: string,
+): Promise<{ juryPackage: JuryPackage }> {
+  const pkg = await prisma.juryPackage.findUnique({ where: { id: juryPackageId } });
+  if (!pkg) {
+    throw new NotFoundError('JURY_PACKAGE_NOT_FOUND', 'No jury package found with the given ID');
+  }
+  if (pkg.status === 'FINALIZED') {
+    throw new ConflictError(
+      'JURY_PACKAGE_ALREADY_FINALIZED',
+      'This jury package has already been finalized',
+    );
+  }
+  // INVERTED role check vs assertJuryWriteRole: a role that CAN finalize
+  // directly must not request it instead (F11 §Error States).
+  const actor = await prisma.user.findUnique({
+    where: { id: actorUserId },
+    select: { role: true },
+  });
+  if (actor && JURY_WRITE_ROLES.has(actor.role)) {
+    throw new RoleNotPermittedError(
+      'This role can finalize directly and does not need to request it',
+    );
+  }
+  const updated = await prisma.juryPackage.update({
+    where: { id: juryPackageId },
+    data: { finalizationRequestedAt: new Date(), finalizationRequestedBy: actorUserId },
+  });
+  return { juryPackage: updated };
 }
 
 /**

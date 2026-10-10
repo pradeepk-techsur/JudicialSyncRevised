@@ -1,14 +1,17 @@
 import type {
+  CustodyCurrentState,
   EventType,
   Exhibit,
   ExhibitStatus,
+  ObjectionCurrentState,
   Role,
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { ruleLabel } from '@/lib/discrepancyLabels';
-import { getExhibit } from '@/services/exhibits';
+import { getExhibit, loadJuryEligibilityByExhibit } from '@/services/exhibits';
 import { getExhibitDiscrepancies } from '@/services/discrepancies';
+import { getCustodyHistory } from '@/services/custody';
 
 // F10 — Full chronological exhibit history (Y1-api.md §Exhibits GET
 // /api/exhibits/:id/history; FRD F00 §Process step 7 "ledger replay").
@@ -46,6 +49,37 @@ export interface ExhibitHistoryResponse {
   // header banner (ExhibitHeader.tsx) reads to light up its amber block.
   discrepancyFlags: DiscrepancyFlagSummary[];
   timeline: TimelineEntry[];
+  // Added Phase 8 (F10 §Process step 4): every UNRESOLVED ObjectionCurrentState
+  // row for this exhibit — zero, one, or several (F02 permits N concurrent
+  // threads). The full set (resolved + unresolved) remains visible via the
+  // timeline, unchanged.
+  objections: ObjectionCurrentState[];
+  // Added Phase 8 (F10 §Process step 5). pendingTransfer is ALWAYS null this
+  // phase — F19's propose/confirm/cancel is Phase 7.1 scope, skipped. The
+  // Chain of Custody card has exactly two states: a name, or no custodian.
+  custodyCard: {
+    current: CustodyCurrentState | null;
+    pendingTransfer: null;
+    history: Array<{
+      fromCustodian: string | null;
+      toCustodian: string;
+      timestamp: string;
+      reason: string | null;
+      eventId: string;
+    }>;
+  };
+  // Added Phase 8 (F10 §Process step 6). classificationTrial substitutes
+  // !exhibit.isSealed for F16's (skipped) classification column — matches the
+  // same substitution already made this phase in 08-06's attention feed and
+  // juryPackage.ts's existing CRITICAL-row treatment. eligibility uses the
+  // IDENTICAL precedence rule F09/exhibits.ts computes — never redefined here.
+  juryPackageChecklist: {
+    admitted: boolean;
+    objectionsResolved: boolean;
+    custodianOnRecord: boolean;
+    classificationTrial: boolean;
+    eligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED';
+  };
 }
 
 // Narrow payload types, matching the discriminated schemas in
@@ -155,6 +189,47 @@ export async function getExhibitHistory(
     label: ruleLabel(flag.ruleCode),
   }));
 
+  // objections[] — reuse the SAME query shape getUnresolvedObjections uses,
+  // scoped to this one exhibit (no new business logic, F02's existing
+  // ObjectionCurrentState projection).
+  const objections = await prisma.objectionCurrentState.findMany({
+    where: { exhibitId, status: 'UNRESOLVED' },
+    orderBy: { raisedAt: 'asc' },
+  });
+
+  // custodyCard — current + full history, reusing custody.ts's own
+  // getCustodyHistory (no new query, no new business logic). pendingTransfer
+  // is always null this phase (F19 skipped).
+  const custodyHistoryRaw = await getCustodyHistory(exhibitId);
+  const custodyCard = {
+    current: custodyState,
+    pendingTransfer: null as null,
+    history: custodyHistoryRaw.map((h) => ({ ...h, timestamp: h.timestamp.toISOString() })),
+  };
+
+  // juryPackageChecklist — four boolean conditions + eligibility. eligibility
+  // MUST call 08-07's exported loadJuryEligibilityByExhibit (never re-derive
+  // the Included/Blocked/Not-eligible precedence inline here) — it is the
+  // SAME precedence 08-07's getExhibits/searchExhibits compute for the Case
+  // Workspace, and both plans' tests assert cross-screen parity for the same
+  // exhibit. Passing a 1-element exhibitIds array is the documented
+  // single-exhibit usage of that batch helper.
+  const admitted = currentState?.currentStatus === 'ADMITTED';
+  const objectionsResolved = objections.length === 0;
+  const custodianOnRecord = custodyState !== null;
+  const classificationTrial = !exhibit.isSealed;
+
+  const eligibilityByExhibit = await loadJuryEligibilityByExhibit(exhibit.caseId, [exhibitId]);
+  const eligibility = eligibilityByExhibit.get(exhibitId) ?? 'NOT_ELIGIBLE';
+
+  const juryPackageChecklist = {
+    admitted,
+    objectionsResolved,
+    custodianOnRecord,
+    classificationTrial,
+    eligibility,
+  };
+
   // 3. The COMPLETE, ordered ledger — every event type, no filtering, no limit.
   //    The actor is joined here so each entry resolves to a name, never a UUID.
   const events = await prisma.exhibitEvent.findMany({
@@ -198,5 +273,8 @@ export async function getExhibitHistory(
     currentCustodianName: custodyState?.custodian.name ?? null,
     discrepancyFlags,
     timeline,
+    objections,
+    custodyCard,
+    juryPackageChecklist,
   };
 }

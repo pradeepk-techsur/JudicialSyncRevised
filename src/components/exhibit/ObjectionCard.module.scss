@@ -1,0 +1,43 @@
+// Exhibit Detail right-rail Objection card. Carbon design tokens so the card
+// chrome, per-thread blocks, and the inline Record-ruling affordance share the
+// project's one visual language with the sibling Custody / Jury-Package cards.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.card {
+  margin-bottom: $spacing-05;
+}
+
+.heading {
+  @include type-style('heading-compact-02');
+  margin-bottom: $spacing-03;
+  color: $text-primary;
+}
+
+// Explicit empty state — never a blank card (F10 §Process step 4).
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+// One block per UNRESOLVED thread; several render stacked, each with its OWN
+// correctly-scoped Record-ruling action.
+.thread {
+  padding: $spacing-03 0;
+
+  & + & {
+    border-top: 1px solid $border-subtle;
+  }
+}
+
+.grounds {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.caption {
+  @include type-style('label-01');
+  color: $text-secondary;
+  margin-bottom: $spacing-03;
+}

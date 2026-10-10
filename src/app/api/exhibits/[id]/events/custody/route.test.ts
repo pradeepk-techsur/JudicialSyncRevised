@@ -27,6 +27,9 @@ async function seedFixture() {
   const attorney = await prisma.user.create({
     data: { caseId: kase.id, name: 'Attorney C', role: 'ATTORNEY' },
   });
+  const judge = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Judge D', role: 'JUDGE' },
+  });
   const exhibit = await prisma.exhibit.create({
     data: {
       caseId: kase.id,
@@ -40,6 +43,7 @@ async function seedFixture() {
     deputyId: deputy.id,
     clerkId: clerk.id,
     attorneyId: attorney.id,
+    judgeId: judge.id,
   };
 }
 
@@ -153,7 +157,9 @@ describe('custody API routes', () => {
         fromCustodianUserId: clerkId,
         toCustodianUserId: attorneyId,
         reason: 'to attorney',
-        actorUserId: attorneyId,
+        // Clerk (current holder) performs the transfer TO the attorney; ATTORNEY
+        // is not an authorized custody actor under the new F24 role gate.
+        actorUserId: clerkId,
       }),
       { params: Promise.resolve({ id: exhibitId }) },
     );
@@ -181,6 +187,33 @@ describe('custody API routes', () => {
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('POST by a JUDGE actor returns 403 ROLE_NOT_PERMITTED', async () => {
+    const { exhibitId, deputyId, judgeId } = fx;
+
+    // Direct API-level check bypassing any UI: a JUDGE is not an authorized
+    // custody-transfer actor, so the request is rejected at the route/service
+    // boundary with 403, not merely hidden client-side.
+    const res = await postCustody(
+      postRequest(exhibitId, {
+        fromCustodianUserId: null,
+        toCustodianUserId: deputyId,
+        actorUserId: judgeId,
+      }),
+      { params: Promise.resolve({ id: exhibitId }) },
+    );
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe('ROLE_NOT_PERMITTED');
+
+    // The gate fired before any write — no custody row exists.
+    const custRes = await getCustodianRoute(
+      new NextRequest(`http://localhost/api/exhibits/${exhibitId}/custodian`),
+      { params: Promise.resolve({ id: exhibitId }) },
+    );
+    const custBody = await custRes.json();
+    expect(custBody.custodian).toBeNull();
   });
 
   it('POST to a nonexistent exhibit returns 404 EXHIBIT_NOT_FOUND', async () => {

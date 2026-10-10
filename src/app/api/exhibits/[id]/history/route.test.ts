@@ -76,6 +76,22 @@ describe('GET /api/exhibits/:id/history sealed-exhibit visibility', () => {
     expect(body.exhibit.id).toBe(fixture.sealedId);
     expect(Array.isArray(body.timeline)).toBe(true);
     expect(body.timeline.length).toBeGreaterThan(0);
+
+    // Phase 8 (F10 §Process steps 4-6): the three new right-rail data sources
+    // ride along on the existing response object and survive the HTTP JSON
+    // round-trip unchanged (no route code change was needed). This sealed
+    // fixture has no objections/custody and is not in any package, so the
+    // round-trip shapes are the empty/default forms — which is exactly what the
+    // client must be able to rely on as always-present (never omitted).
+    expect(Array.isArray(body.objections)).toBe(true);
+    expect(body.objections).toEqual([]);
+    expect(body.custodyCard.current).toBeNull();
+    expect(body.custodyCard.pendingTransfer).toBeNull();
+    expect(body.custodyCard.history).toEqual([]);
+    // A sealed exhibit's classificationTrial is false; no package → NOT_ELIGIBLE.
+    expect(body.juryPackageChecklist.classificationTrial).toBe(false);
+    expect(body.juryPackageChecklist.eligibility).toBe('NOT_ELIGIBLE');
+    expect(body.juryPackageChecklist.admitted).toBe(false);
   });
 
   it('returns 404 EXHIBIT_NOT_FOUND for a sealed exhibit read by ATTORNEY', async () => {

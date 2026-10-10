@@ -1,0 +1,21 @@
+@use '@carbon/colors';
+
+// Shared card chrome. Rounded corners (matching the dark-dashboard corner-radius
+// language the Phase 8 panels share), white background on the light content area,
+// and a subtle elevation/shadow. The `.critical` variant adds a single, reusable
+// red left border — applied identically wherever a card is in a blocked/critical
+// state (attention-feed entry, Jury Package blocker card, any future surface).
+
+.card {
+  position: relative;
+  background-color: colors.$white;
+  border: 1px solid colors.$gray-20;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+// The one, reusable blocked/critical treatment: a 4px solid red left border.
+.critical {
+  border-left: 4px solid colors.$red-60;
+}

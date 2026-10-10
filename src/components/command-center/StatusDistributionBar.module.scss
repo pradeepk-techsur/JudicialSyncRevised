@@ -1,0 +1,67 @@
+@use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// F8 — status-distribution legend. The per-status legend-dot colors reuse
+// the EXACT @carbon/colors tokens StatusBadge.module.scss maps each status to —
+// one authoritative color per status, never a second mapping:
+//   MARKED   → $gray-40      (StatusBadge .statusDotGray)
+//   OFFERED  → $blue-60      (StatusBadge .statusDotBlue)
+//   OBJECTED → $yellow-30    (StatusBadge .statusDotAmber)
+//   ADMITTED → $green-60     (StatusBadge .statusDotGreen)
+//   EXCLUDED → $red-60       (StatusBadge .statusDotRed)
+//   WITHDRAWN→ $cool-gray-70 (StatusBadge .statusDotSlate)
+
+.segMarked {
+  background-color: colors.$gray-40;
+}
+.segOffered {
+  background-color: colors.$blue-60;
+}
+.segObjected {
+  background-color: colors.$yellow-30;
+}
+.segAdmitted {
+  background-color: colors.$green-60;
+}
+.segExcluded {
+  background-color: colors.$red-60;
+}
+.segWithdrawn {
+  background-color: colors.$cool-gray-70;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-05;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legendLabel {
+  @include type-style('label-01');
+  color: $text-secondary;
+}
+
+.legendCount {
+  @include type-style('label-01');
+  font-weight: 600;
+  color: $text-primary;
+}

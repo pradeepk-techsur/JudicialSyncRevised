@@ -23,11 +23,15 @@ import { test, expect, type Page } from '@playwright/test';
 //    living DRAFT), it acknowledges whatever OPEN flags remain, and it tolerates a
 //    package that a prior run already finalized.
 
-async function switchToDeputy(page: Page): Promise<void> {
+async function switchRole(page: Page, role: string): Promise<void> {
   const roleSelect = page.getByLabel('Switch active role');
   await expect(roleSelect).toBeEnabled();
-  const deputyOption = roleSelect.locator('option', { hasText: 'DEPUTY' });
-  await roleSelect.selectOption((await deputyOption.getAttribute('value')) as string);
+  const option = roleSelect.locator('option', { hasText: role });
+  await roleSelect.selectOption((await option.getAttribute('value')) as string);
+}
+
+async function switchToDeputy(page: Page): Promise<void> {
+  await switchRole(page, 'DEPUTY');
 }
 
 test.describe('Jury Package Workspace', () => {
@@ -282,10 +286,15 @@ test.describe('Jury Package Workspace', () => {
     await page.goto('/jury-package');
     await switchToDeputy(page);
 
-    const criticalRow = page.getByTestId('jury-critical-row');
-    await expect(criticalRow).toBeVisible();
-    await expect(criticalRow).toContainText('CRITICAL');
-    await expect(criticalRow).toContainText('must be removed');
+    // The sealed row now renders as a CRITICAL blocker CARD (red left border via
+    // data-critical) inside the Blockers section — the restructure replaced the
+    // flat jury-critical-row table cell.
+    const criticalCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-critical="true"]',
+    );
+    await expect(criticalCard).toBeVisible();
+    await expect(criticalCard).toContainText('Ex parte material');
+    await expect(criticalCard).toContainText('must be removed');
     await expect(page.getByTestId('jury-finalize')).toBeDisabled();
 
     await Promise.all([
@@ -295,7 +304,7 @@ test.describe('Jury Package Workspace', () => {
       page.getByTestId('jury-remove-from-package').click(),
     ]);
 
-    await expect(criticalRow).toHaveCount(0, { timeout: 10000 });
+    await expect(criticalCard).toHaveCount(0, { timeout: 10000 });
   });
 
   test('a non-finalizing role (ATTORNEY) sees the CRITICAL row with no Remove action (F13)', async ({
@@ -337,9 +346,11 @@ test.describe('Jury Package Workspace', () => {
     const attorneyOption = roleSelect.locator('option', { hasText: 'ATTORNEY' });
     await roleSelect.selectOption((await attorneyOption.getAttribute('value')) as string);
 
-    const criticalRow = page.getByTestId('jury-critical-row');
-    await expect(criticalRow).toBeVisible();
-    await expect(criticalRow).toContainText('CRITICAL');
+    const criticalCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-critical="true"]',
+    );
+    await expect(criticalCard).toBeVisible();
+    await expect(criticalCard).toContainText('Ex parte material');
     await expect(page.getByTestId('jury-remove-from-package')).toHaveCount(0);
   });
 
@@ -462,8 +473,9 @@ test.describe('Jury Package Workspace', () => {
 
     const finalizeBtn = page.getByTestId('jury-finalize');
 
-    // The one OPEN-flagged row hard-disables the Finalize button.
-    const blockingRows = page.locator('[data-testid="jury-exhibit-row"][data-blocking="true"]');
+    // The one OPEN-flagged row hard-disables the Finalize button. The restructure
+    // renders blocking exhibits as Blockers-section cards (data-blocking="true").
+    const blockingRows = page.locator('[data-testid="jury-blocker-card"][data-blocking="true"]');
     await expect(blockingRows).toHaveCount(1);
     await expect(finalizeBtn).toBeDisabled();
     await expect(page.getByTestId('jury-finalize-caption')).toBeVisible();
@@ -497,5 +509,396 @@ test.describe('Jury Package Workspace', () => {
     // Action controls are gone in the finalized view.
     await expect(page.getByTestId('jury-finalize')).toHaveCount(0);
     await expect(page.getByTestId('jury-acknowledge-trigger')).toHaveCount(0);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 08-14: Blockers/Clean restructure + inline remediation + request-finalization
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // A DRAFT with one HIGH (unresolved objection) and one MEDIUM (no custodian)
+  // blocker plus one clean row, used by several tests below. `resolved` flips the
+  // HIGH row to clean so a Record-ruling can move it Blockers → Clean.
+  function mixedDraftBody(caseId: string, opts: { highResolved?: boolean } = {}) {
+    const highClean = opts.highResolved === true;
+    return {
+      juryPackage: {
+        id: 'pkg-mixed',
+        caseId,
+        status: 'DRAFT',
+        createdAt: new Date().toISOString(),
+        finalizedAt: null,
+        finalizedBy: null,
+        finalizationRequestedAt: null,
+        finalizationRequestedBy: null,
+      },
+      exhibits: [
+        // HIGH — unresolved objection (P-7-shaped).
+        {
+          exhibitId: 'ex-high',
+          exhibitLabel: 'P-7',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: highClean ? 'CLEAN' : 'FLAGGED',
+          flags: highClean
+            ? []
+            : [
+                {
+                  ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+                  status: 'OPEN',
+                  label: 'Admitted while an objection is unresolved',
+                },
+              ],
+          isSealed: false,
+          status: 'INCLUDED',
+          addedAt: new Date().toISOString(),
+        },
+        // MEDIUM — no custodian (P-6-shaped).
+        {
+          exhibitId: 'ex-medium',
+          exhibitLabel: 'P-6',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'FLAGGED',
+          flags: [
+            {
+              ruleCode: 'ADMITTED_NO_CUSTODIAN',
+              status: 'OPEN',
+              label: 'Admitted without a custodian on record',
+            },
+          ],
+          isSealed: false,
+          status: 'INCLUDED',
+          addedAt: new Date().toISOString(),
+        },
+        // CLEAN baseline row.
+        {
+          exhibitId: 'ex-clean',
+          exhibitLabel: 'P-4',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'CLEAN',
+          flags: [],
+          isSealed: false,
+          status: 'INCLUDED',
+          addedAt: new Date().toISOString(),
+        },
+      ],
+    };
+  }
+
+  test('Blockers section renders HIGH + MEDIUM cards with the correct remediation pair; progress bar reflects clean/total', async ({
+    page,
+  }) => {
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mixedDraftBody('case-1')),
+      });
+    });
+    // Resolve the HIGH row's objectionId (the Record-ruling trigger needs it).
+    await page.route('**/api/cases/**/objections**', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { objectionId: 'obj-high', exhibitId: 'ex-high', status: 'UNRESOLVED' },
+        ]),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchRole(page, 'DEPUTY'); // DEPUTY can act on custody but not ruling
+
+    await expect(page.getByTestId('jury-package-draft')).toBeVisible();
+
+    // Two blocker cards, one clean row.
+    await expect(page.getByTestId('jury-blocker-card')).toHaveCount(2);
+    await expect(page.getByTestId('jury-clean-row')).toHaveCount(1);
+
+    // Blockers heading counts 2; Clean heading counts 1.
+    await expect(page.getByTestId('jury-blockers-section')).toContainText('Blockers (2)');
+    await expect(page.getByTestId('jury-clean-section')).toContainText('Clean (1)');
+
+    // Condition pills.
+    const highCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-exhibit-label="P-7"]',
+    );
+    const mediumCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-exhibit-label="P-6"]',
+    );
+    await expect(highCard).toContainText('Unresolved objection');
+    await expect(mediumCard).toContainText('No custodian on record');
+
+    // MEDIUM offers Assign custodian (DEPUTY is a CUSTODY_ROLE); HIGH's Record
+    // ruling trigger is absent for DEPUTY (JUDGE-only form) but the card still
+    // renders with its Acknowledge secondary.
+    await expect(mediumCard.getByTestId('jury-assign-custodian-trigger')).toBeVisible();
+    await expect(highCard.getByTestId('jury-acknowledge-trigger')).toBeVisible();
+
+    // Progress bar: 1 of 3 clean.
+    await expect(page.getByTestId('two-color-progress-caption')).toContainText(
+      '1 of 3 exhibits are clean',
+    );
+  });
+
+  test('Record ruling on a HIGH blocker (JUDGE) resolves it → the card moves from Blockers to Clean on the next poll', async ({
+    page,
+  }) => {
+    let ruled = false;
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mixedDraftBody('case-1', { highResolved: ruled })),
+      });
+    });
+    await page.route('**/api/cases/**/objections**', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          ruled
+            ? []
+            : [{ objectionId: 'obj-high', exhibitId: 'ex-high', status: 'UNRESOLVED' }],
+        ),
+      });
+    });
+    await page.route('**/api/objections/*/ruling', async (route) => {
+      ruled = true;
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ event: {}, objectionState: { status: 'RESOLVED' } }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchRole(page, 'JUDGE');
+
+    const highCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-exhibit-label="P-7"]',
+    );
+    await expect(highCard).toBeVisible();
+
+    // Expand the inline Record-ruling form (JUDGE-only), pick a disposition, confirm.
+    await highCard.getByTestId('jury-record-ruling-trigger').click();
+    await expect(page.getByTestId('record-ruling-form')).toBeVisible();
+    // Carbon RadioButton: the native input is visually hidden behind the
+    // __appearance span, so click the label rather than check() the input.
+    await page.getByText('Overruled', { exact: true }).click();
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/ruling') && r.request().method() === 'POST',
+      ),
+      page.getByTestId('record-ruling-confirm').click(),
+    ]);
+
+    // Next poll re-reads server truth: the HIGH card leaves Blockers and the P-7
+    // row appears in Clean.
+    await expect(highCard).toHaveCount(0, { timeout: 10000 });
+    await expect(
+      page.locator('[data-testid="jury-clean-row"][data-exhibit-label="P-7"]'),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test('Assign custodian on a MEDIUM blocker (DEPUTY) resolves it → the card moves from Blockers to Clean', async ({
+    page,
+    request,
+  }) => {
+    const caseRes = await request.get('/api/case');
+    const { users } = await caseRes.json();
+    const target = users.find((u: { role: string }) => u.role === 'CLERK') ?? users[0];
+
+    let assigned = false;
+
+    const body = () => {
+      const b = mixedDraftBody('case-1');
+      if (assigned) {
+        // The MEDIUM row becomes clean once a custodian is assigned.
+        const row = b.exhibits.find((e) => e.exhibitId === 'ex-medium')!;
+        row.discrepancyStatus = 'CLEAN';
+        row.flags = [];
+      }
+      return b;
+    };
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body()),
+      });
+    });
+    await page.route('**/api/cases/**/objections**', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { objectionId: 'obj-high', exhibitId: 'ex-high', status: 'UNRESOLVED' },
+        ]),
+      });
+    });
+    await page.route('**/api/exhibits/*/events/custody', async (route) => {
+      assigned = true;
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ event: {}, custodyState: {} }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchRole(page, 'DEPUTY');
+
+    const mediumCard = page.locator(
+      '[data-testid="jury-blocker-card"][data-exhibit-label="P-6"]',
+    );
+    await expect(mediumCard).toBeVisible();
+
+    // Expand the inline Assign-custodian form, pick a custodian, confirm.
+    await mediumCard.getByTestId('jury-assign-custodian-trigger').click();
+    await expect(page.getByTestId('transfer-custody-form')).toBeVisible();
+    // Open the Carbon Dropdown (the combobox toggle) WITHIN the custody form, then
+    // pick the custodian from ITS listbox menu (scoped so the role-switcher <select>
+    // options never match).
+    const form = page.getByTestId('transfer-custody-form');
+    await form.getByRole('combobox').click();
+    await form.getByRole('option', { name: new RegExp(target.name) }).first().click();
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/events/custody') && r.request().method() === 'POST',
+      ),
+      page.getByTestId('transfer-custody-confirm').click(),
+    ]);
+
+    await expect(mediumCard).toHaveCount(0, { timeout: 10000 });
+    await expect(
+      page.locator('[data-testid="jury-clean-row"][data-exhibit-label="P-6"]'),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test('a non-finalizing role sees "Request finalization from Clerk"; requesting it (200) surfaces the banner on a DEPUTY view of the same package', async ({
+    page,
+    request,
+  }) => {
+    const caseRes = await request.get('/api/case');
+    const { users } = await caseRes.json();
+    const judge = users.find((u: { role: string }) => u.role === 'JUDGE');
+
+    // The package is clean (finalize-eligible) so the only thing gating finalize
+    // is the ROLE — exactly the request-finalization scenario.
+    let requested = false;
+    const cleanBody = () => ({
+      juryPackage: {
+        id: 'pkg-req',
+        caseId: 'case-1',
+        status: 'DRAFT',
+        createdAt: new Date().toISOString(),
+        finalizedAt: null,
+        finalizedBy: null,
+        finalizationRequestedAt: requested ? new Date().toISOString() : null,
+        finalizationRequestedBy: requested ? judge.id : null,
+      },
+      exhibits: [
+        {
+          exhibitId: 'ex-ok',
+          exhibitLabel: 'P-4',
+          currentStatus: 'ADMITTED',
+          discrepancyStatus: 'CLEAN',
+          flags: [],
+          isSealed: false,
+          status: 'INCLUDED',
+          addedAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(cleanBody()),
+      });
+    });
+    await page.route('**/api/jury-package/*/request-finalization', async (route) => {
+      requested = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto('/jury-package');
+    await switchRole(page, 'JUDGE'); // a non-finalizing role
+
+    // JUDGE sees the restricted copy + the Request-finalization control, NOT a
+    // disabled Finalize button.
+    await expect(page.getByTestId('jury-finalize-restricted')).toBeVisible();
+    await expect(page.getByTestId('jury-finalize')).toHaveCount(0);
+    const requestBtn = page.getByTestId('jury-request-finalization');
+    await expect(requestBtn).toBeVisible();
+
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes('/request-finalization') && r.request().method() === 'POST',
+      ),
+      requestBtn.click(),
+    ]);
+
+    // Now switch to DEPUTY (a finalize-authorized role) — the banner naming the
+    // requester renders above the Finalize control.
+    await switchRole(page, 'DEPUTY');
+    const banner = page.getByTestId('jury-finalization-requested-banner');
+    await expect(banner).toBeVisible({ timeout: 10000 });
+    await expect(banner).toContainText(judge.name);
+    await expect(page.getByTestId('jury-finalize')).toBeVisible();
+  });
+
+  test('a finalize-authorized role requesting finalization directly via the API is rejected 403 (server-enforced, bypassing the UI)', async ({
+    request,
+  }) => {
+    // The UI never offers a finalize-authorized role the request control — but the
+    // server is the authority. Drive a REAL request as a DEPUTY against the live
+    // endpoint and prove the inverted role gate (08-01) 403s it.
+    const caseRes = await request.get('/api/case');
+    const { case: kase, users } = await caseRes.json();
+    const deputy = users.find((u: { role: string }) => u.role === 'DEPUTY');
+
+    // Ensure a DRAFT package exists to request against (initiate is idempotent).
+    await request.post(`/api/cases/${kase.id}/jury-package`, {
+      headers: { 'Content-Type': 'application/json', 'X-User-Role': 'DEPUTY' },
+      data: { actorUserId: deputy.id },
+    });
+    const pkgRes = await request.get(`/api/cases/${kase.id}/jury-package`, {
+      headers: { 'X-User-Role': 'DEPUTY' },
+    });
+    const { juryPackage } = await pkgRes.json();
+
+    // A living DRAFT is required for this proof; a prior run may have finalized the
+    // shared package. If so, the 403 role-gate is still proven by the service's
+    // ordering test (juryPackage.test.ts) — skip rather than assert a false 409.
+    test.skip(
+      !juryPackage || juryPackage.status !== 'DRAFT',
+      'shared package is not in DRAFT state this run',
+    );
+
+    const res = await request.post(
+      `/api/jury-package/${juryPackage.id}/request-finalization`,
+      {
+        headers: { 'Content-Type': 'application/json', 'X-User-Role': 'DEPUTY' },
+        data: { actorUserId: deputy.id },
+      },
+    );
+    expect(res.status()).toBe(403);
+    const err = await res.json();
+    expect(JSON.stringify(err)).toContain('ROLE_NOT_PERMITTED');
   });
 });

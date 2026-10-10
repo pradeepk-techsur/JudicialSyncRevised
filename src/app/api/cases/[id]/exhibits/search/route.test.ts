@@ -55,6 +55,18 @@ describe('GET /api/cases/:id/exhibits/search', () => {
     expect(body[0]).not.toHaveProperty('id');
   });
 
+  it('juryPackageEligibility survives the HTTP round-trip for a known-state exhibit (P-3)', async () => {
+    // P-3 is OBJECTED (admission-blocked post-F12), so it is never an ADMITTED
+    // jury-package member → its eligibility is NOT_ELIGIBLE. Asserting the exact
+    // value through the JSON response proves the additive field rides the route's
+    // thin NextResponse.json(rows) pass-through with no route code change.
+    const res = await searchRoute(demoCaseId, { witness: 'Finch' }, 'JUDGE');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body[0].exhibitLabel).toBe('P-3');
+    expect(body[0].juryPackageEligibility).toBe('NOT_ELIGIBLE');
+  });
+
   it('AND-combines filters: witness=Finch & status=OBJECTED matches P-3 (ADMITTED now matches nothing post-F12)', async () => {
     // P-3 is OBJECTED (admission blocked), so the ADMITTED combination matches
     // nothing while the OBJECTED combination still narrows to exactly P-3 —

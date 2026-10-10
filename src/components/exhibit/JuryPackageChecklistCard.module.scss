@@ -1,0 +1,60 @@
+// Exhibit Detail right-rail Jury-Package checklist card. Carbon tokens; a plain
+// colored eligibility badge (green Included / red Blocked / gray Not-eligible),
+// a 4-item ✓/✗ checklist, and a link through to the Jury Package Workspace.
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.card {
+  margin-bottom: $spacing-05;
+}
+
+.heading {
+  @include type-style('heading-compact-02');
+  margin-bottom: $spacing-03;
+  color: $text-primary;
+}
+
+.eligibility {
+  display: inline-block;
+  @include type-style('label-01');
+  font-weight: 600;
+  padding: $spacing-02 $spacing-03;
+  border-radius: 4px;
+  margin-bottom: $spacing-03;
+}
+
+.eligibility_INCLUDED {
+  background-color: $support-success;
+  color: $text-on-color;
+}
+
+.eligibility_BLOCKED {
+  background-color: $support-error;
+  color: $text-on-color;
+}
+
+.eligibility_NOT_ELIGIBLE {
+  background-color: $layer-02;
+  color: $text-secondary;
+}
+
+.checklist {
+  list-style: none;
+  margin: 0 0 $spacing-03;
+  padding: 0;
+}
+
+.item {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  padding: $spacing-02 0;
+
+  &[data-met='false'] {
+    color: $text-secondary;
+  }
+}
+
+.link {
+  @include type-style('body-compact-01');
+}

@@ -278,6 +278,13 @@ model JuryPackage {
   createdAt   DateTime          @default(now()) @map("created_at")
   finalizedAt DateTime?         @map("finalized_at")
   finalizedBy String?           @map("finalized_by")
+  // --- added Phase 8 (F11): lightweight finalization-request notification ---
+  // Set by POST /api/jury-package/:id/request-finalization. Purely additive
+  // metadata — confers no authority, bypasses no gate. At most one outstanding
+  // request is tracked per package; a new request overwrites the prior one.
+  // Cleared automatically when the package is finalized.
+  finalizationRequestedAt DateTime? @map("finalization_requested_at")
+  finalizationRequestedBy String?   @map("finalization_requested_by")
 
   case            Case                 @relation(fields: [caseId], references: [id])
   finalizedByUser User?                @relation("JuryPackageFinalizer", fields: [finalizedBy], references: [id])
