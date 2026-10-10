@@ -12,6 +12,17 @@
   align-items: center;
   gap: $spacing-05;
   padding: $spacing-03 $spacing-05;
+  // The banner is in normal document flow (NOT fixed/absolute) between the
+  // fixed Header and the fixed Sidebar's rail, but the Sidebar's `<nav>` is
+  // position:fixed spanning the full 16rem rail width at z-index 8000 — it
+  // paints over the banner's first 16rem of content regardless of flow order
+  // (UAT-9 gap closure). Match the SAME 16rem constant AppShell.module.scss's
+  // `.body { padding-left: 16rem }` and Sidebar.module.scss already use as
+  // the shared rail-width value, so the banner's text starts exactly where
+  // the sidebar's fixed rail ends, never underneath it. Keep both in sync if
+  // the rail width ever changes (same caveat Sidebar.module.scss documents
+  // for its own 3rem header-height constant).
+  padding-inline-start: 16rem;
   background-color: $layer-02;
   border-block-end: 1px solid $border-subtle;
   @include type-style('body-compact-01');
