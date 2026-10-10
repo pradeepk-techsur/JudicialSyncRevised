@@ -237,6 +237,59 @@ test.describe('App shell', () => {
     await expect(banner).toContainText(/JUDGE/);
   });
 
+  test('the active-role banner text is NOT obscured by the sidebar after a role switch (UAT-9 gap closure)', async ({ page }) => {
+    await page.goto('/case');
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    const deputyValue = (await deputyOption.getAttribute('value')) as string;
+    await select.selectOption(deputyValue);
+
+    const banner = page.getByTestId('active-role-banner');
+    await expect(banner).toBeVisible();
+
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    const navBox = await nav.boundingBox();
+    const labelBox = await banner.locator('span').first().boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(labelBox).not.toBeNull();
+    // The banner's own label text must start AT OR AFTER the sidebar's right
+    // edge — zero horizontal overlap between the two.
+    expect(labelBox!.x).toBeGreaterThanOrEqual(navBox!.x + navBox!.width - 1);
+
+    // Stronger check: hit-test the actual rendered center of the banner's
+    // label text and confirm the SIDEBAR isn't the topmost element there
+    // (mirrors the existing sidebar/header overlap test's hit-test pattern).
+    const centerX = labelBox!.x + labelBox!.width / 2;
+    const centerY = labelBox!.y + labelBox!.height / 2;
+    const topElementTag = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('nav') ? 'nav' : document.elementFromPoint(x, y)?.tagName ?? null,
+      { x: centerX, y: centerY },
+    );
+    expect(topElementTag).not.toBe('nav');
+  });
+
+  test('the role switcher has no visible "Demo role" label and left-aligns with the page title (UAT-16 gap closure)', async ({ page }) => {
+    await page.goto('/command-center');
+    // The visible label text is gone — Carbon's hideLabel applies its
+    // cds--visually-hidden class, so the label element exists in the DOM
+    // (preserving the aria/htmlFor association) but is not visually rendered.
+    const label = page.locator('label[for="role-switcher"]');
+    await expect(label).toHaveClass(/cds--visually-hidden/);
+
+    // The accessible name is unchanged — every existing getByLabel locator
+    // across the suite continues to resolve.
+    const select = page.getByLabel('Switch active role');
+    await expect(select).toBeVisible();
+
+    // Left-edge alignment with the page title.
+    const title = page.locator('h1', { hasText: 'Trial Command Center' });
+    const titleBox = await title.boundingBox();
+    const selectBox = await select.boundingBox();
+    expect(titleBox).not.toBeNull();
+    expect(selectBox).not.toBeNull();
+    expect(Math.abs(selectBox!.x - titleBox!.x)).toBeLessThanOrEqual(2);
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command
