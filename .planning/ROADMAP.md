@@ -215,7 +215,7 @@ Plans:
   5. The role switcher is labeled as a demo/test control (or environment-flag-gated out of production), shows a persistent "Active role: X — switch back" banner after switching, and every role-gated UI control refreshes immediately on switch without a page reload; navigation shows a clearly marked active item and the Pivota Assistant has exactly one entry point.
   6. Opening the Jury Package Workspace before a package exists shows full-width guidance naming which roles can start one plus a read-only readiness preview (admitted exhibits and their blockers) visible to every role including a read-only Judge view — computed by a new pure-read service function, never by duplicating eligibility rules client-side.
   7. `document.fonts` reports IBM Plex Sans (400/600) and IBM Plex Mono loaded exactly once on all 4 main pages; every text element's computed font-size/line-height matches a real Carbon type token (no off-scale values); tables/counts/timestamps use tabular figures; section titles follow one capitalization rule; and an automated accessibility check (axe) reports zero contrast failures on the 4 main pages.
-**Plans:** 17 plans (7 waves)
+**Plans:** 21 plans (7 waves + gap closures 18-21)
 
 Plans:
 - [ ] 09-01-PLAN.md — T-01: Command Center first-viewport rebuild (KPI tiles <=80px + attention DataTable + objection grounds)
@@ -235,6 +235,10 @@ Plans:
 - [ ] 09-15-PLAN.md — T-13: Surface/layer flattening — one card/panel chrome, no triple-nesting
 - [ ] 09-16-PLAN.md — T-14: Spacing/button-size standardization (Carbon spacing tokens, one button convention)
 - [ ] 09-17-PLAN.md — T-16b: Type-token correction sweep (heading-04/code-01, tabular-nums, capitalization rule)
+- [x] 09-18-PLAN.md — Gap closure: F-09-01 security finding — role enforcement on POST /api/exhibits
+- [x] 09-19-PLAN.md — Gap closure: Case Workspace table column-width/pill-overflow fix (UAT-6, 1st pass)
+- [x] 09-20-PLAN.md — Gap closure: ActiveRoleBanner sidebar overlap + role-switcher label/alignment (UAT-9/16)
+- [ ] 09-21-PLAN.md — Gap closure: Case Workspace table chevron/description dead-selector fix (UAT-6, re-test)
 
 ## Progress
 
