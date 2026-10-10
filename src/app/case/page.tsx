@@ -123,12 +123,16 @@ function CaseWorkspaceInner() {
         filters={filters}
         onChange={setFilters}
         witnessOptions={witnessOptions}
-        // visibleCount: the filtered/visible rows currently returned by the
-        // (possibly searching) query. totalCount: the full unfiltered total when a
-        // search is active; when no search is active the two are identical, so we
-        // fall back to visibleCount rather than depend on the second query having
-        // resolved.
-        visibleCount={data?.length ?? 0}
+        // visibleCount: the rows ACTUALLY rendered in the table — i.e. the
+        // server-returned list AFTER the client-side quick-filter narrowing
+        // (`visibleRows`), not the pre-quick-filter `data` length. Arriving via a
+        // Command Center KPI deep-link (e.g. /case?filter=no-custodian) pre-selects
+        // a chip on mount, so the quick filter can be active on first paint; feeding
+        // `data.length` here would read "Showing 14 of 14" over a 3-row table.
+        // totalCount: the full unfiltered total when a search is active; when no
+        // search is active the two reflect the same server list, so we fall back to
+        // data?.length rather than depend on the second query having resolved.
+        visibleCount={visibleRows.length}
         totalCount={hasSearch ? (unfilteredData?.length ?? data?.length ?? 0) : (data?.length ?? 0)}
       />
       {data && !genuinelyEmpty && (
