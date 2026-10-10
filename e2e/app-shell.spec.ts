@@ -171,6 +171,72 @@ test.describe('App shell', () => {
     await expect(badge).toHaveAttribute('aria-label', '2 jury package blockers');
   });
 
+  test('switching roles shows a persistent active-role banner, flips a role-gated control WITHOUT reload, and Switch back restores both (09-09 T-09)', async ({ page }) => {
+    // T-09: proves the three acceptance behaviors in one mid-session flow:
+    //   1. after a role switch, a persistent banner names the new active role;
+    //   2. a role-gated control's visibility flips immediately on switch with NO
+    //      page.reload() — because every live-sync query key includes `role`,
+    //      the switch re-queries as the new role within one poll interval;
+    //   3. "Switch back" restores the prior role AND its gated-control visibility.
+    //
+    // The gated control used is the Command Center attention feed's
+    // JUDGE-only "Record ruling" action (RULING_ROLES=['JUDGE']). The feed is
+    // mocked with one HIGH entry so the action is deterministically present for
+    // JUDGE regardless of seed drift.
+    await page.route('**/api/cases/**/attention-feed', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'high-1',
+            tier: 'HIGH',
+            ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+            exhibitId: 'ex-high',
+            exhibitLabel: 'P-7',
+            objectionId: 'obj-high',
+            detectedAt: new Date().toISOString(),
+            summary: 'P-7 — admitted with an open, unresolved objection',
+            availableAction: 'RECORD_RULING',
+          },
+        ]),
+      });
+    });
+
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+
+    // Default JUDGE: the Record-ruling action is present; no banner yet (no
+    // switch has happened, so there's nothing to switch back to).
+    await expect(feed.getByTestId('attention-feed-action-record-ruling').first()).toBeVisible();
+    await expect(page.getByTestId('active-role-banner')).toHaveCount(0);
+
+    // Switch to a DEPUTY persona via the shared switcher (NO page.reload()).
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    const deputyValue = (await deputyOption.getAttribute('value')) as string;
+    await select.selectOption(deputyValue);
+
+    // 1. The persistent banner now names the active DEPUTY role.
+    const banner = page.getByTestId('active-role-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(/Active role:/);
+    await expect(banner).toContainText(/DEPUTY/);
+
+    // 2. The JUDGE-gated control is now ABSENT — the switch re-queried as DEPUTY
+    //    with no reload (role participates in the query key).
+    await expect(feed.getByTestId('attention-feed-action-record-ruling')).toHaveCount(0);
+
+    // 3. Switch back restores the prior JUDGE role and its gated control.
+    await banner.getByTestId('active-role-switch-back').click();
+    await expect(feed.getByTestId('attention-feed-action-record-ruling').first()).toBeVisible();
+    // The banner persists after switching back, now naming JUDGE as active with
+    // DEPUTY as the switch-back target.
+    await expect(banner).toContainText(/JUDGE/);
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command
