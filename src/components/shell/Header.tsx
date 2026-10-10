@@ -47,23 +47,37 @@ export function Header() {
         {/* Role switcher — Carbon's `Select` wraps a REAL native <select> with a
             REAL <label htmlFor>, so Playwright's option-count / option-text /
             option:checked assertions against a native <select> keep working. The
-            visible label stays "Role:"; the accessible name Playwright matches on
-            is forced to exactly "Switch active role" via the `aria-label`
-            passthrough prop (Carbon spreads `...other` onto the <select>, and
-            aria-label overrides the <label> text as the accessible name). */}
-        <Select
-          id="role-switcher"
-          labelText="Role:"
-          inline
-          hideLabel={false}
-          aria-label="Switch active role"
-          value={activeUserId ?? ''}
-          onChange={(e) => setActiveUser(e.target.value)}
-        >
-          {users.map((u) => (
-            <SelectItem key={u.id} value={u.id} text={`${u.name} (${u.role})`} />
-          ))}
-        </Select>
+            accessible name Playwright matches on is forced to exactly "Switch
+            active role" via the `aria-label` passthrough prop (Carbon spreads
+            `...other` onto the <select>, and aria-label overrides the <label>
+            text as the accessible name), so the visible label is free to change.
+
+            T-09: this switcher silently changes what the user can DO — mistaking
+            it for a real account menu in a courtroom-facing demo is a genuine
+            safety hazard. It is therefore (a) labeled "Demo role:" with an
+            explanatory tooltip making clear it is a test control, not a login,
+            and (b) gated behind NEXT_PUBLIC_DEMO_MODE so a future real-auth
+            deployment can hide it with a build flag (defaults to ENABLED — only
+            the literal string 'false' disables it, preserving current demo
+            behavior exactly when unset). Per 09-CONTEXT decision #1 this is a
+            UX/safety affordance only; the server-side per-write-path role gates
+            remain the actual authority, unchanged. */}
+        {process.env.NEXT_PUBLIC_DEMO_MODE !== 'false' && (
+          <Select
+            id="role-switcher"
+            labelText="Demo role:"
+            inline
+            hideLabel={false}
+            aria-label="Switch active role"
+            title="Demo/test control — switches the active persona, not a real login."
+            value={activeUserId ?? ''}
+            onChange={(e) => setActiveUser(e.target.value)}
+          >
+            {users.map((u) => (
+              <SelectItem key={u.id} value={u.id} text={`${u.name} (${u.role})`} />
+            ))}
+          </Select>
+        )}
         {/* "Ask Pivota" uses a plain Carbon ghost Button rather than
             HeaderGlobalAction: the latter is icon-only (children expected to be
             an Icon), but app-shell.spec.ts asserts the button's VISIBLE text
