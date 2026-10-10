@@ -1,6 +1,7 @@
 // Exhibit Detail right-rail Chain-of-Custody card. Carbon tokens; the ordered
 // chain renders as a connected list with a "(current)" marker on the active
 // custodian and a green "No gaps in the chain" confirmation line.
+@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
@@ -46,7 +47,10 @@
   color: $text-secondary;
 }
 
+// T-12 (09-14): "✓ No gaps in the chain" is readable text (glyph + words), so it
+// uses green-60 (#198038, 4.56:1 on the gray-10 card surface — AA) rather than
+// $support-success (green-50 #24a148, only 3.05:1 there).
 .noGaps {
   @include type-style('label-01');
-  color: $support-success;
+  color: colors.$green-60;
 }
