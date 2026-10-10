@@ -217,6 +217,21 @@ test.describe('Case Workspace', () => {
     const labelCellWidth = (await firstRow.locator('td').nth(0).boundingBox())!.width;
     const descCellWidth = (await firstRow.locator('td').nth(1).boundingBox())!.width;
     expect(descCellWidth).toBeGreaterThan(labelCellWidth * 1.5);
+
+    // 09-21 gap-closure (UAT-6 RE-TEST): the 09-19 fix's own column-width
+    // selector was a dead descendant-combinator (`.table :global(...)`) that
+    // never matched Carbon's actual single-element DOM, so it silently did
+    // nothing — Carbon's own `.cds--data-table th:last-of-type { inline-size:
+    // auto }` kept splitting the remaining width ~50/50 between the chevron
+    // column and Description instead of giving it all to Description. These
+    // two assertions pin the ACTUAL mechanism (not just a downstream
+    // consequence), so a future regression of this exact selector mistake
+    // fails immediately instead of silently passing the overlap check above.
+    const chevronHeaderWidth = (
+      await page.locator('table thead th').last().boundingBox()
+    )!.width;
+    expect(chevronHeaderWidth).toBeLessThanOrEqual(33); // 2rem (32px) + 1px tolerance
+    expect(descCellWidth).toBeGreaterThan(200); // the real ~272px remainder, not a ~152px 50/50 split
   });
 
   // Unassigned custodian → red "Unassigned" text, never a blank cell
