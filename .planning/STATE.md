@@ -3,14 +3,14 @@ pivota_spec_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: paused
-stopped_at: Completed 09-08-PLAN.md
-last_updated: "2026-10-10T17:46:41.574Z"
+stopped_at: Completed 09-03-PLAN.md (status-palette single source of truth)
+last_updated: "2026-10-10T17:49:34.723Z"
 last_activity: "2026-10-08 — Completed 06-02-PLAN.md: StatusBadge/DiscrepancyBadge/AcknowledgeInline → Carbon Tag/TextArea/Button, every data-testid/aria-label/conditional branch preserved byte-for-byte, 3 atomic commits (3a794f1, 966b584, 06d0491), 0 deviations."
 progress:
   total_phases: 10
   completed_phases: 8
   total_plans: 76
-  completed_plans: 64
+  completed_plans: 65
   percent: 100
 ---
 
@@ -180,6 +180,7 @@ Progress: [██████████] 100%
 | Phase 09 P11 | 14min | 3 tasks | 6 files |
 | Phase 09 P12 | 15 min | 3 tasks | 4 files |
 | Phase 09 P08 | 16 min | 2 tasks | 3 files |
+| Phase 09 P03 | 20 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -326,6 +327,7 @@ Recent decisions affecting current work:
 - [Phase 09]: openPanelForExhibit is the single shared exhibit-scoping entry point (powers T-11 context prompts + T-08 pre-selected open)
 - [Phase 09]: 09-12 typography: Carbon font-family override applied at the CSS layer in globals.scss (not @carbon/react with() config) because $font-families is not forwarded by Carbon's config surface; $css--font-face kept false to avoid the broken ~@ibm/plex Turbopack path
 - [Phase 09]: 09-08: Sidebar active-nav uses Carbon's native SideNavLink isActive/renderIcon; Jury Package badge switched to useJuryPackage blocker formula (FLAGGED||isSealed) so it matches the page/stat-card by construction
+- [Phase 09]: 09-03: STATUS_CONFIG exported from StatusBadge as the single TS source of truth for status label+Tag-type+icon; shared src/styles/_statusColors.scss as the single SCSS color-token source @use'd by both StatusBadge and StatusDistributionBar
 
 ### Pending Todos
 
@@ -341,6 +343,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T17:46:36.065Z
-Stopped at: Completed 09-08-PLAN.md
+Last session: 2026-10-10T17:49:34.720Z
+Stopped at: Completed 09-03-PLAN.md (status-palette single source of truth)
 Resume file: None
