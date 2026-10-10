@@ -159,6 +159,66 @@ test.describe('Case Workspace', () => {
     await expect(cell).toHaveText('Not yet evaluated');
   });
 
+  // 09-19 gap closure (09-UAT.md test 6, severity major): fixes a CSS
+  // specificity regression from 09-06 where Carbon's own
+  // `.cds--data-table th:last-of-type { inline-size: auto }` silently
+  // overrode `.colChevron`'s fixed width, splitting the remaining table
+  // width ~50/50 between Description and the chevron column instead of
+  // letting Description absorb it all — and where the Flags column's old
+  // 10rem was narrower than the widest real SeverityPill label ever
+  // rendered there ("Ex parte · restricted", ~165px), causing that pill to
+  // visually overflow into the adjacent Jury Package cell.
+  test('exhibit table rows render with zero cell-to-cell visual overlap at 1440px, including a row with multiple stacked Flags pills (UAT-6 gap closure)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/case');
+    await page.waitForSelector('[data-testid="exhibit-row"]');
+
+    // Every row's Flags cell and Jury Package cell must not visually
+    // overlap — this is the exact failure mode reported ("rows are
+    // broken"): a wide SeverityPill (e.g. "Ex parte · restricted")
+    // spilling past its own column's right edge into the next cell's text.
+    const rows = page.locator('[data-testid="exhibit-row"]');
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThan(0);
+    let sawAPill = false;
+    for (let i = 0; i < rowCount; i++) {
+      const row = rows.nth(i);
+      const cells = row.locator('td');
+      const flagsCell = cells.nth(5); // Label, Description, Party, Status, Custodian, Flags, Jury, chevron
+      const juryCell = cells.nth(6);
+      // Locate the widest-pill case by its own tone/content rather than a
+      // hardcoded exhibit label, so the test is robust to seed-data drift
+      // (the sealed/ex-parte row always renders a critical-tone pill here).
+      const pills = flagsCell.locator('[data-testid="severity-pill"]');
+      const pillCount = await pills.count();
+      for (let p = 0; p < pillCount; p++) {
+        sawAPill = true;
+        const pillBox = await pills.nth(p).boundingBox();
+        const juryBox = await juryCell.boundingBox();
+        expect(pillBox).not.toBeNull();
+        expect(juryBox).not.toBeNull();
+        // The pill's right edge must not cross into the Jury Package cell's
+        // left edge — zero horizontal overlap.
+        expect(pillBox!.x + pillBox!.width).toBeLessThanOrEqual(juryBox!.x + 1);
+      }
+    }
+    // Guard against a vacuously-passing test: the seeded case must actually
+    // exercise at least one Flags pill (S-1's "Ex parte · restricted" and
+    // P-1's "Ruling pending"/"Open objection" are seeded by default).
+    expect(sawAPill).toBe(true);
+
+    // The Description column must be meaningfully wider than the
+    // fixed-width Label column (the 09-06 defect collapsed it to the SAME
+    // width as Label, ~96px, instead of absorbing the table's true
+    // remainder).
+    const firstRow = rows.first();
+    const labelCellWidth = (await firstRow.locator('td').nth(0).boundingBox())!.width;
+    const descCellWidth = (await firstRow.locator('td').nth(1).boundingBox())!.width;
+    expect(descCellWidth).toBeGreaterThan(labelCellWidth * 1.5);
+  });
+
   // Unassigned custodian → red "Unassigned" text, never a blank cell
   // (Screenshot 5). P-6 (legacy admit, zero custody) is the canonical fixture.
   test('an exhibit with no custodian shows red "Unassigned" text, not a blank cell', async ({

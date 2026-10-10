@@ -51,3 +51,15 @@ Per the deviation-rules scope boundary ("Only auto-fix issues DIRECTLY caused by
 the current task's changes... out-of-scope discoveries logged, not fixed"), this
 is sibling plan 09-18's own unfinished work and is left for 09-18 to complete and
 commit. Not fixed here.
+
+## 09-19 execution — pre-existing flaky test (out of scope)
+
+`e2e/case-workspace.spec.ts:368` ("applying a filter shows 'Showing N of M' with
+N <= M", from 09-07's T-07 work) intermittently fails with `visible === total`
+when narrowing by witness "Dr. Amara Finch" — seed-data dependent (apparently all
+11 seeded exhibits can share that witness value after certain re-seeds), not
+related to 09-19's ExhibitTable column-width scope. Reproduced as failing BEFORE
+any 09-19 change was made (very first suite run, against the stale pre-fix Docker
+image). Not fixed here — outside 09-19's file scope (`SearchFilterBar`/seed
+witness distribution, not `ExhibitTable.module.scss`/the new overlap-regression
+test).
