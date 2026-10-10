@@ -11,6 +11,7 @@ import {
 } from '@carbon/react';
 import { useRoleStore } from '@/stores/roleStore';
 import { useAssistantStore } from '@/stores/assistantStore';
+import styles from './Header.module.scss';
 
 export function Header() {
   const { caseNumber, users, activeUserId, setActiveUser, hydrate } = useRoleStore();
@@ -50,24 +51,37 @@ export function Header() {
             accessible name Playwright matches on is forced to exactly "Switch
             active role" via the `aria-label` passthrough prop (Carbon spreads
             `...other` onto the <select>, and aria-label overrides the <label>
-            text as the accessible name), so the visible label is free to change.
+            text as the accessible name), independent of `hideLabel` — so the
+            accessible name is unaffected by the visible label's presence.
 
             T-09: this switcher silently changes what the user can DO — mistaking
             it for a real account menu in a courtroom-facing demo is a genuine
-            safety hazard. It is therefore (a) labeled "Demo role:" with an
-            explanatory tooltip making clear it is a test control, not a login,
-            and (b) gated behind NEXT_PUBLIC_DEMO_MODE so a future real-auth
-            deployment can hide it with a build flag (defaults to ENABLED — only
-            the literal string 'false' disables it, preserving current demo
-            behavior exactly when unset). Per 09-CONTEXT decision #1 this is a
-            UX/safety affordance only; the server-side per-write-path role gates
-            remain the actual authority, unchanged. */}
+            safety hazard. It is therefore (a) kept recognizable as a test
+            control via the explanatory `title` tooltip (the VISIBLE "Demo role:"
+            label text itself was dropped per UAT-16 — see below), and (b) gated
+            behind NEXT_PUBLIC_DEMO_MODE so a future real-auth deployment can
+            hide it with a build flag (defaults to ENABLED — only the literal
+            string 'false' disables it, preserving current demo behavior exactly
+            when unset). Per 09-CONTEXT decision #1 this is a UX/safety
+            affordance only; the server-side per-write-path role gates remain
+            the actual authority, unchanged.
+
+            UAT-16: the visible "Demo role:" label text is hidden via Carbon's
+            own `hideLabel` (applies `cds--visually-hidden` to the <label> — the
+            element and its `htmlFor` association stay in the DOM, so the
+            `aria-label` passthrough and every existing Playwright
+            getByLabel('Switch active role') locator are completely unaffected).
+            `className={styles.roleSwitcherWrap}` is forwarded by Carbon onto the
+            outer `.cds--form-item` wrapper div, absolutely-positioning the
+            switcher at the SAME 17.5rem offset every page title's own box
+            already sits at (Header.module.scss). */}
         {process.env.NEXT_PUBLIC_DEMO_MODE !== 'false' && (
           <Select
             id="role-switcher"
             labelText="Demo role:"
+            hideLabel
+            className={styles.roleSwitcherWrap}
             inline
-            hideLabel={false}
             aria-label="Switch active role"
             title="Demo/test control — switches the active persona, not a real login."
             value={activeUserId ?? ''}

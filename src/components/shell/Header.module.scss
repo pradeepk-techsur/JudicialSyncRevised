@@ -1,0 +1,22 @@
+@use '@carbon/styles/scss/theme' as *;
+
+// UAT-16 gap closure: left-align the role-switcher dropdown with every page
+// title's own left edge. Every main-screen page title sits at 16rem (sidebar
+// rail width) + 1.5rem (main's own padding, AppShell.module.scss `.main {
+// padding: 1.5rem }`) = 17.5rem from the viewport's left edge — confirmed via
+// live measurement to produce an EXACT pixel match with <h1> on Command
+// Center and Case Workspace. Carbon's Header is itself position:fixed
+// spanning the full viewport width, so an absolutely-positioned child here
+// is positioned relative to the Header's own box, not the document — using
+// the same coordinate space the page title's margin/padding chain resolves
+// into. Carbon's Select renders its outer wrapper as `.cds--form-item`; this
+// class targets that wrapper specifically (passed via Select's own
+// `className` prop, which Carbon forwards onto the form-item div).
+.roleSwitcherWrap {
+  position: absolute;
+  inset-inline-start: 17.5rem;
+  inset-block-start: 0;
+  block-size: 100%;
+  display: flex;
+  align-items: center;
+}
