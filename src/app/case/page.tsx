@@ -44,7 +44,19 @@ function CaseWorkspaceInner() {
   const caseNumber = useRoleStore((s) => s.caseNumber);
   const activeUserId = useRoleStore((s) => s.activeUserId);
   const users = useRoleStore((s) => s.users);
+  const role = useRoleStore((s) => s.role);
   const activeUserName = users.find((u) => u.id === activeUserId)?.name;
+
+  // Phase 9 (T-06 acceptance criterion: "Add exhibit hidden for non-permitted
+  // roles or tooltip naming who can"). Gate the button's VISIBILITY to the SAME
+  // role set already used for custody/jury-write actions elsewhere in this
+  // codebase (DEPUTY/CLERK/ADMIN) — absent, not merely disabled, for every other
+  // role. This is layered ON TOP of 08-11's deliberate disabled-placeholder
+  // treatment (exhibit creation itself remains out of scope, unchanged): a
+  // permitted role sees the button, visibly present + tooltipped; every other
+  // role sees nothing at all. There is no backing create endpoint, so this is
+  // role-appropriateness, not an authorization boundary (threat T-09-09 accept).
+  const canSeeAddExhibit = ['DEPUTY', 'CLERK', 'ADMIN'].includes(role);
 
   // Distinguish the two empty states (Screen-01-case-workspace.md §States):
   // a genuinely empty case ("No exhibits recorded yet") vs. a filtered view
@@ -69,14 +81,16 @@ function CaseWorkspaceInner() {
             documented scope boundary, NOT the absent-not-disabled role-gating
             pattern (which is a permission boundary). No create-exhibit handler
             exists. */}
-        <Button
-          kind="primary"
-          disabled
-          title="Exhibit creation is not yet available in this build"
-          data-testid="add-exhibit-button"
-        >
-          Add exhibit
-        </Button>
+        {canSeeAddExhibit && (
+          <Button
+            kind="primary"
+            disabled
+            title="Exhibit creation is not yet available in this build"
+            data-testid="add-exhibit-button"
+          >
+            Add exhibit
+          </Button>
+        )}
       </div>
       <SearchFilterBar filters={filters} onChange={setFilters} />
       {data && !genuinelyEmpty && (

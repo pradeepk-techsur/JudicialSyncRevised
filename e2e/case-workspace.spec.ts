@@ -92,18 +92,53 @@ test.describe('Case Workspace', () => {
   // ---- Phase 8 (08-11) Case Workspace redesign ----
 
   // Jury Package column (F09 §Process step 3): server-computed, plain-language
-  // colored text. P-6 is legacy-ADMITTED with no custodian — it has a jury
-  // package row but is flagged, so its eligibility is a definite value. We assert
-  // the column renders a recognized plain-language value for a known fixture.
-  test('Jury Package column renders server-computed plain-language text', async ({ page }) => {
+  // colored text, rendered ONLY for ADMITTED rows. P-6 is legacy-ADMITTED; the
+  // demo seed computes no JuryPackage, so P-6 (admitted, unsealed, no member
+  // row) reads the Phase-9 "Not yet evaluated" value — the corrected replacement
+  // for Phase 8's incorrect always-"Not eligible". We assert the column renders a
+  // recognized plain-language value carried verbatim from the server.
+  test('Jury Package column renders server-computed plain-language text for an admitted row', async ({
+    page,
+  }) => {
     await page.goto('/case');
     const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-6"]');
     await expect(row).toBeVisible();
     const cell = row.locator('[data-testid="jury-package-eligibility"]');
     await expect(cell).toBeVisible();
-    await expect(cell).toHaveText(/Included|Not eligible|Blocked/);
+    await expect(cell).toHaveText(/Included|Not eligible|Blocked|Not yet evaluated/);
     // The value is carried by a data attribute reflecting the server verbatim.
-    await expect(cell).toHaveAttribute('data-eligibility', /INCLUDED|NOT_ELIGIBLE|BLOCKED/);
+    await expect(cell).toHaveAttribute(
+      'data-eligibility',
+      /INCLUDED|NOT_ELIGIBLE|BLOCKED|NOT_YET_EVALUATED/,
+    );
+  });
+
+  // Phase 9 (F09 §Process step 4): a NON-admitted exhibit renders NO eligibility
+  // tag at all — the service still returns a value, the UI suppresses it. P-1 is
+  // seeded OBJECTED (never admitted).
+  test('a non-admitted exhibit renders NO jury-package eligibility tag', async ({ page }) => {
+    await page.goto('/case');
+    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-1"]');
+    await expect(row).toBeVisible();
+    // Sanity-check P-1 is indeed not admitted (Objected badge present).
+    await expect(row.getByText('Objected')).toBeVisible();
+    // The eligibility tag is entirely absent (not merely empty text).
+    await expect(row.locator('[data-testid="jury-package-eligibility"]')).toHaveCount(0);
+  });
+
+  // Phase 9 (F09 §Process step 4): an ADMITTED exhibit with no jury package ever
+  // computed for the case reads "Not yet evaluated" — NOT "Not eligible". P-4 is
+  // seeded ADMITTED + clean; the demo seed computes no JuryPackage.
+  test('an admitted exhibit with no computed package shows "Not yet evaluated", not "Not eligible"', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    const row = page.locator('[data-testid="exhibit-row"][data-exhibit-label="P-4"]');
+    await expect(row).toBeVisible();
+    const cell = row.locator('[data-testid="jury-package-eligibility"]');
+    await expect(cell).toBeVisible();
+    await expect(cell).toHaveAttribute('data-eligibility', 'NOT_YET_EVALUATED');
+    await expect(cell).toHaveText('Not yet evaluated');
   });
 
   // Unassigned custodian → red "Unassigned" text, never a blank cell
@@ -164,15 +199,51 @@ test.describe('Case Workspace', () => {
     ).toBeVisible();
   });
 
-  // "Add exhibit" is a deliberate, documented, present-but-disabled placeholder —
-  // distinct from the absent-not-disabled role-gating pattern (this is a scope
-  // boundary, not a permission boundary). It must be VISIBLE and DISABLED.
-  test('"Add exhibit" button is visibly present but disabled (scope-boundary placeholder)', async ({
+  // Phase 9 (T-06): "Add exhibit" is role-gated to DEPUTY/CLERK/ADMIN — ABSENT
+  // (not merely disabled) for every other role. The underlying button, when
+  // shown, remains the deliberate disabled-placeholder (exhibit creation is still
+  // out of scope). The default role is JUDGE, so the button is absent on load.
+  test('"Add exhibit" is absent for JUDGE (default) and for every non-permitted role', async ({
     page,
   }) => {
     await page.goto('/case');
-    const addBtn = page.getByTestId('add-exhibit-button');
-    await expect(addBtn).toBeVisible();
-    await expect(addBtn).toBeDisabled();
+    // Default role JUDGE: button absent.
+    await expect(page.getByTestId('add-exhibit-button')).toHaveCount(0);
+
+    const roleSelect = page.getByLabel('Switch active role');
+    for (const role of ['ATTORNEY', 'CHAMBERS_STAFF'] as const) {
+      // Match the role in parentheses — the option text is "Name (ROLE)", and a
+      // bare "CLERK" would also match "Chambers Clerk (CHAMBERS_STAFF)".
+      const option = roleSelect.locator('option', { hasText: `(${role})` });
+      const value = await option.getAttribute('value');
+      // Not every seed necessarily has all roles; skip if the option is missing.
+      if (!value) continue;
+      await roleSelect.selectOption(value);
+      await expect(
+        page.getByTestId('add-exhibit-button'),
+        `Add exhibit must be absent for ${role}`,
+      ).toHaveCount(0);
+    }
+  });
+
+  test('"Add exhibit" is present (and a disabled placeholder) for DEPUTY/CLERK/ADMIN', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    const roleSelect = page.getByLabel('Switch active role');
+    let sawAtLeastOne = false;
+    for (const role of ['DEPUTY', 'CLERK', 'ADMIN'] as const) {
+      // Match "(ROLE)" so "CLERK" doesn't also match "Chambers Clerk (CHAMBERS_STAFF)".
+      const option = roleSelect.locator('option', { hasText: `(${role})` });
+      const value = await option.getAttribute('value');
+      if (!value) continue;
+      await roleSelect.selectOption(value);
+      const addBtn = page.getByTestId('add-exhibit-button');
+      await expect(addBtn, `Add exhibit must be visible for ${role}`).toBeVisible();
+      // Still the documented disabled-placeholder (scope boundary unchanged).
+      await expect(addBtn).toBeDisabled();
+      sawAtLeastOne = true;
+    }
+    expect(sawAtLeastOne, 'at least one write-role option should exist in the seed').toBe(true);
   });
 });

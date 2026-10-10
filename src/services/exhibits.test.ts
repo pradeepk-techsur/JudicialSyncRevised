@@ -287,6 +287,37 @@ describe('exhibits service', () => {
       expect(nonMember?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
     });
 
+    // Phase 9 (09-06) — the four-branch precedence, asserted directly against
+    // loadJuryEligibilityByExhibit's output through getExhibits. These cover the
+    // two Phase-9-specific branches the pre-existing tests above don't: a sealed
+    // exhibit is the structural NOT_ELIGIBLE regardless of package state, and
+    // "no package ever computed" on an unsealed exhibit is NOT_YET_EVALUATED.
+
+    it('(a) no package ever computed + non-sealed → NOT_YET_EVALUATED', async () => {
+      const exId = await makeExhibit('JP-NOPACKAGE', false);
+      // Deliberately create NO JuryPackage for this case.
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
+    });
+
+    it('(b) sealed exhibit → NOT_ELIGIBLE even with no package', async () => {
+      const exId = await makeExhibit('JP-SEALED-NOPKG', true);
+      const row = await rowFor(exId);
+      // Structural, permanent exclusion wins regardless of package state (sealed
+      // = F16-classification substitute). JUDGE can view the sealed row.
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    });
+
+    it('(b) sealed exhibit → NOT_ELIGIBLE even when it is an INCLUDED+CLEAN package member', async () => {
+      const exId = await makeExhibit('JP-SEALED-MEMBER', true);
+      const pkgId = await makePackage();
+      // Even an INCLUDED+CLEAN member row cannot promote a sealed exhibit — the
+      // sealed structural exclusion takes precedence over row existence/state.
+      await addMember(pkgId, exId, 'CLEAN');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    });
+
     it('eligibility is read from the MOST RECENT package only', async () => {
       const exId = await makeExhibit('JP-LATEST');
       // Older package: member CLEAN (would be INCLUDED).
