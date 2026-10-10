@@ -27,20 +27,21 @@ import styles from './ExhibitHeader.module.scss';
 // never re-implemented here. The local `canTransfer` only decides whether the
 // trigger button renders at all; the form is the authority.
 //
-// Assistant pre-scoping: `assistantStore` exposes no per-exhibit pre-scoping API
-// (only panel open/close + conversation lifecycle). Per the plan's explicit
-// allowance, opening the panel with no pre-scoping (the same behaviour as the
-// app-shell's existing "Ask Pivota" control) is the accepted MINIMAL
-// implementation — adding a cross-store pre-scoping API would touch files outside
-// this plan's scope. The button label still names the exhibit so the user's
-// intent is clear once the panel opens.
+// Assistant pre-scoping (Phase 9 / T-11 + T-08): the "Ask Pivota about {label}"
+// button now opens the panel SCOPED to this exhibit via
+// `assistantStore.openPanelForExhibit(exhibit.id)` (added in 09-11). This both
+// satisfies T-08's "Ask Pivota about P-7 opens assistant pre-selected" acceptance
+// criterion and powers T-11's context-aware example prompts — the empty-state
+// chips bias toward the scoped exhibit. The scope is per-opening (cleared on
+// close / new conversation) and never changes what the assistant can SEE; it only
+// pre-fills prompt text the user could type manually (T-09-17).
 
 const CUSTODY_ROLES: Role[] = ['DEPUTY', 'CLERK', 'ADMIN'];
 
 export function ExhibitHeader({ data }: { data: ExhibitHistoryResponse }) {
   const { exhibit, currentStatus, currentCustodianName, custodyCard } = data;
   const role = useRoleStore((s) => s.role);
-  const togglePanel = useAssistantStore((s) => s.togglePanel);
+  const openPanelForExhibit = useAssistantStore((s) => s.openPanelForExhibit);
   const [transferOpen, setTransferOpen] = useState(false);
   const canTransfer = CUSTODY_ROLES.includes(role);
 
@@ -69,7 +70,7 @@ export function ExhibitHeader({ data }: { data: ExhibitHistoryResponse }) {
         <Button
           kind="tertiary"
           size="sm"
-          onClick={togglePanel}
+          onClick={() => openPanelForExhibit(exhibit.id)}
           data-testid="header-ask-pivota"
         >
           Ask Pivota about {exhibit.exhibitLabel}
