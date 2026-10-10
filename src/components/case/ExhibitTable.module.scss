@@ -166,8 +166,23 @@
 // Description column was collapsing to the same ~96px as the fixed 6rem
 // Label column). Compound the selector with the table's own class to win
 // without reaching for a global :last-of-type override or !important.
-.table :global(.cds--data-table) th:last-of-type.colChevron,
-.table :global(.cds--data-table) td:last-of-type.chevronCell {
+//
+// Phase 9 gap-closure (09-21, UAT-6 RE-TEST): 09-19's fix used a DESCENDANT
+// combinator (space) between `.table` and `:global(.cds--data-table)` —
+// `.table :global(.cds--data-table) th:last-of-type.colChevron` — which only
+// matches a `.cds--data-table` element NESTED INSIDE a `.table` element. But
+// Carbon's <Table> puts BOTH classes on the SAME <table> node (confirmed live:
+// `table.className` === "cds--data-table _hash_table cds--data-table--lg"),
+// so that selector can never match anything — verified live via
+// `element.matches(selector)` returning false. Carbon's own
+// `.cds--data-table th:last-of-type { inline-size: auto }` therefore still won
+// unopposed, rendering the chevron header at ~152px (not 2rem) and squeezing
+// Description to the SAME ~152px, forcing its 2-line clamp to visibly wrap —
+// this is the "columns not in one row" defect the user re-reported. Fix: use a
+// COMPOUND selector (no space) so both classes target the one real element,
+// verified live to match and to restore the correct 2rem/272px split.
+.table:global(.cds--data-table) th:last-of-type.colChevron,
+.table:global(.cds--data-table) td:last-of-type.chevronCell {
   inline-size: 2rem;
   width: 2rem;
 }
