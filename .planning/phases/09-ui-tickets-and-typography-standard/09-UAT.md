@@ -59,13 +59,14 @@ per_test:
 ## Gaps
 
 - truth: "On the Case Workspace exhibit table, every column in a row renders in a single horizontal line (Description, Status, Flags, Jury Package, etc. all aligned on one row) with no column wrapping onto its own line"
-  status: failed
-  reason: "User reported: The description should be in line with all the other columns. all columns should show up in one row."
+  status: closed
+  reason: "09-19's chevron-pinning fix used a DESCENDANT combinator (`.table :global(.cds--data-table) th:last-of-type.colChevron`, with a space) — this can never match because Carbon's <Table> places both `.cds--data-table` and the local `.table` module class on the SAME <table> element (one node, no nesting), so the selector was dead code since it was written. Carbon's own `.cds--data-table th:last-of-type { inline-size: auto }` rule therefore kept winning unopposed, splitting the remaining table width ~50/50 between the trailing chevron column and Description (both ~152px) instead of giving the full remainder to Description — this read as \"columns not in one row\" because Description's 2-line-clamp forced even short text to visibly wrap inside a too-narrow column."
   severity: major
   test: 6
   source: user
-  confidence: hypothesis
-  root_cause: ""
-  artifacts: []
+  confidence: proven
+  root_cause: "Dead descendant-combinator CSS selector in ExhibitTable.module.scss (09-19's own fix) — fixed in 09-21 by removing the space to form a compound selector (`.table:global(.cds--data-table) th:last-of-type.colChevron`), which matches Carbon's actual single-element DOM."
+  artifacts: ["src/components/case/ExhibitTable.module.scss"]
   missing: []
   debug_session: ""
+  redrive: "closed (re-driven) — live DOM measurement against the running app (docker compose, fix applied) confirms chevron header = 32px (2rem, exact) and Description cell = 272px (> the required 200px threshold and > 1.5x the 96px Label cell width), matching the plan's predicted post-fix values exactly. The extended e2e/case-workspace.spec.ts UAT-6 test (with the new width-pinning assertions added in 09-21) was re-run directly against the live container and passed: 1/1. Independent confirmation outside the committed test suite also performed (ad hoc Playwright script measuring the same three cell widths) — identical results."
