@@ -3,7 +3,7 @@ phase: 09
 gate_status: passed
 build_command: "npm run build"
 test_command: "npm test"
-last_updated: 2026-10-10T22:31:40Z
+last_updated: 2026-10-10T23:55:03Z
 tests_disabled_during_fixes: none
 shadowed_sources: 0
 review_blockers_open: 0
@@ -47,7 +47,7 @@ waves:
 
 - Build: `npm run build` → pass
 - Tests: `npm test` → pass
-- Fix attempts: 0/3 — Final regression gate after code-review (docs-only commit, zero source changes): tree confirmed green
+- Fix attempts: 0/3 — 09-21 (gap-closure) post-wave gate: build+unit/integration tests green after dead-selector fix
 
 ### Gate output
 
@@ -58,11 +58,15 @@ waves:
 ▲ Next.js 16.4.0 (Turbopack)
 - Environments: .env
 ✓ Running next.config.ts took 11ms
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
 
   Creating an optimized production build ...
-✓ Compiled successfully in 6.5s
+✓ Compiled successfully in 5.9s
   Running TypeScript ...
-  Finished TypeScript in 1549ms ...
+  Finished TypeScript in 1547ms ...
   Collecting page data using 1 worker ...
   Generating static pages using 1 worker (0/11) ...
   Generating static pages using 1 worker (2/11) 
@@ -71,7 +75,7 @@ waves:
 [@carbon/feature-flags] `enable-v12-tile-default-icons` is available but not enabled.
 Enable rendering of default icons in the tile components
 This becomes the default behavior in v12. Enable it to migrate early, or enable `enable-v12-release` to turn on every v12 flag at once.
-✓ Generating static pages using 1 worker (11/11) in 212ms
+✓ Generating static pages using 1 worker (11/11) in 207ms
   Finalizing page optimization ...
 
 Route (app)
@@ -114,74 +118,76 @@ Route (app)
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 
+[gate] wave 1 tests: npm test (timeout 600s)
+
 > judicialsync@0.1.0 test
 > vitest run
 
 [1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/daytona/project[39m
 
- [32m✓[39m src/data/seed.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 106926[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mproduces all three planted edge cases on first run [33m 13402[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mblocks admission of the planted single-reason and dual-reason fixtures (F12 demo-blocking guarantee) [33m 13369[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mplants exactly one sealed exhibit (S-1) as Phase 2 role-based-visibility fixture [33m 13358[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22massertSeedIntegrity rejects a seed with zero sealed exhibits [33m 26719[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mis deterministic across a clean-state re-run: identical count, same edge cases, no duplicate case [33m 26717[2mms[22m[39m
-   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mplants P-6/P-7 as ADMITTED legacy fixtures firing their F6 rules through the live engine [33m 13355[2mms[22m[39m
- [32m✓[39m src/app/api/assistant/chat/route.test.ts [2m([22m[2m19 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 52807[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what exhibits were admitted yesterday" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 4169[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what objections remain unresolved" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 5168[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "is P-4 in the jury package" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3926[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "who currently has custody of P-4" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3044[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what happened to P-3" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 6400[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22m"what exhibits were admitted yesterday" carries >=1 pill when grounded (searchExhibits path) [33m 3712[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22m04-UAT.md test 7 repro: a decline on "what exhibits were admitted yesterday" ALWAYS carries citations: [] even though searchExhibits returned rows this turn [33m 3385[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mno-over-correction guard: a genuinely grounded answer ("who currently has custody of P-4") still carries >=1 citation [33m 2916[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22msealed DEPUTY probe Declines indistinguishably from not-found (criterion 4) [33m 2290[2mms[22m[39m
-   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22memits the data-citations frame on the live stream (writer-merge-then-write timing) — W3 [33m 4389[2mms[22m[39m
- [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 26786[2mms[22m[39m
- [32m✓[39m src/app/api/case/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 26777[2mms[22m[39m
- [32m✓[39m src/services/history.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 13571[2mms[22m[39m
- [32m✓[39m src/lib/assistant/tools.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 13440[2mms[22m[39m
- [32m✓[39m src/lib/assistant/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13405[2mms[22m[39m
- [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 13404[2mms[22m[39m
- [32m✓[39m src/services/assistant.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 13411[2mms[22m[39m
- [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 454[2mms[22m[39m
- [32m✓[39m src/app/api/discrepancies/[id]/acknowledge/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 233[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 164[2mms[22m[39m
- [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 153[2mms[22m[39m
- [32m✓[39m src/app/api/jury-package/[id]/request-finalization/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 144[2mms[22m[39m
- [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 150[2mms[22m[39m
- [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 133[2mms[22m[39m
- [32m✓[39m src/services/admissionGate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 106[2mms[22m[39m
- [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 104[2mms[22m[39m
+ [32m✓[39m src/services/juryPackage.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 436[2mms[22m[39m
+ [32m✓[39m src/services/exhibits.test.ts [2m([22m[2m33 tests[22m[2m)[22m[32m 146[2mms[22m[39m
+ [32m✓[39m src/app/api/assistant/chat/route.test.ts [2m([22m[2m19 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m[33m 53781[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what exhibits were admitted yesterday" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 3695[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what objections remain unresolved" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 5366[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "is P-4 in the jury package" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 5652[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "who currently has custody of P-4" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 2915[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mresolves "what happened to P-3" as grounded (>=1 real citation) OR a zero-citation Decline — never ungrounded [33m 7099[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22m"what exhibits were admitted yesterday" carries >=1 pill when grounded (searchExhibits path) [33m 3453[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22m04-UAT.md test 7 repro: a decline on "what exhibits were admitted yesterday" ALWAYS carries citations: [] even though searchExhibits returned rows this turn [33m 3558[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22mno-over-correction guard: a genuinely grounded answer ("who currently has custody of P-4") still carries >=1 citation [33m 2901[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22msealed DEPUTY probe Declines indistinguishably from not-found (criterion 4) [33m 2249[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /api/assistant/chat[2m > [22mgrounded-or-decline behavior (real ANTHROPIC_API_KEY present)[2m > [22memits the data-citations frame on the live stream (writer-merge-then-write timing) — W3 [33m 3496[2mms[22m[39m
+ [32m✓[39m src/services/history.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 13537[2mms[22m[39m
+ [32m✓[39m src/services/discrepancies.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 171[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/tools.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 13420[2mms[22m[39m
+ [32m✓[39m src/data/seed.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 106853[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mproduces all three planted edge cases on first run [33m 13397[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mblocks admission of the planted single-reason and dual-reason fixtures (F12 demo-blocking guarantee) [33m 13364[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mplants exactly one sealed exhibit (S-1) as Phase 2 role-based-visibility fixture [33m 13357[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22massertSeedIntegrity rejects a seed with zero sealed exhibits [33m 26691[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mis deterministic across a clean-state re-run: identical count, same edge cases, no duplicate case [33m 26681[2mms[22m[39m
+   [33m[2m✓[22m[39m seed loader (F0a)[2m > [22mplants P-6/P-7 as ADMITTED legacy fixtures firing their F6 rules through the live engine [33m 13358[2mms[22m[39m
+ [32m✓[39m src/services/activity.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m src/app/api/objections/[id]/ruling/route.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/services/custody.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+ [32m✓[39m src/services/attentionFeed.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+ [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 81[2mms[22m[39m
+ [32m✓[39m src/services/admissionGate.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m src/services/assistant.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 13415[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 63[2mms[22m[39m
+ [32m✓[39m src/app/api/discrepancies/[id]/acknowledge/route.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 259[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/jury-package/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 177[2mms[22m[39m
  [32m✓[39m src/app/api/jury-package/[id]/exhibits/[exhibitId]/exclude/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 117[2mms[22m[39m
- [32m✓[39m src/services/activity.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 101[2mms[22m[39m
- [32m✓[39m src/services/attentionFeed.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 88[2mms[22m[39m
- [32m✓[39m src/app/api/exhibits/[id]/events/status/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 81[2mms[22m[39m
- [32m✓[39m src/services/objections.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 80[2mms[22m[39m
- [32m✓[39m src/services/custody.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/request-finalization/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 144[2mms[22m[39m
+ [32m✓[39m src/services/custodyByCustodian.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/app/api/jury-package/[id]/finalize/route.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 131[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/activity/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 52[2mms[22m[39m
  [32m✓[39m src/services/status.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 70[2mms[22m[39m
- [32m✓[39m src/services/custodyByCustodian.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 56[2mms[22m[39m
- [32m✓[39m src/app/api/exhibits/[id]/events/custody/route.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 59[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 55[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 57[2mms[22m[39m
- [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 59[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 50[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/activity/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 49[2mms[22m[39m
- [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 50[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/custody-by-custodian/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 43[2mms[22m[39m
- [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 44[2mms[22m[39m
- [32m✓[39m src/app/api/cases/[id]/attention-feed/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 43[2mms[22m[39m
- [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 30[2mms[22m[39m
- [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 33[2mms[22m[39m
- [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/search/route.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/route.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/lib/assistant/schema.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13399[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/exhibits/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/history/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/custody-by-custodian/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/discrepancies/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m src/services/rebuild.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 26807[2mms[22m[39m
+ [32m✓[39m src/app/api/cases/[id]/attention-feed/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m src/app/api/exhibits/[id]/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/app/api/case/route.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 26775[2mms[22m[39m
+ [32m✓[39m src/services/events.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/components/shared/SeverityPill.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
  [32m✓[39m src/components/shared/TwoColorProgressBar.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
- [32m✓[39m src/components/shared/SeverityPill.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 1[2mms[22m[39m
  [32m✓[39m src/hooks/useFreshness.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 1[2mms[22m[39m
+ [32m✓[39m src/services/visibility.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/services/cases.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 13397[2mms[22m[39m
+ [32m✓[39m tests/boot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 43[2mms[22m[39m
 
 [2m Test Files [22m [1m[32m42 passed[39m[22m[90m (42)[39m
 [2m      Tests [22m [1m[32m293 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (296)[39m
-[2m   Start at [22m 22:24:55
-[2m   Duration [22m 288.24s[2m (transform 390ms, setup 0ms, collect 1.94s, tests 283.42s, environment 3ms, prepare 1.03s)[22m
+[2m   Start at [22m 23:50:04
+[2m   Duration [22m 289.12s[2m (transform 414ms, setup 0ms, collect 1.94s, tests 284.34s, environment 3ms, prepare 1.02s)[22m
 ```
 
 ## Wave 2
