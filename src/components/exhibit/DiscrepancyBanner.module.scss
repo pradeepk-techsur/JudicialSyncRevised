@@ -58,20 +58,6 @@
   color: colors.$yellow-50; // ≈ amber-600/70 muted, same as .flagAcked
 }
 
-.trigger {
-  flex-shrink: 0;
-  @include type-style('label-01');
-  color: colors.$yellow-70;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
 // Phase 8 (F10/F24): the alert-banner treatment (Screenshot 2) for the one
 // blocking condition — a red outline over a light-red background, visually
 // distinct from the plain yellow/warning flag rows. A card in a "blocked/critical"
@@ -95,20 +81,4 @@
   margin-bottom: $spacing-03;
   color: colors.$red-70;
   @include type-style('label-01');
-}
-
-// The "Record ruling" trigger inside the alert banner — the red-emphasis
-// counterpart to the yellow .trigger.
-.alertTrigger {
-  flex-shrink: 0;
-  @include type-style('label-01');
-  color: colors.$red-70;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
 }
