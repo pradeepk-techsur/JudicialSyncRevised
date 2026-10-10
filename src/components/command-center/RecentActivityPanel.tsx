@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Tile, SkeletonText, ActionableNotification } from '@carbon/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { EventType } from '@prisma/client';
+import type { RecentActivityEntry } from '@/services/activity';
 import type { ActivityResponse } from '@/hooks/useRecentActivity';
 import { ExhibitTag } from '@/components/shared/ExhibitTag';
 import styles from './RecentActivityPanel.module.scss';
@@ -24,16 +25,91 @@ import styles from './RecentActivityPanel.module.scss';
 // the hook itself, so the screen never runs a duplicate activity query.
 
 function formatTime(iso: string): string {
-  // Render BOTH date and time (e.g. "Oct 8, 2026, 2:14 PM") — never a time-only
-  // stamp, so two events on different days are distinguishable across a day
-  // boundary / multi-day recess (UX-Mockup §Activity Feed Row Format).
+  // Render BOTH date and time (e.g. "Oct 8, 2026, 2:14:07 PM") — never a
+  // time-only stamp, so two events on different days are distinguishable across a
+  // day boundary / multi-day recess (UX-Mockup §Activity Feed Row Format).
+  // T-04: include seconds so every row in this panel uses ONE timestamp format
+  // that is precise to the second (the ticket's "one consistent format including
+  // seconds"). This is the single shared formatter for every row.
   return new Date(iso).toLocaleString([], {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    second: '2-digit',
   });
+}
+
+// T-04: a 60-second window for collapsing consecutive same-exhibit STATUS_CHANGE
+// events into one summary row (ticket's "60-second activity-grouping window").
+const GROUP_WINDOW_MS = 60_000;
+
+// A rendered unit in the activity feed: either a single original entry, or a
+// MERGED run of 2+ consecutive same-exhibit STATUS_CHANGE events that all fell
+// within GROUP_WINDOW_MS of the run's first (oldest-in-run) entry. A merged unit
+// carries every original entry so the UI can show a collapsed summary + an
+// expandable list of the individual summaries.
+export type GroupedActivityEntry =
+  | { kind: 'single'; entry: RecentActivityEntry }
+  | { kind: 'merged'; key: string; members: RecentActivityEntry[] };
+
+// The displayed timestamp / day-anchor for a grouped unit — the newest member's
+// recordedAt (members are newest-first, so index 0 is newest).
+export function groupedRecordedAt(g: GroupedActivityEntry): string {
+  return g.kind === 'single' ? g.entry.recordedAt : g.members[0].recordedAt;
+}
+
+/**
+ * Collapse RUNS of 2+ consecutive entries that share the SAME exhibitId, are ALL
+ * STATUS_CHANGE events, and whose recordedAt timestamps are ALL within 60s of the
+ * run's first (oldest, i.e. last-in-array-order since the input is newest-first)
+ * member into a single merged unit. Every other entry is emitted as a `single`.
+ *
+ * Input MUST be newest-first (the service's `orderBy: { recordedAt: 'desc' }`).
+ * Exported so the full /activity page reuses the exact same grouping (09-04 T-04),
+ * never a re-implementation.
+ */
+export function groupConsecutiveSameExhibit(
+  entries: RecentActivityEntry[],
+): GroupedActivityEntry[] {
+  const out: GroupedActivityEntry[] = [];
+  let i = 0;
+  while (i < entries.length) {
+    const start = entries[i];
+    // A run can only start on a STATUS_CHANGE. Greedily extend while the next
+    // entry is the same exhibit, also STATUS_CHANGE, and within 60s of the run's
+    // OLDEST member so far (the window is measured against the first entry in the
+    // run; newest-first order means the oldest is the last one appended).
+    let j = i + 1;
+    if (start.eventType === 'STATUS_CHANGE') {
+      while (
+        j < entries.length &&
+        entries[j].eventType === 'STATUS_CHANGE' &&
+        entries[j].exhibitId === start.exhibitId &&
+        Math.abs(
+          new Date(entries[i].recordedAt).getTime() -
+            new Date(entries[j].recordedAt).getTime(),
+        ) <= GROUP_WINDOW_MS &&
+        // Every member within 60s of the run's first member (entries[i] is the
+        // newest/first member of this run).
+        new Date(entries[i].recordedAt).getTime() -
+          new Date(entries[j].recordedAt).getTime() <=
+          GROUP_WINDOW_MS
+      ) {
+        j += 1;
+      }
+    }
+    const runLength = j - i;
+    if (runLength >= 2) {
+      const members = entries.slice(i, j);
+      out.push({ kind: 'merged', key: `merged-${members[0].eventId}`, members });
+    } else {
+      out.push({ kind: 'single', entry: start });
+    }
+    i = j;
+  }
+  return out;
 }
 
 // Client-side filter pills (UX Screen-00 + Y0-patterns): narrow the ALREADY-
@@ -80,6 +156,24 @@ function dateGroupLabel(iso: string): string {
   return dateText;
 }
 
+// T-04: the heading's day word MUST agree with the date-group header's day word.
+// Both are now derived from the SAME dayKey/yesterday comparison as
+// dateGroupLabel above — this just returns the bare day WORD (lowercased for the
+// heading copy "(N today)" vs the uppercased "TODAY · …" the date-group header
+// uses). Fed the newest entry's recordedAt (the window is a single calendar day
+// by construction, so any entry represents the window's day), so the heading can
+// never say "today" while the date-group header says a specific past date.
+function windowDayWord(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+
+  if (dayKey(d) === dayKey(now)) return 'today';
+  if (dayKey(d) === dayKey(yesterday)) return 'yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export function RecentActivityPanel({
   query,
 }: {
@@ -98,6 +192,16 @@ export function RecentActivityPanel({
     const types = FILTER_TO_EVENT_TYPES[activeFilter];
     return types === null ? entries : entries.filter((e) => types.includes(e.eventType));
   }, [entries, activeFilter]);
+
+  // T-04: collapse 60s same-exhibit STATUS_CHANGE runs into one unit BEFORE the
+  // 10-row cap (a merged row counts as ONE of the 10) and BEFORE the date-group
+  // walk (a merged unit's single anchor timestamp participates in day detection
+  // normally). Then cap at the latest 10 units.
+  const groupedEntries = useMemo(
+    () => groupConsecutiveSameExhibit(filteredEntries),
+    [filteredEntries],
+  );
+  const visibleEntries = useMemo(() => groupedEntries.slice(0, 10), [groupedEntries]);
 
   // New-row fade-in (CONTEXT locked default, Command-Center-only this phase):
   // track the eventIds seen on the previous render; any eventId not in that set
@@ -171,7 +275,10 @@ export function RecentActivityPanel({
     >
       <h2 className={styles.heading}>
         Recent Activity{' '}
-        <span className={styles.count}>({entries.length} today)</span>
+        <span className={styles.count}>
+          ({entries.length}{' '}
+          {windowDayWord(entries[0]?.recordedAt ?? new Date().toISOString())})
+        </span>
       </h2>
 
       {/* Filter pills — client-side narrowing of the already-loaded feed, All
@@ -224,50 +331,101 @@ export function RecentActivityPanel({
         <p className={styles.empty}>No matching activity for this filter.</p>
       )}
 
-      {!isLoading && !isError && filteredEntries.length > 0 && (
+      {!isLoading && !isError && filteredEntries.length > 0 && visibleEntries.length > 0 && (
         <ul data-testid="recent-activity-list" className={styles.list}>
-          {filteredEntries.map((e, i) => {
+          {visibleEntries.map((g, i) => {
             // Insert a date-group header whenever the calendar day changes
-            // walking the already-sorted (newest-first) filtered list — no
-            // re-sort, the order is already correct.
-            const prev = filteredEntries[i - 1];
+            // walking the already-sorted (newest-first) grouped list — no
+            // re-sort, the order is already correct. A merged unit's anchor
+            // timestamp (its newest member) participates in day detection.
+            const anchor = groupedRecordedAt(g);
+            const prev = i === 0 ? null : groupedRecordedAt(visibleEntries[i - 1]);
             const showHeader =
-              i === 0 || dayKey(new Date(prev.recordedAt)) !== dayKey(new Date(e.recordedAt));
+              prev === null || dayKey(new Date(prev)) !== dayKey(new Date(anchor));
+            const rowKey = g.kind === 'single' ? g.entry.eventId : g.key;
+            const isHighlighted =
+              g.kind === 'single'
+                ? highlighted.has(g.entry.eventId)
+                : g.members.some((m) => highlighted.has(m.eventId));
             return (
-              <li key={e.eventId} className={styles.rowWrapper}>
+              <li key={rowKey} className={styles.rowWrapper}>
                 {showHeader && (
                   <div
                     data-testid="activity-date-group-header"
                     className={styles.dateGroupHeader}
                   >
-                    {dateGroupLabel(e.recordedAt)}
+                    {dateGroupLabel(anchor)}
                   </div>
                 )}
-                <div
-                  className={`${styles.row} ${highlighted.has(e.eventId) ? styles.highlighted : ''}`}
-                >
-                  <Link
-                    href={`/exhibit/${e.exhibitId}?event=${e.eventId}`}
-                    data-testid="recent-activity-row"
-                    className={styles.link}
-                  >
-                    <span className={styles.bullet} aria-hidden="true">
-                      ●
-                    </span>
-                    {/* Render the exhibit label via the shared ExhibitTag chip
-                        (08-03) — the one remaining plain-text exhibit label on
-                        the Command Center, now standardized. Two spans kept
-                        (summary + time) since layout depends on the structure. */}
-                    <span className={styles.summary}>
-                      <ExhibitTag label={e.exhibitLabel} /> {e.summary}
-                    </span>
-                    <span className={styles.time}>{formatTime(e.recordedAt)}</span>
-                  </Link>
+                <div className={`${styles.row} ${isHighlighted ? styles.highlighted : ''}`}>
+                  {g.kind === 'single' ? (
+                    <Link
+                      href={`/exhibit/${g.entry.exhibitId}?event=${g.entry.eventId}`}
+                      data-testid="recent-activity-row"
+                      className={styles.link}
+                    >
+                      <span className={styles.bullet} aria-hidden="true">
+                        ●
+                      </span>
+                      {/* Render the exhibit label via the shared ExhibitTag chip
+                          (08-03) — the one remaining plain-text exhibit label on
+                          the Command Center, now standardized. Two spans kept
+                          (summary + time) since layout depends on the structure. */}
+                      <span className={styles.summary}>
+                        <ExhibitTag label={g.entry.exhibitLabel} /> {g.entry.summary}
+                      </span>
+                      <span className={styles.time}>{formatTime(g.entry.recordedAt)}</span>
+                    </Link>
+                  ) : (
+                    // T-04 merged run: ONE collapsed summary row, expandable (native
+                    // <details>) to the individual original summaries. Displayed
+                    // timestamp = the newest member's recordedAt.
+                    <details
+                      className={styles.mergedDetails}
+                      data-testid="recent-activity-merged-row"
+                    >
+                      <summary className={`${styles.link} ${styles.mergedSummary}`}>
+                        <span className={styles.bullet} aria-hidden="true">
+                          ●
+                        </span>
+                        <span className={styles.summary}>
+                          <ExhibitTag label={g.members[0].exhibitLabel} />{' '}
+                          {g.members.length} status updates
+                        </span>
+                        <span className={styles.time}>
+                          {formatTime(g.members[0].recordedAt)}
+                        </span>
+                      </summary>
+                      <ul className={styles.mergedList}>
+                        {g.members.map((m) => (
+                          <li key={m.eventId} className={styles.mergedItem}>
+                            <Link
+                              href={`/exhibit/${m.exhibitId}?event=${m.eventId}`}
+                              data-testid="recent-activity-merged-member"
+                              className={styles.link}
+                            >
+                              <span className={styles.summary}>{m.summary}</span>
+                              <span className={styles.time}>{formatTime(m.recordedAt)}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
               </li>
             );
           })}
         </ul>
+      )}
+
+      {/* T-04: a stable "View all" affordance into the full /activity history,
+          rendered whenever the feed has any rows (not only when the 10-cap is
+          hit), so the link is always a discoverable, stable affordance. */}
+      {!isLoading && !isError && entries.length > 0 && (
+        <Link href="/activity" data-testid="activity-view-all" className={styles.viewAll}>
+          View all →
+        </Link>
       )}
     </Tile>
   );

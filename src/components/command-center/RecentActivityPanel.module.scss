@@ -53,8 +53,9 @@
 }
 
 .list {
-  max-height: 24rem;
-  overflow-y: auto;
+  // T-04: the former `max-height: 24rem; overflow-y: auto;` nested scrollbox was
+  // a mouse-wheel trap inside the already-scrollable <main>. Removed so the feed
+  // flows with the page; the 10-row cap (RecentActivityPanel.tsx) keeps it short.
   list-style: none;
   margin: 0;
   padding: 0;
@@ -119,4 +120,42 @@
 .empty {
   @include type-style('body-compact-01');
   color: $text-secondary;
+}
+
+// T-04 "View all" affordance below the capped list — a stable, always-present
+// link into the full /activity history whenever the feed has any rows.
+.viewAll {
+  display: inline-block;
+  margin-top: $spacing-04;
+  padding: $spacing-02 $spacing-02;
+  @include type-style('body-compact-01');
+  color: $link-primary;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// T-04 merged same-exhibit run — a native <details> disclosure so the collapsed
+// summary row expands to the individual original summaries, no JS.
+.mergedDetails {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+}
+
+.mergedSummary {
+  cursor: pointer;
+  list-style: revert;
+}
+
+.mergedList {
+  list-style: disc;
+  margin: $spacing-02 0 0;
+  padding-left: $spacing-06;
+  color: $text-secondary;
+}
+
+.mergedItem {
+  padding: $spacing-02 0;
 }
