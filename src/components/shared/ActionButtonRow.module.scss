@@ -2,10 +2,18 @@
 // renders its action pair with identical left-to-right order, sizing, and spacing.
 // Carries no color/kind opinions — those live on the Carbon Buttons the caller
 // passes as `primary`/`secondary`.
+//
+// T-14 spacing-token sweep: the pair gap uses the named Carbon spacing token
+// $spacing-03 (8px) rather than a raw 0.5rem, so the one shared button-pair
+// rhythm is expressed in the same scale as every other surface. This wrapper
+// imposes NO width constraint on its children — it is layout-only and never
+// dictates button content, kind, or sizing (Carbon's own size="md"/"sm" box
+// model governs that).
+@use '@carbon/styles/scss/spacing' as *;
 
 .row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: $spacing-03;
 }
