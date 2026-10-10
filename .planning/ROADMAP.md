@@ -200,6 +200,7 @@ Plans:
 - [ ] 08-15-PLAN.md — Command Center Part B: Needs-Your-Attention feed (inline write actions) + Jury Package summary widget
 - [ ] 08-16-PLAN.md — Gap closure (UAT test 2): fix sidebar/header overlap + remove segmented status-distribution bar (keep count legend)
 
+**Status**: Complete (2026-10-10)
 ### Phase 9: UI tickets and typography standard
 
 **Goal:** The 16 tickets from the external UI/UX review of the develop build are each resolved as their own small, acceptance-criteria-verifiable change — the Command Center's ranked attention list is visible without scrolling and fed by a real 4-tier severity scale; every screen reads status/severity color from one shared token source; Recent Activity and the Case Workspace table read correctly and are properly labeled; discrepancy actions (Record ruling, Acknowledge) are safe, singular, and accountable; navigation and the demo role switcher are unambiguous; the Jury Package empty state guides the user and offers a read-only readiness preview to every role; the Assistant page is context-aware and removes the stray API-key control; and IBM Plex Sans/Mono actually load (verified via `document.fonts`) with every text element on a real Carbon type token — all without introducing a second styling system, a new dependency, or any data-model/API/role-permission change the tickets didn't explicitly call for.
@@ -251,4 +252,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 �
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
 | 8. UI Redesign and Write-Action Coverage | 15/15 | Complete | 2026-10-10 |
-| 9. UI tickets and typography standard | 0/TBD | Not planned | — |
+| 9. UI tickets and typography standard | 0/TBD | In progress | — |
+**Status**: In progress
