@@ -2,7 +2,13 @@ import type { Exhibit, ExhibitStatus, OfferingParty, Role } from '@prisma/client
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import {
+  ConflictError,
+  NotFoundError,
+  RoleNotPermittedError,
+  UnprocessableError,
+  ValidationError,
+} from '@/lib/errors';
 import { exhibitStatusEnum, offeringPartyEnum } from '@/lib/validation/eventPayloads';
 import type { DiscrepancyFlagSummary, ExhibitListRow } from '@/lib/types';
 import { ruleLabel } from '@/lib/discrepancyLabels';
@@ -33,9 +39,16 @@ const createExhibitSchema = z.object({
   offeringParty: offeringPartyEnum,
   associatedWitness: z.string().optional(),
   isSealed: z.boolean().optional(),
+  actorUserId: z.string().min(1),
 });
 
 export type CreateExhibitInput = z.infer<typeof createExhibitSchema>;
+
+// Roles permitted to create an exhibit (F20 row 1; 09-SECURITY.md F-09-01 fix).
+// Matches custody.ts's CUSTODY_WRITE_ROLES pattern exactly — an ad hoc,
+// per-function gate (no centralized assertRole exists yet, per 09-CONTEXT
+// decision #1; Phase 7.1 scope, deferred).
+const EXHIBIT_CREATE_ROLES = new Set(['DEPUTY', 'CLERK', 'ADMIN']);
 
 export async function createExhibit(input: {
   caseId: string;
@@ -45,6 +58,7 @@ export async function createExhibit(input: {
   offeringParty: 'PLAINTIFF' | 'PROSECUTION' | 'DEFENSE';
   associatedWitness?: string;
   isSealed?: boolean;
+  actorUserId: string;
 }): Promise<Exhibit> {
   // Validate identity fields at the service layer first, for a clean 422 instead
   // of a raw Postgres constraint error (description length is also DB-enforced
@@ -67,6 +81,21 @@ export async function createExhibit(input: {
       throw new ValidationError(`${field} ${first?.message ?? 'is invalid'}`);
     }
     throw err;
+  }
+
+  // Server-side role gate (F20 row 1; 09-SECURITY.md F-09-01) — resolved from
+  // the ACTUAL User.role column, never a client claim, mirroring
+  // custody.ts's recordCustodyTransfer pattern exactly. This was previously
+  // the ONE confirmed-exploitable write path in the Phase 9 security audit:
+  // any role (or no role header at all) could create an exhibit.
+  const actor = await prisma.user.findUnique({
+    where: { id: data.actorUserId },
+    select: { role: true },
+  });
+  if (!actor || !EXHIBIT_CREATE_ROLES.has(actor.role)) {
+    throw new RoleNotPermittedError(
+      'Only a courtroom deputy, clerk, or admin may create an exhibit',
+    );
   }
 
   try {
