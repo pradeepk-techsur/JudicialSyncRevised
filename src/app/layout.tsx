@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.scss";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/shell/AppShell";
+import { ibmPlexSans, ibmPlexMono } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   title: "JudicialSync",
@@ -14,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>
