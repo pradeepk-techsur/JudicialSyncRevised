@@ -69,5 +69,7 @@
 
 .meta {
   @include type-style('label-01');
+  // Tabular figures so the timestamp numerals on each timeline entry align.
+  font-variant-numeric: tabular-nums;
   color: $text-helper;
 }

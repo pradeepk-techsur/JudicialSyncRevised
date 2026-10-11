@@ -146,3 +146,17 @@ export class AttentionFeedLoadError extends AppError {
     super('ATTENTION_FEED_LOAD_FAILED', 'Unable to load the attention feed — please retry', 500);
   }
 }
+
+/** 500 — any underlying service query failure while computing the read-only
+ * Jury Package Readiness Preview (FRD F25 §Error States). Mirrors
+ * AttentionFeedLoadError's shape exactly; the /jury-package/preview route
+ * surfaces it on any non-AppError failure. */
+export class JuryPackagePreviewLoadError extends AppError {
+  constructor() {
+    super(
+      'JURY_PACKAGE_PREVIEW_LOAD_FAILED',
+      'Unable to load the jury package readiness preview — please retry',
+      500,
+    );
+  }
+}

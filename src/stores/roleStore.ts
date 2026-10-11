@@ -12,6 +12,11 @@ interface RoleState {
   caseNumber: string | null;
   users: ActiveCaseUser[];
   activeUserId: string | null;
+  // The persona that was active BEFORE the most recent switch, enabling the
+  // ActiveRoleBanner's "Switch back" affordance (T-09). `null` until a real
+  // switch has happened — the very first hydrate-driven selection has nothing
+  // to switch back to, so no banner shows on first load.
+  previousUserId: string | null;
   role: Role;
   hydrate: (data: { case: { id: string; caseNumber: string }; users: ActiveCaseUser[] }) => void;
   setActiveUser: (userId: string) => void;
@@ -22,6 +27,7 @@ export const useRoleStore = create<RoleState>((set, get) => ({
   caseNumber: null,
   users: [],
   activeUserId: null,
+  previousUserId: null,
   // Default to JUDGE (full sealed-exhibit visibility) until hydrated — the
   // mockup's own screens default to a judge/full-visibility persona; this
   // avoids a flash of an artificially-restricted view before the first
@@ -34,6 +40,10 @@ export const useRoleStore = create<RoleState>((set, get) => ({
       caseNumber: data.case.caseNumber,
       users: data.users,
       activeUserId: judge?.id ?? data.users[0]?.id ?? null,
+      // Hydration is the initial selection, not a user switch — there is
+      // nothing to switch back to yet, so the banner stays hidden until a real
+      // switch happens.
+      previousUserId: null,
       role: judge?.role ?? data.users[0]?.role ?? 'JUDGE',
     });
   },
@@ -41,7 +51,16 @@ export const useRoleStore = create<RoleState>((set, get) => ({
     const user = get().users.find((u) => u.id === userId);
     if (user) {
       const prevRole = get().role;
-      set({ activeUserId: userId, role: user.role });
+      // Capture the CURRENT active user as the "previous" one before overwriting,
+      // so ActiveRoleBanner can offer a "Switch back" link to it (T-09). A no-op
+      // re-select of the already-active user leaves previousUserId untouched
+      // (there's nothing new to switch back to).
+      const currentActiveUserId = get().activeUserId;
+      set({
+        activeUserId: userId,
+        previousUserId: currentActiveUserId === userId ? get().previousUserId : currentActiveUserId,
+        role: user.role,
+      });
       if (user.role !== prevRole) {
         // Role change crosses a visibility boundary (sealed-exhibit scope) —
         // start a FRESH assistant conversation so answers computed under

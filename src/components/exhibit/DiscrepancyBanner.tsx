@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@carbon/react';
 import type { ObjectionCurrentState, Role } from '@prisma/client';
 import type { DiscrepancyFlagSummary } from '@/lib/types';
 import { useRoleStore } from '@/stores/roleStore';
@@ -106,16 +107,21 @@ export function DiscrepancyBanner({
             : undefined;
 
           // F14 acknowledge control + inline expansion, shared by BOTH the plain
-          // flag-row treatment and the alert-banner treatment below.
+          // flag-row treatment and the alert-banner treatment below. T-05: a real
+          // Carbon `Button` (tertiary/outline) — the secondary action next to the
+          // primary Record-ruling button inside the ActionButtonRow, and a subdued
+          // outline so it doesn't compete with Confirm/Cancel inside the
+          // AcknowledgeInline expansion that follows it.
           const acknowledgeTrigger = isOpen && canAcknowledge && (
-            <button
+            <Button
+              kind="tertiary"
+              size="sm"
               type="button"
               data-testid="exhibit-acknowledge-trigger"
-              className={styles.trigger}
               onClick={() => setOpenRule(openRule === flag.ruleCode ? null : flag.ruleCode)}
             >
               Acknowledge
-            </button>
+            </Button>
           );
           const ackRecord = !isOpen && fullRecord?.acknowledgedAt && (
             <p className={styles.ackRecord} data-testid="discrepancy-ack-record">
@@ -157,10 +163,18 @@ export function DiscrepancyBanner({
                   <ActionButtonRow
                     primary={
                       alertObjection ? (
-                        <button
+                        // T-05: a real Carbon primary Button — the SAME
+                        // kind="primary" size="sm" convention as the app's other
+                        // Record-ruling buttons (AttentionFeedPanel, the
+                        // soon-removed ObjectionCard trigger), so it is visually
+                        // identical to every other primary action button. A tiny
+                        // underlined text link for a judicial-ruling action is an
+                        // accidental-click risk; a real button is not.
+                        <Button
+                          kind="primary"
+                          size="sm"
                           type="button"
                           data-testid="exhibit-record-ruling-trigger"
-                          className={styles.alertTrigger}
                           onClick={() =>
                             setRulingOpenRule(
                               rulingOpenRule === flag.ruleCode ? null : flag.ruleCode,
@@ -168,7 +182,7 @@ export function DiscrepancyBanner({
                           }
                         >
                           Record ruling
-                        </button>
+                        </Button>
                       ) : undefined
                     }
                     secondary={acknowledgeTrigger || undefined}

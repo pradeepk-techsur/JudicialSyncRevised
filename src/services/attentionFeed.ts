@@ -25,6 +25,14 @@ import { canViewSealed } from '@/services/visibility';
 export type AttentionTier = 'CRITICAL' | 'HIGH' | 'PENDING' | 'MEDIUM';
 export type AttentionAction = 'RECORD_RULING' | 'REMOVE_FROM_PACKAGE' | 'TRANSFER_CUSTODY' | null;
 
+// Phase 9 (09-01) addition: `objectionGrounds` is the one explicitly-sanctioned
+// additive field for the Command Center first-viewport rebuild (09-CONTEXT
+// decisions). It carries the objection's free-text grounds on HIGH/PENDING-tier
+// entries so the attention DataTable can render the grounds inline on the row
+// with no extra click. CRITICAL/MEDIUM tiers carry no objection → the field is
+// left undefined. This is additive to an existing TS type (not a breaking shape
+// change), so no API contract document needs a parallel edit (TechArch/03-api.md
+// already describes AttentionFeedEntry generically).
 export interface AttentionFeedEntry {
   id: string;
   tier: AttentionTier;
@@ -35,6 +43,8 @@ export interface AttentionFeedEntry {
   detectedAt: string;
   summary: string;
   availableAction: AttentionAction;
+  /** Objection grounds text — present on HIGH/PENDING tiers only (Phase 9). */
+  objectionGrounds?: string;
 }
 
 export async function getAttentionFeed(
@@ -98,6 +108,10 @@ export async function getAttentionFeed(
       objectionId: objection?.objectionId,
       detectedAt: flag.detectedAt.toISOString(),
       summary: `${flag.exhibit.exhibitLabel} — admitted with an open, unresolved objection`,
+      // Phase 9: surface the objection's grounds inline on the HIGH row. The
+      // objection lookup above reads the full row, so grounds is available
+      // without an extra query.
+      objectionGrounds: objection?.grounds,
       availableAction: 'RECORD_RULING',
     });
   }
@@ -127,6 +141,9 @@ export async function getAttentionFeed(
       objectionId: obj.objectionId,
       detectedAt: obj.raisedAt.toISOString(),
       summary: `${obj.exhibit.exhibitLabel} — objection unresolved, not yet admitted`,
+      // Phase 9: the PENDING-tier row already carries grounds directly (no extra
+      // query) — surface it inline on the row.
+      objectionGrounds: obj.grounds,
       availableAction: 'RECORD_RULING',
     });
   }

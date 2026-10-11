@@ -1,0 +1,73 @@
+// F25 — Jury Package Readiness Preview panel. A full-content-width Carbon Tile:
+// the panel spans the entire width of <main> (never a narrow centered card) so
+// the readiness breakdown reads as a confident, always-available surface.
+@use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+.panel {
+  // Span the full width of the content region (minus the Tile's own padding) —
+  // a wide, full-bleed panel, not a constrained box.
+  width: 100%;
+  margin-top: $spacing-05;
+}
+
+.heading {
+  @include type-style('heading-compact-02');
+  color: $text-primary;
+}
+
+.subtitle {
+  @include type-style('body-compact-01');
+  color: $text-primary;
+  margin-top: $spacing-02;
+}
+
+.caption {
+  @include type-style('label-01');
+  color: $text-secondary;
+  margin-bottom: $spacing-05;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  padding: $spacing-03 0;
+  border-top: 1px solid $border-subtle-01;
+}
+
+.rowHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.ready {
+  @include type-style('body-compact-01');
+  color: colors.$green-60;
+  font-weight: 600;
+}
+
+.blockers {
+  margin: 0;
+  padding-left: $spacing-05;
+  list-style: disc;
+}
+
+.blocker {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.empty {
+  @include type-style('body-compact-01');
+  color: $text-secondary;
+}
+
+.error {
+  @include type-style('body-compact-01');
+  color: colors.$red-60;
+}

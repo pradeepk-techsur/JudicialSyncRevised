@@ -12,6 +12,51 @@
   color: $text-secondary;
 }
 
+// Phase 9 (F09, T-06): `table-layout: fixed` so the browser honours the explicit
+// per-column widths below and lets the ONE column WITHOUT an explicit width
+// (Description) absorb the remaining table width. Carbon's plain Table does not
+// auto-flex columns the way a CSS grid would, so fixed layout + explicit widths
+// on every OTHER column is how Description becomes the single flexible, wrapping
+// column. width:100% keeps the table spanning main's content box.
+.table {
+  table-layout: fixed;
+  width: 100%;
+  // Tabular figures so numeric/aligned content (counts, any numerals in cells)
+  // uses fixed-width digits, keeping columns visually aligned.
+  font-variant-numeric: tabular-nums;
+}
+
+// Explicit per-column widths (every column EXCEPT Description). Description is
+// deliberately left WITHOUT a width so it absorbs the remainder.
+.colLabel {
+  width: 6rem;
+}
+.colParty {
+  width: 8rem;
+}
+.colStatus {
+  width: 7rem;
+}
+.colCustodian {
+  width: 9rem;
+}
+.colFlags {
+  width: 13rem; // was 10rem — too narrow for "Ex parte · restricted" (~165px
+  // measured live), causing the pill to visually overflow into the adjacent
+  // Jury Package column (the "rows are broken" UAT-6 gap-closure defect).
+}
+.colJury {
+  width: 9rem;
+}
+.colChevron {
+  width: 2rem;
+}
+// Description header: no width (the flexible remainder column). The width is
+// intentionally unset; the cell content wraps via .descriptionCell below.
+.colDescription {
+  // left unset on purpose — the flexible column
+}
+
 // Clickable row affordance (was: cursor-pointer). The ENTIRE row is the hit
 // area (Y0-patterns.md "Fully Clickable List Row") — the <tr> carries the
 // onClick, so a click on any cell (content or padding whitespace) bubbles up
@@ -35,20 +80,22 @@
   }
 }
 
-// Truncated description cell (was: max-w-xs truncate). Phase 8 (08-11) narrows
-// this from 20rem to 10rem: the redesign adds the Flags, Jury Package, and
-// trailing-chevron columns, and at the old width the 8-column table overflowed
-// the app-shell <main>'s content box (main has 1.5rem padding on every side).
-// When the table's right edge spills past main's content box, a click in that
-// trailing strip lands on <main>, not the row — breaking F15's "entire row area
-// is clickable" guarantee at the far-right edge. The tighter description keeps
-// the whole table (and therefore the whole clickable row) inside main's content
-// box so every cell, edge-to-edge, stays clickable.
+// Description cell. Phase 9 (F09, T-06) reverses 08-11's fixed-narrow 10rem
+// truncation: with `.table` now `table-layout: fixed` and every OTHER column
+// carrying an explicit width (see .col* above), Description is the single
+// width-less column, so it absorbs the remaining table width instead of being
+// clamped to 10rem. The text now WRAPS (word-break for long unbroken tokens)
+// and is capped at 2 lines via line-clamp per the acceptance criterion ("wraps
+// to 2 lines if needed"), rather than truncating to a single ellipsised line.
+// vertical-align keeps the clamped block top-aligned with the other cells.
 .descriptionCell {
-  max-width: 10rem;
+  white-space: normal;
+  word-break: break-word;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  vertical-align: top;
 }
 
 // Rows "needing attention" get a pale tint (Screenshot 5). Applied alongside
@@ -92,6 +139,15 @@
   font-weight: 600;
 }
 
+// Phase 9 (F09 §Process step 4): "Not yet evaluated" — a neutral/muted treatment,
+// deliberately NOT weighted/colored like the structural "Not eligible" (which is
+// secondary text) and clearly distinct from the positive green "Included" and
+// the red "Blocked". Italic signals "transient/pending assessment", not verdict.
+.juryNotYetEvaluated {
+  color: $text-secondary;
+  font-style: italic;
+}
+
 // Trailing chevron affordance (VISUAL only — row-clickability already shipped in
 // 07-04). Decorative, aria-hidden; muted so it reads as an affordance, not an
 // action.
@@ -100,8 +156,41 @@
   width: 2rem;
 }
 
+// Carbon's own `.cds--data-table th:last-of-type { inline-size: auto }` rule
+// (vendored @carbon/styles data-table partial) overrides a single-class
+// `.colChevron` selector on the table's actual last column, because it
+// targets :last-of-type specifically — this silently gave BOTH the chevron
+// column AND Description "auto" width under table-layout:fixed, splitting
+// the remainder ~50/50 instead of letting Description absorb it all (the
+// 09-06 defect this fixes, confirmed via live Playwright measurement: the
+// Description column was collapsing to the same ~96px as the fixed 6rem
+// Label column). Compound the selector with the table's own class to win
+// without reaching for a global :last-of-type override or !important.
+//
+// Phase 9 gap-closure (09-21, UAT-6 RE-TEST): 09-19's fix used a DESCENDANT
+// combinator (space) between `.table` and `:global(.cds--data-table)` —
+// `.table :global(.cds--data-table) th:last-of-type.colChevron` — which only
+// matches a `.cds--data-table` element NESTED INSIDE a `.table` element. But
+// Carbon's <Table> puts BOTH classes on the SAME <table> node (confirmed live:
+// `table.className` === "cds--data-table _hash_table cds--data-table--lg"),
+// so that selector can never match anything — verified live via
+// `element.matches(selector)` returning false. Carbon's own
+// `.cds--data-table th:last-of-type { inline-size: auto }` therefore still won
+// unopposed, rendering the chevron header at ~152px (not 2rem) and squeezing
+// Description to the SAME ~152px, forcing its 2-line clamp to visibly wrap —
+// this is the "columns not in one row" defect the user re-reported. Fix: use a
+// COMPOUND selector (no space) so both classes target the one real element,
+// verified live to match and to restore the correct 2rem/272px split.
+.table:global(.cds--data-table) th:last-of-type.colChevron,
+.table:global(.cds--data-table) td:last-of-type.chevronCell {
+  inline-size: 2rem;
+  width: 2rem;
+}
+
 .chevron {
   color: $text-secondary;
-  font-size: 1.125rem;
+  // Decorative affordance glyph routed onto Carbon's heading-compact-01 token
+  // (16px) instead of a raw 1.125rem, keeping it on the type scale.
+  @include type-style('heading-compact-01');
   line-height: 1;
 }

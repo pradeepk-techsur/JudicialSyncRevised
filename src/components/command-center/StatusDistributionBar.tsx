@@ -1,6 +1,7 @@
 'use client';
 
 import type { ExhibitStatus } from '@prisma/client';
+import { STATUS_CONFIG } from '@/components/StatusBadge';
 import styles from './StatusDistributionBar.module.scss';
 
 // F8 Command Center — the per-status count legend (UX Screen-00 §"Where the
@@ -12,10 +13,16 @@ import styles from './StatusDistributionBar.module.scss';
 // StatusBadge already uses elsewhere in this app without complaint), not the
 // wide segmented strip that was removed. Purely presentational — it derives
 // nothing beyond the counts passed in.
+//
+// T-03 (external UI/UX review): this component no longer carries its own
+// hand-authored status→label/color map. The label and icon for each status are
+// read DIRECTLY from StatusBadge's exported STATUS_CONFIG (the single TS source
+// of truth), and the dot's color comes from the shared
+// `src/styles/_statusColors.scss` SCSS partial that BOTH this module and
+// StatusBadge.module.scss `@use` — so the legend and the status pills can never
+// diverge for the same status.
 
-// Ordered to match StatusBadge's config order and the Screenshot-1 legend
-// (Admitted/Marked/Offered/Objected/Excluded/Withdrawn is the screenshot order,
-// but we keep the ledger/lifecycle order here for the legend).
+// Ledger/lifecycle order for the legend rows.
 const STATUS_ORDER: ExhibitStatus[] = [
   'MARKED',
   'OFFERED',
@@ -25,16 +32,18 @@ const STATUS_ORDER: ExhibitStatus[] = [
   'WITHDRAWN',
 ];
 
-// Label + the legend-dot class whose color token mirrors StatusBadge's dot
-// color for the same status (see StatusDistributionBar.module.scss for the
-// 1:1 token mapping comment).
-const STATUS_META: Record<ExhibitStatus, { label: string; segClass: string }> = {
-  MARKED: { label: 'Marked', segClass: styles.segMarked },
-  OFFERED: { label: 'Offered', segClass: styles.segOffered },
-  OBJECTED: { label: 'Objected', segClass: styles.segObjected },
-  ADMITTED: { label: 'Admitted', segClass: styles.segAdmitted },
-  EXCLUDED: { label: 'Excluded', segClass: styles.segExcluded },
-  WITHDRAWN: { label: 'Withdrawn', segClass: styles.segWithdrawn },
+// The only thing that must stay local to THIS CSS Module is the legend-dot's
+// own class (CSS Modules hash class names per file, so a dot class defined in
+// StatusBadge.module.scss is unreachable here) — but each class pulls its COLOR
+// from the shared SCSS partial, so this is a style-application map, not a second
+// color source of truth.
+const SEG_CLASS: Record<ExhibitStatus, string> = {
+  MARKED: styles.segMarked,
+  OFFERED: styles.segOffered,
+  OBJECTED: styles.segObjected,
+  ADMITTED: styles.segAdmitted,
+  EXCLUDED: styles.segExcluded,
+  WITHDRAWN: styles.segWithdrawn,
 };
 
 export function StatusDistributionBar({
@@ -46,11 +55,13 @@ export function StatusDistributionBar({
     <ul className={styles.legend} data-testid="status-distribution-legend">
       {STATUS_ORDER.map((status) => {
         const count = statusCounts[status] ?? 0;
-        const { label } = STATUS_META[status];
+        // Label + icon come from the ONE shared TS source of truth.
+        const { label, icon: Icon } = STATUS_CONFIG[status];
         return (
           <li key={status} className={styles.legendItem}>
+            <Icon size={14} aria-hidden="true" className={styles.legendIcon} />
             <span
-              className={`${styles.legendDot} ${STATUS_META[status].segClass}`}
+              className={`${styles.legendDot} ${SEG_CLASS[status]}`}
               aria-hidden="true"
             />
             <span className={styles.legendLabel}>{label}</span>

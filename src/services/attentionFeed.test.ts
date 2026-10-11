@@ -78,6 +78,7 @@ describe('getAttentionFeed (F8) against a self-contained fixture case', () => {
       description: 'sealed, in jury package',
       offeringParty: 'PROSECUTION',
       isSealed: true,
+      actorUserId: deputy.id,
     });
     criticalExhibitId = criticalExhibit.id;
     await recordStatusChange({ exhibitId: criticalExhibitId, toStatus: 'MARKED', actorUserId: deputy.id });
@@ -107,6 +108,7 @@ describe('getAttentionFeed (F8) against a self-contained fixture case', () => {
       exhibitLabel: `HIGH-${suffix}`,
       description: 'admitted with unresolved objection',
       offeringParty: 'DEFENSE',
+      actorUserId: deputy.id,
     });
     highExhibitId = highExhibit.id;
     await recordStatusChange({ exhibitId: highExhibitId, toStatus: 'MARKED', actorUserId: deputy.id });
@@ -131,6 +133,7 @@ describe('getAttentionFeed (F8) against a self-contained fixture case', () => {
       exhibitLabel: `PEND-${suffix}`,
       description: 'objection unresolved, not admitted',
       offeringParty: 'PLAINTIFF',
+      actorUserId: deputy.id,
     });
     pendingExhibitId = pendingExhibit.id;
     await recordStatusChange({ exhibitId: pendingExhibitId, toStatus: 'MARKED', actorUserId: deputy.id });
@@ -148,6 +151,7 @@ describe('getAttentionFeed (F8) against a self-contained fixture case', () => {
       exhibitLabel: `MED-${suffix}`,
       description: 'admitted, no custodian',
       offeringParty: 'PROSECUTION',
+      actorUserId: deputy.id,
     });
     mediumExhibitId = mediumExhibit.id;
     await recordStatusChange({ exhibitId: mediumExhibitId, toStatus: 'MARKED', actorUserId: deputy.id });

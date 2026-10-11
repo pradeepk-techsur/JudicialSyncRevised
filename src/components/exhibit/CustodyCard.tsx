@@ -31,7 +31,7 @@ export function CustodyCard({
 
   return (
     <Tile className={styles.card} data-testid="exhibit-custody-card" aria-label="Chain of custody">
-      <h2 className={styles.heading}>Chain of Custody</h2>
+      <h2 className={styles.heading}>Chain of custody</h2>
       <p className={styles.current} data-testid="custody-current">
         {current ? currentName ?? 'Current custodian' : 'No custodian of record'}
       </p>

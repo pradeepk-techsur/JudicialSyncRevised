@@ -429,7 +429,7 @@ describe('getExhibitHistory — Phase 8 right-rail sections (F10)', () => {
     expect(c.eligibility).toBe('INCLUDED');
   });
 
-  it('juryPackageChecklist: an OFFERED (not-yet-admitted) exhibit is admitted=false, eligibility NOT_ELIGIBLE', async () => {
+  it('juryPackageChecklist: an OFFERED (not-yet-admitted) exhibit is admitted=false, eligibility NOT_YET_EVALUATED', async () => {
     const exhibitId = await makeExhibit('OFFERED');
     await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId: deputyId });
     await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId: deputyId });
@@ -438,7 +438,10 @@ describe('getExhibitHistory — Phase 8 right-rail sections (F10)', () => {
     expect(history).not.toBeNull();
     const c = history!.juryPackageChecklist;
     expect(c.admitted).toBe(false);
-    expect(c.eligibility).toBe('NOT_ELIGIBLE');
+    // Phase 9 (F09 §Validation three-surface consistency): a not-yet-admitted,
+    // unsealed exhibit has no member row → NOT_YET_EVALUATED here, exactly as the
+    // Case Workspace list shows, NOT the structural NOT_ELIGIBLE.
+    expect(c.eligibility).toBe('NOT_YET_EVALUATED');
   });
 
   it('juryPackageChecklist: a sealed exhibit (read by JUDGE) has classificationTrial=false', async () => {

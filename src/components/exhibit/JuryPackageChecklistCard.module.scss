@@ -39,6 +39,16 @@
   color: $text-secondary;
 }
 
+// Phase 9 (F09): "Not yet evaluated" — a neutral/grey treatment distinct from
+// INCLUDED's positive color and BLOCKED/NOT_ELIGIBLE's warning colors. Uses the
+// faintest layer so it reads as "pending assessment", visually quieter than the
+// structural NOT_ELIGIBLE grey above.
+.eligibility_NOT_YET_EVALUATED {
+  background-color: $layer-01;
+  color: $text-secondary;
+  font-style: italic;
+}
+
 .checklist {
   list-style: none;
   margin: 0 0 $spacing-03;

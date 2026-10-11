@@ -11,7 +11,12 @@ import styles from './QuickFilterChips.module.scss';
 // actual .filter()). Counts are computed live off the full, unfiltered list so
 // they stay stable as the active chip changes.
 
-export type QuickFilter = 'all' | 'needs-attention' | 'my-custody' | 'awaiting-ruling';
+export type QuickFilter =
+  | 'all'
+  | 'needs-attention'
+  | 'my-custody'
+  | 'awaiting-ruling'
+  | 'no-custodian';
 
 // A row "needs attention" when any flag pill would render — identical predicate
 // to ExhibitTable's tint/pill logic, kept in sync by shape.
@@ -24,6 +29,9 @@ const CHIP_ORDER: Array<{ key: QuickFilter; label: string }> = [
   { key: 'needs-attention', label: 'Needs attention' },
   { key: 'my-custody', label: 'In my custody' },
   { key: 'awaiting-ruling', label: 'Awaiting ruling' },
+  // Phase 9 (09-01): the Command Center "Custody gaps" KPI tile deep-links to
+  // /case?filter=no-custodian, which pre-selects this chip on mount.
+  { key: 'no-custodian', label: 'No custodian' },
 ];
 
 export function QuickFilterChips({
@@ -51,6 +59,7 @@ export function QuickFilterChips({
       ? rows.filter((r) => r.currentCustodianName === activeUserName).length
       : 0,
     'awaiting-ruling': rows.filter((r) => r.hasUnresolvedObjection).length,
+    'no-custodian': rows.filter((r) => !r.currentCustodianName).length,
   };
 
   return (
@@ -93,5 +102,7 @@ export function applyQuickFilter(
         : [];
     case 'awaiting-ruling':
       return rows.filter((r) => r.hasUnresolvedObjection);
+    case 'no-custodian':
+      return rows.filter((r) => !r.currentCustodianName);
   }
 }

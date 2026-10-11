@@ -11,6 +11,7 @@
 // by scss/theme, so it must be pulled from the button component tokens.
 // (06-07 Rule 3 unblock for 06-08's broken commit 7be9a64 — see deferred-items.md)
 @use '@carbon/styles/scss/components/button/tokens' as *;
+@use '@carbon/styles/scss/type' as *;
 
 $bubble-radius: 0.5rem;
 $bubble-max-width: 80%;
@@ -27,7 +28,8 @@ $bubble-max-width: 80%;
   border-radius: $bubble-radius;
   background: $interactive;
   color: $text-on-color;
-  font-size: 0.875rem;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.875rem.
+  @include type-style('body-compact-01');
 }
 
 // ---- assistant turn: left-aligned; grounded AND decline share this bubble ----
@@ -46,7 +48,8 @@ $bubble-max-width: 80%;
 .answerText {
   margin: 0;
   white-space: pre-wrap;
-  font-size: 0.875rem;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.875rem.
+  @include type-style('body-compact-01');
   color: $text-primary;
 }
 

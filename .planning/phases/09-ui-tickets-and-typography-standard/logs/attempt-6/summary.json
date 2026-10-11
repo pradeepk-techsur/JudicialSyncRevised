@@ -1,0 +1,21 @@
+{
+  "duration_secs": 334.0,
+  "token_usage": {
+    "input": 64,
+    "output": 14504,
+    "total": 3017565,
+    "cache_read": 2898079,
+    "cache_write": 104918,
+    "cost": 0.9870787999999999
+  },
+  "model": "claude-sonnet-5",
+  "files_changed": [
+    ".planning/phases/09-ui-tickets-and-typography-standard/09-UAT.md",
+    ".planning/phases/09-ui-tickets-and-typography-standard/09-UAT.summary.json"
+  ],
+  "verification_status": "passed",
+  "error_message": null,
+  "attempt_number": 6,
+  "created_at": "2026-10-11T00:08:11.779180+00:00",
+  "completed_at": "2026-10-11T00:13:46.051516769+00:00"
+}

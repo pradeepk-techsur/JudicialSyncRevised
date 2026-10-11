@@ -1,15 +1,23 @@
 @use '@carbon/colors';
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '../styles/statusColors' as status;
 
 // Small colored status dot rendered INSIDE the Carbon Tag, preserving the
-// `●Label` convention from Y0-patterns.md. Colors map 1:1 to the previous
-// Tailwind dot colors using the closest Carbon color token (no invented hex):
-//   bg-gray-400  → $gray-40      (MARKED)
-//   bg-blue-500  → $blue-60      (OFFERED)
-//   bg-amber-500 → $yellow-30    (OBJECTED)
-//   bg-green-600 → $green-60     (ADMITTED)
-//   bg-red-600   → $red-60       (EXCLUDED)
-//   bg-slate-600 → $cool-gray-70 (WITHDRAWN)
-//   bg-gray-300  → $gray-40      (null / not-yet-entered, plain-text branch)
+// `●Label` convention from Y0-patterns.md. The six status→color token mappings
+// now live in the shared `src/styles/_statusColors.scss` partial (the single
+// SCSS source of truth, T-03) — this file applies those variables to its own
+// local dot classes. The null / not-yet-entered plain-text branch keeps its own
+// muted gray (it is the absence of a status, not one of the six).
+
+// Status icon rendered inside the Tag, BEFORE the colored dot (icon + dot +
+// label text — three redundant status signals, never color alone). Aligned
+// with the dot/text baseline and spaced consistently with the dot.
+.statusIcon {
+  margin-right: 0.25rem;
+  vertical-align: text-bottom;
+  flex-shrink: 0;
+}
 
 .dot {
   display: inline-block;
@@ -21,36 +29,42 @@
 }
 
 .statusDotGray {
-  background-color: colors.$gray-40;
+  background-color: status.$status-color-marked;
 }
 
 .statusDotBlue {
-  background-color: colors.$blue-60;
+  background-color: status.$status-color-offered;
 }
 
 .statusDotAmber {
-  background-color: colors.$yellow-30;
+  background-color: status.$status-color-objected;
 }
 
 .statusDotGreen {
-  background-color: colors.$green-60;
+  background-color: status.$status-color-admitted;
 }
 
 .statusDotRed {
-  background-color: colors.$red-60;
+  background-color: status.$status-color-excluded;
 }
 
 .statusDotSlate {
-  background-color: colors.$cool-gray-70;
+  background-color: status.$status-color-withdrawn;
 }
 
 // Plain-text "not yet entered" branch — a genuinely absent status is not a
 // status color, so it is not a Tag. Muted text + muted dot.
+// T-12 (09-14): the muted "not yet entered" sub-label is free-flowing text, not
+// a tag/label element, so it reads through Carbon's text-secondary token (==
+// $gray-70 #525252 in the White theme, identical pixels, 7.2:1 on $white — AA)
+// rather than a raw palette value, matching the token-purity rule applied to
+// every other timestamp/helper/sub-label text node this phase audited.
 .nullBadge {
   display: inline-flex;
   align-items: center;
-  font-size: 0.875rem;
-  color: colors.$gray-70;
+  // Carbon body-compact-01 token (14px / 18px) replaces the raw 0.875rem.
+  @include type-style('body-compact-01');
+  color: $text-secondary;
 }
 
 .statusDotMuted {

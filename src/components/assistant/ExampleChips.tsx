@@ -2,6 +2,7 @@
 
 import { Tag } from '@carbon/react';
 import { useExhibitList } from '@/hooks/useExhibitList';
+import { useAssistantStore } from '@/stores/assistantStore';
 import styles from './ExampleChips.module.scss';
 
 // =============================================================================
@@ -29,6 +30,18 @@ import styles from './ExampleChips.module.scss';
 //   - custody reference       → first exhibit with a known custodian's label
 //   - general-history ref     → first exhibit's label (any status)
 // The two NON-exhibit-specific questions reference no exhibit and are unchanged.
+//
+// T-11 EXHIBIT-SCOPED CONTEXT (09-11): when the panel was opened via the Exhibit
+// Detail header's "Ask Pivota about {label}" button, `assistantStore.scopedExhibitId`
+// is set to that exhibit. In that case the three exhibit-specific prompts bias
+// toward the scoped exhibit WHERE THAT MAKES SENSE, so the chips reflect the
+// exhibit the user just came from:
+//   - "Is {X} in the jury package?"  → always sensible for any exhibit → use scoped.
+//   - "What happened to {X}?"        → always sensible → use scoped.
+//   - "Who currently has custody of {X}?" → only sensible if the scoped exhibit
+//        actually HAS a custodian; if it doesn't, fall back to the existing
+//        first-with-custodian derivation so the prompt stays genuinely answerable.
+// When `scopedExhibitId` is null (generic open), behavior is UNCHANGED.
 // =============================================================================
 
 export function ExampleChips({ onPick }: { onPick: (text: string) => void }) {
@@ -38,13 +51,32 @@ export function ExampleChips({ onPick }: { onPick: (text: string) => void }) {
   // from the react-query cache in practice.
   const exhibits = useExhibitList({}).data ?? [];
 
+  // The exhibit the panel was opened in the context of (null for a generic open).
+  const scopedExhibitId = useAssistantStore((s) => s.scopedExhibitId);
+  const scoped = scopedExhibitId
+    ? exhibits.find((e) => e.exhibitId === scopedExhibitId)
+    : undefined;
+
   // Derive real labels, never hardcoded placeholder numbers. Fallbacks ('P-4',
   // 'P-1') are stable seeded labels (plan 07-02 seed) used ONLY until the query
   // resolves — code defensively so we always render exactly 5 chips (the
   // assistant empty-state test asserts toHaveCount(5) immediately on open).
-  const juryRef = exhibits.find((e) => e.currentStatus === 'ADMITTED')?.exhibitLabel ?? 'P-4';
-  const custodyRef = exhibits.find((e) => e.currentCustodianName)?.exhibitLabel ?? 'P-4';
-  const historyRef = exhibits[0]?.exhibitLabel ?? 'P-1';
+  //
+  // When scoped, each exhibit-specific prompt prefers the scoped exhibit's label
+  // where that prompt logically applies, else falls back to the existing
+  // derivation so every chip remains answerable.
+  const juryRef =
+    scoped?.exhibitLabel ??
+    exhibits.find((e) => e.currentStatus === 'ADMITTED')?.exhibitLabel ??
+    'P-4';
+  // Custody prompt: use the scoped exhibit ONLY if it actually has a custodian;
+  // otherwise fall back to the first exhibit that does (an unanswerable "who has
+  // custody of an un-custodied exhibit" prompt would be a worse chip).
+  const custodyRef =
+    (scoped?.currentCustodianName ? scoped.exhibitLabel : undefined) ??
+    exhibits.find((e) => e.currentCustodianName)?.exhibitLabel ??
+    'P-4';
+  const historyRef = scoped?.exhibitLabel ?? exhibits[0]?.exhibitLabel ?? 'P-1';
 
   // Computed inside the component body (was a module-level constant) since the
   // three exhibit-specific prompts now depend on live hook data.

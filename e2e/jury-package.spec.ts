@@ -862,6 +862,91 @@ test.describe('Jury Package Workspace', () => {
     await expect(page.getByTestId('jury-finalize')).toBeVisible();
   });
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // 09-10 / F25: full-width empty state + read-only readiness preview (every role)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  test('F25: JUDGE sees a full-width empty state naming DEPUTY/CLERK/ADMIN + a read-only readiness preview listing seeded admitted exhibits; DEPUTY sees the IDENTICAL preview alongside the Start button', async ({
+    page,
+  }) => {
+    // Force the read-only jury-package GET to report "no package yet" so the empty
+    // state renders, independent of whether a prior run initiated the shared
+    // package. CRITICAL: this mock must NOT intercept the sibling
+    // /jury-package/preview endpoint (same path prefix) — the readiness panel must
+    // hit LIVE seeded data so we prove real admitted exhibits render. Scope the
+    // mock to requests whose path ENDS in /jury-package.
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      const url = new URL(route.request().url());
+      if (!url.pathname.endsWith('/jury-package')) {
+        await route.continue(); // let /jury-package/preview through to the server
+        return;
+      }
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ juryPackage: null, exhibits: [] }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto('/jury-package');
+
+    // Default role is JUDGE (a non-initiating role). The empty state names who CAN
+    // start a package and is restricted-copy (no Start button) for JUDGE.
+    const empty = page.getByTestId('jury-package-empty');
+    await expect(empty).toBeVisible();
+    await expect(empty).toContainText('deputy, clerk, or administrator');
+    await expect(page.getByTestId('jury-initiate-restricted')).toBeVisible();
+    await expect(page.getByTestId('jury-initiate')).toHaveCount(0);
+
+    // Full-width assertion: the empty-state container's bounding box is close to
+    // <main>'s inner width (not a small centered card). Allow for <main>'s padding.
+    const mainBox = await page.getByRole('main').boundingBox();
+    const emptyBox = await empty.boundingBox();
+    expect(mainBox).toBeTruthy();
+    expect(emptyBox).toBeTruthy();
+    // The panel should occupy most of the content width — within ~120px of <main>
+    // (accounting for the 1.5rem padding on each side = 48px, plus margins).
+    expect(emptyBox!.width).toBeGreaterThan(mainBox!.width - 120);
+
+    // The readiness preview panel is ALSO visible (every state renders it) and
+    // lists live seeded admitted exhibits with their ready/blocked status.
+    const preview = page.getByTestId('jury-readiness-preview');
+    await expect(preview).toBeVisible();
+    // At least one seeded admitted exhibit row is listed (seed admits ≥2 clean +
+    // P-6 no-custodian + P-7 unresolved-objection + 1 sealed visible to JUDGE).
+    // Wait for a row first (the /preview route cold-compiles in dev on first hit).
+    await expect(page.getByTestId('jury-readiness-row').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('jury-readiness-summary')).toBeVisible();
+    const rowCount = await page.getByTestId('jury-readiness-row').count();
+    expect(rowCount).toBeGreaterThan(0);
+    // A blocked row shows a blocker detail; a ready row shows ✓ Ready. At least
+    // one of each is present in the seed (P-6/P-7 blocked; clean exhibits ready).
+    await expect(page.getByTestId('jury-readiness-ready').first()).toBeVisible();
+
+    // Capture the JUDGE-visible row count so we can confirm DEPUTY sees the SAME
+    // read-only panel (not a different "with actions" variant). DEPUTY cannot view
+    // sealed exhibits, so its visible set may differ by the sealed row only — the
+    // KEY assertion is the panel renders identically read-only with zero actions.
+    await switchToDeputy(page);
+
+    // The empty state now shows the Start button (DEPUTY is an INITIATE_ROLE).
+    await expect(page.getByTestId('jury-initiate')).toBeVisible();
+
+    // The IDENTICAL read-only readiness panel still renders — same testid, still
+    // visible, still has NO action buttons/links inside it.
+    const previewAsDeputy = page.getByTestId('jury-readiness-preview');
+    await expect(previewAsDeputy).toBeVisible();
+    await expect(page.getByTestId('jury-readiness-row').first()).toBeVisible({ timeout: 10000 });
+    // The preview panel contains no <button> and no <a> — it is deliberately inert
+    // (F25: "there is no preview-with-actions variant").
+    await expect(previewAsDeputy.locator('button')).toHaveCount(0);
+    await expect(previewAsDeputy.locator('a')).toHaveCount(0);
+  });
+
   test('a finalize-authorized role requesting finalization directly via the API is rejected 403 (server-enforced, bypassing the UI)', async ({
     request,
   }) => {

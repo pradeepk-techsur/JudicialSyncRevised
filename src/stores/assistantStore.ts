@@ -23,7 +23,21 @@ interface AssistantState {
    *  server-side (conversation-on-first-message — no empty orphan conversations,
    *  CONTEXT.md). When null, the empty-state example chips are shown. */
   activeConversationId: string | null;
+  /** The exhibit the panel was opened IN THE CONTEXT OF, or `null` for a generic
+   *  (header "Ask Pivota") open. Set only by `openPanelForExhibit` — e.g. the
+   *  Exhibit Detail header's "Ask Pivota about {label}" button (T-11 / T-08).
+   *  Scoping is a PER-OPENING concept: it biases which example prompts the empty
+   *  state pre-fills toward the exhibit the user came from, and is cleared the
+   *  moment the panel closes or a new conversation starts so it never silently
+   *  persists into an unrelated later conversation. It never changes what the
+   *  assistant can SEE — the server's role-scoped tool-call visibility is the sole
+   *  authority (T-09-17); this only pre-fills a text string the user could type. */
+  scopedExhibitId: string | null;
   openPanel: () => void;
+  /** Open the panel scoped to a specific exhibit (context-aware entry point). Both
+   *  satisfies T-08's "Ask Pivota about P-7 opens assistant pre-selected" and
+   *  powers T-11's context-aware example prompts in ONE place. */
+  openPanelForExhibit: (exhibitId: string) => void;
   closePanel: () => void;
   togglePanel: () => void;
   /** Capture the server-returned conversationId after the first message so every
@@ -41,9 +55,26 @@ interface AssistantState {
 export const useAssistantStore = create<AssistantState>((set) => ({
   isPanelOpen: false,
   activeConversationId: null,
+  scopedExhibitId: null,
   openPanel: () => set({ isPanelOpen: true }),
-  closePanel: () => set({ isPanelOpen: false }),
-  togglePanel: () => set((s) => ({ isPanelOpen: !s.isPanelOpen })),
+  // One set(): open AND scope together so the empty-state chips can read the
+  // scope on the very first render after the panel appears.
+  openPanelForExhibit: (exhibitId) =>
+    set({ isPanelOpen: true, scopedExhibitId: exhibitId }),
+  // Closing the panel ends the per-opening scope — a later generic open must not
+  // inherit a stale exhibit context.
+  closePanel: () => set({ isPanelOpen: false, scopedExhibitId: null }),
+  // togglePanel stays the generic (unscoped) toggle. When it CLOSES the panel it
+  // also clears any lingering scope (same reasoning as closePanel); when it OPENS
+  // it opens unscoped (the header's generic "Ask Pivota" has no exhibit context).
+  togglePanel: () =>
+    set((s) =>
+      s.isPanelOpen
+        ? { isPanelOpen: false, scopedExhibitId: null }
+        : { isPanelOpen: true },
+    ),
   setActiveConversationId: (id) => set({ activeConversationId: id }),
-  newConversation: () => set({ activeConversationId: null }),
+  // Starting a fresh conversation also drops the scope: the new thread is not
+  // tied to whatever exhibit the previous opening was about.
+  newConversation: () => set({ activeConversationId: null, scopedExhibitId: null }),
 }));

@@ -16,11 +16,31 @@
 }
 
 // Filter row + chip row (was: flex flex-wrap items-center gap-2).
+// align-items: flex-start so that now that every control carries a VISIBLE
+// label-above-control (Carbon default once hideLabel is removed), the controls
+// line up across the row from their tops rather than being vertically centered
+// against each other's differing heights.
 .row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
+  align-items: flex-start;
+  gap: $spacing-05;
+}
+
+// Keyword Search has no built-in visible label slot (labelText is always
+// visually hidden), so it is wrapped in .field with our own visible label above.
+// This mirrors the label-above layout Carbon gives Dropdown/ComboBox/TextInput.
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+// Visible field label for the keyword Search, matching Carbon's own label type
+// ramp and spacing so it aligns with the native labels on the other controls.
+.fieldLabel {
+  @include type-style('label-01');
+  color: $text-secondary;
+  margin-bottom: $spacing-02;
 }
 
 // Keyword search field width (was: max-w-xs).
@@ -30,11 +50,20 @@
 
 // Witness field width (was: max-w-[10rem]).
 .witnessField {
-  max-width: 10rem;
+  min-width: 12rem;
+  max-width: 14rem;
 }
 
 // Muted helper/caption text (was: text-xs text-gray-500).
 .hint {
   @include type-style('label-01');
   color: $text-secondary;
+}
+
+// Result-count readout row ("Showing X of Y" + Clear filters). Keeps the count
+// and the reset affordance on one baseline, vertically centered.
+.readout {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
 }

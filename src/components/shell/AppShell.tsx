@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { ActiveRoleBanner } from './ActiveRoleBanner';
 import { AssistantPanel } from '@/components/assistant/AssistantPanel';
 import styles from './AppShell.module.scss';
 
@@ -13,6 +14,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={styles.shell}>
       <Header />
+      {/* T-09: persistent active-role safety strip, mounted ONCE here at the
+          shell level (same pattern as the AssistantPanel) so it persists across
+          route navigation. Self-hides until a real role switch has happened. */}
+      <ActiveRoleBanner />
       <div className={styles.body}>
         <Sidebar />
         <main className={styles.main} role="main">

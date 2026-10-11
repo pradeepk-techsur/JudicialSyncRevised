@@ -46,8 +46,12 @@
 }
 
 // ACKNOWLEDGED: the SAME label, muted — never hidden (US-6.3).
+// T-05/T-12 contrast audit: $yellow-50 (#b28600) on the $yellow-10 (#fcf4d6)
+// banner background is only 3.02:1 — below WCAG AA 4.5:1. Bumped to the
+// next-darker same-family shade $yellow-60 (#8e6a00) = 4.52:1 (AA-compliant)
+// while staying visibly muted vs .flagOpen's $yellow-70 (7.11:1).
 .flagAcked {
-  color: colors.$yellow-50; // ≈ amber-600/70 muted
+  color: colors.$yellow-60; // #8e6a00 on $yellow-10 = 4.52:1, AA-compliant muted
 }
 
 // F14: the full acknowledgment record line (name, role, timestamp, justification),
@@ -55,21 +59,7 @@
 .ackRecord {
   margin-top: $spacing-02;
   @include type-style('label-01');
-  color: colors.$yellow-50; // ≈ amber-600/70 muted, same as .flagAcked
-}
-
-.trigger {
-  flex-shrink: 0;
-  @include type-style('label-01');
-  color: colors.$yellow-70;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
+  color: colors.$yellow-60; // #8e6a00 on $yellow-10 = 4.52:1 AA, same as .flagAcked
 }
 
 // Phase 8 (F10/F24): the alert-banner treatment (Screenshot 2) for the one
@@ -95,20 +85,4 @@
   margin-bottom: $spacing-03;
   color: colors.$red-70;
   @include type-style('label-01');
-}
-
-// The "Record ruling" trigger inside the alert banner — the red-emphasis
-// counterpart to the yellow .trigger.
-.alertTrigger {
-  flex-shrink: 0;
-  @include type-style('label-01');
-  color: colors.$red-70;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
 }

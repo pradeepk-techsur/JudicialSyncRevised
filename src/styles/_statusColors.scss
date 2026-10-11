@@ -1,0 +1,26 @@
+@use '@carbon/colors';
+
+// T-03 (external UI/UX review) — the SINGLE SCSS source of truth for the six
+// exhibit-status → @carbon/colors token mappings. Both `StatusBadge.module.scss`
+// (the status pill's dot, the status display used on Case Workspace, Exhibit
+// Detail, and Jury Package) and `command-center/StatusDistributionBar.module.scss`
+// (the Command Center legend dot) `@use` this partial and apply these variables
+// to their own local dot classes.
+//
+// Because CSS Modules hash each file's class names independently, a legend in one
+// module cannot reference a dot class defined in another module's compiled output.
+// Centralising the raw COLOR TOKENS here (not the class names) is the mechanism
+// that keeps exactly ONE literal place where each status's color is written —
+// deleting the second, hand-copied color map that StatusDistributionBar used to
+// carry. The TS-level label/Tag-type/icon single source of truth lives in
+// `StatusBadge.tsx`'s exported STATUS_CONFIG; this is its SCSS-color counterpart.
+//
+// No two statuses share a hue family (gray / blue / yellow / green / red /
+// cool-gray), satisfying the ticket's "no two of the six statuses share a hue".
+
+$status-color-marked: colors.$gray-40; // MARKED
+$status-color-offered: colors.$blue-60; // OFFERED
+$status-color-objected: colors.$yellow-30; // OBJECTED
+$status-color-admitted: colors.$green-60; // ADMITTED
+$status-color-excluded: colors.$red-60; // EXCLUDED
+$status-color-withdrawn: colors.$cool-gray-70; // WITHDRAWN

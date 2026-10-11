@@ -1,35 +1,32 @@
-@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '../../styles/statusColors' as status;
 
-// F8 — status-distribution legend. The per-status legend-dot colors reuse
-// the EXACT @carbon/colors tokens StatusBadge.module.scss maps each status to —
-// one authoritative color per status, never a second mapping:
-//   MARKED   → $gray-40      (StatusBadge .statusDotGray)
-//   OFFERED  → $blue-60      (StatusBadge .statusDotBlue)
-//   OBJECTED → $yellow-30    (StatusBadge .statusDotAmber)
-//   ADMITTED → $green-60     (StatusBadge .statusDotGreen)
-//   EXCLUDED → $red-60       (StatusBadge .statusDotRed)
-//   WITHDRAWN→ $cool-gray-70 (StatusBadge .statusDotSlate)
+// F8 — status-distribution legend. The per-status legend-dot colors are applied
+// from the SHARED `src/styles/_statusColors.scss` partial (the single SCSS
+// source of truth, T-03) — the SAME variables StatusBadge.module.scss applies to
+// its own dot classes. This file no longer carries its own hand-copied color
+// map; the TS-level label/icon map is imported from StatusBadge's exported
+// STATUS_CONFIG. One authoritative color per status, never a second mapping.
 
 .segMarked {
-  background-color: colors.$gray-40;
+  background-color: status.$status-color-marked;
 }
 .segOffered {
-  background-color: colors.$blue-60;
+  background-color: status.$status-color-offered;
 }
 .segObjected {
-  background-color: colors.$yellow-30;
+  background-color: status.$status-color-objected;
 }
 .segAdmitted {
-  background-color: colors.$green-60;
+  background-color: status.$status-color-admitted;
 }
 .segExcluded {
-  background-color: colors.$red-60;
+  background-color: status.$status-color-excluded;
 }
 .segWithdrawn {
-  background-color: colors.$cool-gray-70;
+  background-color: status.$status-color-withdrawn;
 }
 
 .legend {
@@ -45,6 +42,11 @@
   display: inline-flex;
   align-items: center;
   gap: $spacing-02;
+}
+
+.legendIcon {
+  flex-shrink: 0;
+  color: $text-secondary;
 }
 
 .legendDot {

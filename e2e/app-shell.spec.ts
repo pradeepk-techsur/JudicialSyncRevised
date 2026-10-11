@@ -105,6 +105,191 @@ test.describe('App shell', () => {
     expect(topElementTag).toBe('role-switcher');
   });
 
+  test('the current route\'s nav item is marked active and updates on navigation (09-08 T-08)', async ({ page }) => {
+    // 09-08 gives the sidebar route-driven active feedback via Carbon's
+    // `isActive` prop (adds `.cds--side-nav__link--current`), replacing the
+    // weak default link styling. Assert the active item tracks the route.
+    await page.goto('/case');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+
+    const caseLink = nav.getByRole('link', { name: 'Case Workspace' });
+    const commandLink = nav.getByRole('link', { name: 'Command Center' });
+
+    // On /case, Case Workspace is the current (active) item; Command Center is not.
+    await expect(caseLink).toHaveClass(/cds--side-nav__link--current/);
+    await expect(commandLink).not.toHaveClass(/cds--side-nav__link--current/);
+
+    // Navigating to Command Center flips which item is marked active.
+    await commandLink.click();
+    await expect(page).toHaveURL(/\/command-center$/);
+    await expect(commandLink).toHaveClass(/cds--side-nav__link--current/);
+    await expect(caseLink).not.toHaveClass(/cds--side-nav__link--current/);
+  });
+
+  test('every sidebar nav item renders a leading icon (09-08 T-08)', async ({ page }) => {
+    // Each SideNavLink now gets a Carbon `renderIcon` — the link contains an
+    // <svg> glyph before its text label.
+    await page.goto('/case');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    for (const name of ['Command Center', 'Case Workspace', 'Assistant']) {
+      await expect(nav.getByRole('link', { name }).locator('svg').first()).toBeVisible();
+    }
+    // Jury Package link (its accessible name may include the count badge text).
+    await expect(
+      nav.getByRole('link', { name: /Jury Package/ }).locator('svg').first(),
+    ).toBeVisible();
+  });
+
+  test('Jury Package badge counts jury-package blockers (FLAGGED or sealed), matching the page (09-08 T-08)', async ({ page }) => {
+    // 09-08 changed the Jury Package nav badge from the case-wide open-discrepancy
+    // count (useDiscrepancyCount) to the jury-package blocker count (useJuryPackage,
+    // the SAME FLAGGED-or-sealed formula the Jury Package page's "Blockers (N)"
+    // heading and the Command Center stat card use). Mock the jury-package endpoint
+    // with 2 FLAGGED blocker rows + 1 clean row → the sidebar badge must read "2".
+    const blockers = {
+      juryPackage: {
+        id: 'pkg-badge', caseId: 'case-1', status: 'DRAFT',
+        createdAt: new Date().toISOString(), finalizedAt: null, finalizedBy: null,
+        finalizationRequestedAt: null, finalizationRequestedBy: null,
+      },
+      exhibits: [
+        { exhibitId: 'ex-1', exhibitLabel: 'P-7', currentStatus: 'ADMITTED', discrepancyStatus: 'FLAGGED', flags: [{ ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE', status: 'OPEN', label: 'x' }], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+        { exhibitId: 'ex-2', exhibitLabel: 'P-6', currentStatus: 'ADMITTED', discrepancyStatus: 'FLAGGED', flags: [{ ruleCode: 'ADMITTED_NO_CUSTODIAN', status: 'OPEN', label: 'y' }], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+        { exhibitId: 'ex-3', exhibitLabel: 'P-4', currentStatus: 'ADMITTED', discrepancyStatus: 'CLEAN', flags: [], isSealed: false, status: 'INCLUDED', addedAt: new Date().toISOString() },
+      ],
+    };
+    await page.route('**/api/cases/**/jury-package', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(blockers) });
+    });
+
+    await page.goto('/case');
+    const badge = page.getByTestId('jury-count-badge');
+    // Badge shows the blocker count (2), NOT a case-wide discrepancy count, and
+    // carries the new jury-package-blockers semantics in its aria-label.
+    await expect(badge).toHaveText('2');
+    await expect(badge).toHaveAttribute('aria-label', '2 jury package blockers');
+  });
+
+  test('switching roles shows a persistent active-role banner, flips a role-gated control WITHOUT reload, and Switch back restores both (09-09 T-09)', async ({ page }) => {
+    // T-09: proves the three acceptance behaviors in one mid-session flow:
+    //   1. after a role switch, a persistent banner names the new active role;
+    //   2. a role-gated control's visibility flips immediately on switch with NO
+    //      page.reload() — because every live-sync query key includes `role`,
+    //      the switch re-queries as the new role within one poll interval;
+    //   3. "Switch back" restores the prior role AND its gated-control visibility.
+    //
+    // The gated control used is the Command Center attention feed's
+    // JUDGE-only "Record ruling" action (RULING_ROLES=['JUDGE']). The feed is
+    // mocked with one HIGH entry so the action is deterministically present for
+    // JUDGE regardless of seed drift.
+    await page.route('**/api/cases/**/attention-feed', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'high-1',
+            tier: 'HIGH',
+            ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+            exhibitId: 'ex-high',
+            exhibitLabel: 'P-7',
+            objectionId: 'obj-high',
+            detectedAt: new Date().toISOString(),
+            summary: 'P-7 — admitted with an open, unresolved objection',
+            availableAction: 'RECORD_RULING',
+          },
+        ]),
+      });
+    });
+
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+
+    // Default JUDGE: the Record-ruling action is present; no banner yet (no
+    // switch has happened, so there's nothing to switch back to).
+    await expect(feed.getByTestId('attention-feed-action-record-ruling').first()).toBeVisible();
+    await expect(page.getByTestId('active-role-banner')).toHaveCount(0);
+
+    // Switch to a DEPUTY persona via the shared switcher (NO page.reload()).
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    const deputyValue = (await deputyOption.getAttribute('value')) as string;
+    await select.selectOption(deputyValue);
+
+    // 1. The persistent banner now names the active DEPUTY role.
+    const banner = page.getByTestId('active-role-banner');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(/Active role:/);
+    await expect(banner).toContainText(/DEPUTY/);
+
+    // 2. The JUDGE-gated control is now ABSENT — the switch re-queried as DEPUTY
+    //    with no reload (role participates in the query key).
+    await expect(feed.getByTestId('attention-feed-action-record-ruling')).toHaveCount(0);
+
+    // 3. Switch back restores the prior JUDGE role and its gated control.
+    await banner.getByTestId('active-role-switch-back').click();
+    await expect(feed.getByTestId('attention-feed-action-record-ruling').first()).toBeVisible();
+    // The banner persists after switching back, now naming JUDGE as active with
+    // DEPUTY as the switch-back target.
+    await expect(banner).toContainText(/JUDGE/);
+  });
+
+  test('the active-role banner text is NOT obscured by the sidebar after a role switch (UAT-9 gap closure)', async ({ page }) => {
+    await page.goto('/case');
+    const select = page.getByLabel('Switch active role');
+    const deputyOption = select.locator('option', { hasText: '(DEPUTY)' });
+    const deputyValue = (await deputyOption.getAttribute('value')) as string;
+    await select.selectOption(deputyValue);
+
+    const banner = page.getByTestId('active-role-banner');
+    await expect(banner).toBeVisible();
+
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    const navBox = await nav.boundingBox();
+    const labelBox = await banner.locator('span').first().boundingBox();
+    expect(navBox).not.toBeNull();
+    expect(labelBox).not.toBeNull();
+    // The banner's own label text must start AT OR AFTER the sidebar's right
+    // edge — zero horizontal overlap between the two.
+    expect(labelBox!.x).toBeGreaterThanOrEqual(navBox!.x + navBox!.width - 1);
+
+    // Stronger check: hit-test the actual rendered center of the banner's
+    // label text and confirm the SIDEBAR isn't the topmost element there
+    // (mirrors the existing sidebar/header overlap test's hit-test pattern).
+    const centerX = labelBox!.x + labelBox!.width / 2;
+    const centerY = labelBox!.y + labelBox!.height / 2;
+    const topElementTag = await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('nav') ? 'nav' : document.elementFromPoint(x, y)?.tagName ?? null,
+      { x: centerX, y: centerY },
+    );
+    expect(topElementTag).not.toBe('nav');
+  });
+
+  test('the role switcher has no visible "Demo role" label and left-aligns with the page title (UAT-16 gap closure)', async ({ page }) => {
+    await page.goto('/command-center');
+    // The visible label text is gone — Carbon's hideLabel applies its
+    // cds--visually-hidden class, so the label element exists in the DOM
+    // (preserving the aria/htmlFor association) but is not visually rendered.
+    const label = page.locator('label[for="role-switcher"]');
+    await expect(label).toHaveClass(/cds--visually-hidden/);
+
+    // The accessible name is unchanged — every existing getByLabel locator
+    // across the suite continues to resolve.
+    const select = page.getByLabel('Switch active role');
+    await expect(select).toBeVisible();
+
+    // Left-edge alignment with the page title.
+    const title = page.locator('h1', { hasText: 'Trial Command Center' });
+    const titleBox = await title.boundingBox();
+    const selectBox = await select.boundingBox();
+    expect(titleBox).not.toBeNull();
+    expect(selectBox).not.toBeNull();
+    expect(Math.abs(selectBox!.x - titleBox!.x)).toBeLessThanOrEqual(2);
+  });
+
   test('header never renders a discrepancy-count indicator (moved to Command Center stat cards/attention feed, Phase 8)', async ({ page }) => {
     // Phase 8 (08-04) removed the discrepancy-count badge from the shared header
     // ENTIRELY — in any state. The discrepancy signal now lives in the Command

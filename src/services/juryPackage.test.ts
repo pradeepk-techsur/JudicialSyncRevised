@@ -4,6 +4,7 @@ import {
   computeJuryCandidates,
   finalizeJuryPackage,
   getJuryPackage,
+  getJuryPackageReadinessPreview,
   initiateJuryPackage,
   requestFinalization,
 } from '@/services/juryPackage';
@@ -103,6 +104,60 @@ async function admitFlagged(exhibitId: string, caseId: string, actorUserId: stri
     where: { exhibitId },
     create: { exhibitId, currentStatus: 'ADMITTED', lastStatusEventId: event.id, lastStatusAt: event.recordedAt },
     update: { currentStatus: 'ADMITTED', lastStatusEventId: event.id, lastStatusAt: event.recordedAt },
+  });
+}
+
+// Admit an exhibit WITH custody but carrying an UNRESOLVED objection. The F12
+// admission gate (plan 07-01) would block an ADMITTED transition while an
+// objection is unresolved, so — exactly like admitFlagged — the final ADMITTED
+// step is written directly (bypassing the gate) to preserve the
+// "ADMITTED + custody + unresolved objection" state the readiness test needs.
+async function admitWithUnresolvedObjection(
+  exhibitId: string,
+  caseId: string,
+  actorUserId: string,
+) {
+  await recordStatusChange({ exhibitId, toStatus: 'MARKED', actorUserId });
+  await recordStatusChange({ exhibitId, toStatus: 'OFFERED', actorUserId });
+  await recordObjection({
+    exhibitId,
+    objectingParty: 'DEFENSE',
+    grounds: 'Hearsay',
+    actorUserId,
+  });
+  await recordCustodyTransfer({
+    exhibitId,
+    fromCustodianUserId: null,
+    toCustodianUserId: actorUserId,
+    actorUserId,
+  });
+  const agg = await prisma.exhibitEvent.aggregate({
+    where: { exhibitId },
+    _max: { sequenceNo: true },
+  });
+  const event = await prisma.exhibitEvent.create({
+    data: {
+      exhibitId,
+      caseId,
+      eventType: 'STATUS_CHANGE',
+      payload: { fromStatus: 'OBJECTED', toStatus: 'ADMITTED' },
+      actorUserId,
+      sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+    },
+  });
+  await prisma.exhibitCurrentState.upsert({
+    where: { exhibitId },
+    create: {
+      exhibitId,
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
+    update: {
+      currentStatus: 'ADMITTED',
+      lastStatusEventId: event.id,
+      lastStatusAt: event.recordedAt,
+    },
   });
 }
 
@@ -462,5 +517,159 @@ describe('jury package service', () => {
       where: { juryPackageId: pkg.juryPackage.id, exhibitId: sealedId },
     });
     expect(survived).not.toBeNull();
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // F25 — getJuryPackageReadinessPreview (read-only, zero-write)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  it('F25: a clean admitted exhibit (custody, no objection, not sealed) → ready, no blockers', async () => {
+    const { caseId, deputyId } = fx;
+    const clean = await makeExhibit(caseId, `A-clean-${fx.suffix}`);
+    await admitClean(clean, deputyId);
+
+    const { preview } = await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+    const row = preview.find((p) => p.exhibitId === clean)!;
+    expect(row).toBeTruthy();
+    expect(row.ready).toBe(true);
+    expect(row.blockers).toEqual([]);
+  });
+
+  it('F25: an admitted exhibit with no custody → NO_CUSTODIAN blocker, not ready', async () => {
+    const { caseId, deputyId } = fx;
+    const noCustody = await makeExhibit(caseId, `B-nocust-${fx.suffix}`);
+    await admitFlagged(noCustody, caseId, deputyId);
+
+    const { preview } = await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+    const row = preview.find((p) => p.exhibitId === noCustody)!;
+    expect(row.ready).toBe(false);
+    expect(row.blockers.map((b) => b.code)).toContain('NO_CUSTODIAN');
+  });
+
+  it('F25: an admitted exhibit with an unresolved objection → UNRESOLVED_OBJECTION blocker', async () => {
+    const { caseId, deputyId } = fx;
+    const objected = await makeExhibit(caseId, `C-obj-${fx.suffix}`);
+    await admitWithUnresolvedObjection(objected, caseId, deputyId);
+
+    const { preview } = await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+    const row = preview.find((p) => p.exhibitId === objected)!;
+    expect(row.ready).toBe(false);
+    expect(row.blockers.map((b) => b.code)).toContain('UNRESOLVED_OBJECTION');
+  });
+
+  it('F25: a sealed admitted exhibit, viewed by an authorized role (ADMIN), is LISTED with SEALED_EXPARTE', async () => {
+    const { caseId, deputyId } = fx;
+    const sealed = await makeExhibit(caseId, `D-sealed-${fx.suffix}`, { isSealed: true });
+    await admitClean(sealed, deputyId); // custody + not objected → SEALED is the only blocker
+
+    const { preview } = await getJuryPackageReadinessPreview(caseId, 'ADMIN');
+    const row = preview.find((p) => p.exhibitId === sealed)!;
+    expect(row).toBeTruthy();
+    expect(row.ready).toBe(false);
+    expect(row.blockers.map((b) => b.code)).toContain('SEALED_EXPARTE');
+  });
+
+  it('F25: the SAME sealed exhibit is ENTIRELY ABSENT when queried by an unauthorized role (ATTORNEY)', async () => {
+    const { caseId, deputyId } = fx;
+    const sealed = await makeExhibit(caseId, `E-sealed-${fx.suffix}`, { isSealed: true });
+    await admitClean(sealed, deputyId);
+
+    // ADMIN (authorized) sees it listed...
+    const admin = await getJuryPackageReadinessPreview(caseId, 'ADMIN');
+    expect(admin.preview.some((p) => p.exhibitId === sealed)).toBe(true);
+
+    // ...ATTORNEY (unauthorized) does NOT see it at all — never as a masked/
+    // blocked row, entirely omitted (anti-enumeration, T-09-14).
+    const attorney = await getJuryPackageReadinessPreview(caseId, 'ATTORNEY');
+    expect(attorney.preview.some((p) => p.exhibitId === sealed)).toBe(false);
+  });
+
+  it('F25: an exhibit can carry MULTIPLE blockers simultaneously (no custody + unresolved objection)', async () => {
+    const { caseId, deputyId } = fx;
+    // MARKED→OFFERED, raise objection, then force ADMITTED with NO custody.
+    const both = await makeExhibit(caseId, `F-both-${fx.suffix}`);
+    await recordStatusChange({ exhibitId: both, toStatus: 'MARKED', actorUserId: deputyId });
+    await recordStatusChange({ exhibitId: both, toStatus: 'OFFERED', actorUserId: deputyId });
+    await recordObjection({
+      exhibitId: both,
+      objectingParty: 'DEFENSE',
+      grounds: 'Hearsay',
+      actorUserId: deputyId,
+    });
+    const agg = await prisma.exhibitEvent.aggregate({
+      where: { exhibitId: both },
+      _max: { sequenceNo: true },
+    });
+    const ev = await prisma.exhibitEvent.create({
+      data: {
+        exhibitId: both,
+        caseId,
+        eventType: 'STATUS_CHANGE',
+        payload: { fromStatus: 'OBJECTED', toStatus: 'ADMITTED' },
+        actorUserId: deputyId,
+        sequenceNo: (agg._max.sequenceNo ?? 0) + 1,
+      },
+    });
+    await prisma.exhibitCurrentState.upsert({
+      where: { exhibitId: both },
+      create: {
+        exhibitId: both,
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: ev.id,
+        lastStatusAt: ev.recordedAt,
+      },
+      update: {
+        currentStatus: 'ADMITTED',
+        lastStatusEventId: ev.id,
+        lastStatusAt: ev.recordedAt,
+      },
+    });
+
+    const { preview } = await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+    const row = preview.find((p) => p.exhibitId === both)!;
+    const codes = row.blockers.map((b) => b.code);
+    expect(codes).toContain('NO_CUSTODIAN');
+    expect(codes).toContain('UNRESOLVED_OBJECTION');
+    expect(row.ready).toBe(false);
+  });
+
+  it('F25: viewing the preview any number of times creates ZERO JuryPackage/JuryPackageExhibit rows', async () => {
+    const { caseId, deputyId } = fx;
+    const clean = await makeExhibit(caseId, `G-clean-${fx.suffix}`);
+    await admitClean(clean, deputyId);
+
+    const pkgBefore = await prisma.juryPackage.count({ where: { caseId } });
+    const rowBefore = await prisma.juryPackageExhibit.count({
+      where: { juryPackage: { caseId } },
+    });
+    expect(pkgBefore).toBe(0);
+    expect(rowBefore).toBe(0);
+
+    // Call it many times, as several roles.
+    for (let i = 0; i < 5; i++) {
+      await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+      await getJuryPackageReadinessPreview(caseId, 'JUDGE');
+      await getJuryPackageReadinessPreview(caseId, 'ATTORNEY');
+    }
+
+    const pkgAfter = await prisma.juryPackage.count({ where: { caseId } });
+    const rowAfter = await prisma.juryPackageExhibit.count({
+      where: { juryPackage: { caseId } },
+    });
+    expect(pkgAfter).toBe(0);
+    expect(rowAfter).toBe(0);
+  });
+
+  it('F25: summary counts reflect the role-visible ready/blocked split', async () => {
+    const { caseId, deputyId } = fx;
+    const ready = await makeExhibit(caseId, `H-ready-${fx.suffix}`);
+    const blocked = await makeExhibit(caseId, `I-blocked-${fx.suffix}`);
+    await admitClean(ready, deputyId);
+    await admitFlagged(blocked, caseId, deputyId); // no custody → blocked
+
+    const { summary } = await getJuryPackageReadinessPreview(caseId, 'DEPUTY');
+    expect(summary.totalAdmitted).toBe(2);
+    expect(summary.readyCount).toBe(1);
+    expect(summary.blockedCount).toBe(1);
   });
 });

@@ -56,15 +56,18 @@ describe('GET /api/cases/:id/exhibits/search', () => {
   });
 
   it('juryPackageEligibility survives the HTTP round-trip for a known-state exhibit (P-3)', async () => {
-    // P-3 is OBJECTED (admission-blocked post-F12), so it is never an ADMITTED
-    // jury-package member → its eligibility is NOT_ELIGIBLE. Asserting the exact
-    // value through the JSON response proves the additive field rides the route's
-    // thin NextResponse.json(rows) pass-through with no route code change.
+    // Plan 09-06 (T-06): the 4-value precedence now reserves NOT_ELIGIBLE strictly
+    // for a STRUCTURAL exclusion (sealed exhibit / EXCLUDED member row). P-3 is
+    // OBJECTED (admission-blocked post-F12) and has never been run through a
+    // jury-package computation, so its eligibility is NOT_YET_EVALUATED — not
+    // NOT_ELIGIBLE. Asserting the exact value through the JSON response still proves
+    // the additive field rides the route's thin NextResponse.json(rows) pass-through
+    // with no route code change.
     const res = await searchRoute(demoCaseId, { witness: 'Finch' }, 'JUDGE');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body[0].exhibitLabel).toBe('P-3');
-    expect(body[0].juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    expect(body[0].juryPackageEligibility).toBe('NOT_YET_EVALUATED');
   });
 
   it('AND-combines filters: witness=Finch & status=OBJECTED matches P-3 (ADMITTED now matches nothing post-F12)', async () => {

@@ -7,11 +7,16 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 
+// T-10 layout fix: the empty state previously rendered as "one small centered box
+// on an empty page" (a narrow, text-centered card). It now spans the FULL width of
+// <main> as a wide, confident guidance panel — no max-width constraint on the
+// container, no centered narrow box, generous padding, left-aligned body copy.
 .container {
+  width: 100%;
   border: 1px dashed $border-strong;
   border-radius: 0.25rem;
-  padding: $spacing-07;
-  text-align: center;
+  padding: $spacing-09 $spacing-07;
+  text-align: left;
   background-color: $layer-01;
 }
 
@@ -21,8 +26,7 @@
 }
 
 .body {
-  margin: $spacing-03 auto 0;
-  max-width: 28rem;
+  margin: $spacing-03 0 0;
   @include type-style('body-compact-01');
   color: $text-secondary;
 }
@@ -42,8 +46,8 @@
 
 .action {
   margin-top: $spacing-05;
-  display: inline-flex;
-  justify-content: center;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .hardError {

@@ -71,14 +71,18 @@ export interface ExhibitHistoryResponse {
   // Added Phase 8 (F10 §Process step 6). classificationTrial substitutes
   // !exhibit.isSealed for F16's (skipped) classification column — matches the
   // same substitution already made this phase in 08-06's attention feed and
-  // juryPackage.ts's existing CRITICAL-row treatment. eligibility uses the
-  // IDENTICAL precedence rule F09/exhibits.ts computes — never redefined here.
+  // juryPackage.ts's existing CRITICAL-row treatment, and (Phase 9) the SAME
+  // isSealed→NOT_ELIGIBLE structural exclusion loadJuryEligibilityByExhibit now
+  // applies. The boolean itself (`!exhibit.isSealed`) is unchanged — it already
+  // correctly reflects sealed status. eligibility uses the IDENTICAL precedence
+  // rule F09/exhibits.ts computes — never redefined here — and shares the Phase 9
+  // four-value widening (NOT_YET_EVALUATED added) by construction.
   juryPackageChecklist: {
     admitted: boolean;
     objectionsResolved: boolean;
     custodianOnRecord: boolean;
     classificationTrial: boolean;
-    eligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED';
+    eligibility: 'INCLUDED' | 'NOT_ELIGIBLE' | 'BLOCKED' | 'NOT_YET_EVALUATED';
   };
 }
 
@@ -220,7 +224,7 @@ export async function getExhibitHistory(
   const classificationTrial = !exhibit.isSealed;
 
   const eligibilityByExhibit = await loadJuryEligibilityByExhibit(exhibit.caseId, [exhibitId]);
-  const eligibility = eligibilityByExhibit.get(exhibitId) ?? 'NOT_ELIGIBLE';
+  const eligibility = eligibilityByExhibit.get(exhibitId) ?? 'NOT_YET_EVALUATED';
 
   const juryPackageChecklist = {
     admitted,

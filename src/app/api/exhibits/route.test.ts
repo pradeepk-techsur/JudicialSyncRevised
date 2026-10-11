@@ -17,7 +17,12 @@ async function seedCase() {
       court: 'Test Court',
     },
   });
-  return { caseId: kase.id, suffix };
+  // F20 row 1 (09-SECURITY.md F-09-01): POST /api/exhibits now requires a
+  // DEPUTY/CLERK/ADMIN actorUserId in the request body.
+  const deputy = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Deputy Route Fixture', role: 'DEPUTY' },
+  });
+  return { caseId: kase.id, suffix, deputyId: deputy.id };
 }
 
 function postRequest(body: unknown): NextRequest {
@@ -40,7 +45,7 @@ describe('exhibit API routes', () => {
   });
 
   it('POST creates an exhibit (201) and GET /:id fetches it (200)', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const postRes = await POST(
       postRequest({
@@ -48,6 +53,7 @@ describe('exhibit API routes', () => {
         exhibitLabel: `Exhibit ${suffix}`,
         description: 'A sworn affidavit',
         offeringParty: 'PLAINTIFF',
+        actorUserId: deputyId,
       }),
     );
     expect(postRes.status).toBe(201);
@@ -65,16 +71,28 @@ describe('exhibit API routes', () => {
   });
 
   it('POST a duplicate label returns 409 EXHIBIT_LABEL_CONFLICT with the error envelope', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
     const label = `Dup ${suffix}`;
 
     const first = await POST(
-      postRequest({ caseId, exhibitLabel: label, description: 'first', offeringParty: 'DEFENSE' }),
+      postRequest({
+        caseId,
+        exhibitLabel: label,
+        description: 'first',
+        offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
+      }),
     );
     expect(first.status).toBe(201);
 
     const second = await POST(
-      postRequest({ caseId, exhibitLabel: label, description: 'second', offeringParty: 'DEFENSE' }),
+      postRequest({
+        caseId,
+        exhibitLabel: label,
+        description: 'second',
+        offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
+      }),
     );
     expect(second.status).toBe(409);
     const body = await second.json();
@@ -83,7 +101,7 @@ describe('exhibit API routes', () => {
   });
 
   it('POST an invalid offeringParty returns 422 VALIDATION_ERROR with the error envelope', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const res = await POST(
       postRequest({
@@ -91,12 +109,50 @@ describe('exhibit API routes', () => {
         exhibitLabel: `Bad ${suffix}`,
         description: 'bad',
         offeringParty: 'WITNESS',
+        actorUserId: deputyId,
       }),
     );
     expect(res.status).toBe(422);
     const body = await res.json();
     expect(body.error.code).toBe('VALIDATION_ERROR');
     expect(typeof body.error.message).toBe('string');
+  });
+
+  it('POST by an ATTORNEY actor returns 403 ROLE_NOT_PERMITTED', async () => {
+    const { caseId, suffix } = fixture;
+    const attorney = await prisma.user.create({
+      data: { caseId, name: 'Attorney Route Fixture', role: 'ATTORNEY' },
+    });
+
+    const res = await POST(
+      postRequest({
+        caseId,
+        exhibitLabel: `Blocked ${suffix}`,
+        description: 'should be rejected',
+        offeringParty: 'PROSECUTION',
+        actorUserId: attorney.id,
+      }),
+    );
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe('ROLE_NOT_PERMITTED');
+    expect(typeof body.error.message).toBe('string');
+  });
+
+  it('POST with no actorUserId returns 422 VALIDATION_ERROR', async () => {
+    const { caseId, suffix } = fixture;
+
+    const res = await POST(
+      postRequest({
+        caseId,
+        exhibitLabel: `NoActor ${suffix}`,
+        description: 'missing actorUserId entirely',
+        offeringParty: 'PROSECUTION',
+      }),
+    );
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('GET /:id for a nonexistent id returns 404 EXHIBIT_NOT_FOUND with the error envelope', async () => {

@@ -1,7 +1,18 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/prisma';
-import { createExhibit, getExhibit, getExhibits, searchExhibits } from '@/services/exhibits';
-import { ConflictError, NotFoundError, UnprocessableError, ValidationError } from '@/lib/errors';
+import {
+  createExhibit,
+  getExhibit,
+  getExhibits,
+  searchExhibits,
+} from '@/services/exhibits';
+import {
+  ConflictError,
+  NotFoundError,
+  RoleNotPermittedError,
+  UnprocessableError,
+  ValidationError,
+} from '@/lib/errors';
 import { DEMO_CASE_NUMBER } from '@/lib/constants';
 
 // Integration tests against the real Postgres provisioned by docker-compose.yml.
@@ -15,7 +26,12 @@ async function seedCase() {
       court: 'Test Court',
     },
   });
-  return { caseId: kase.id, suffix };
+  // F20 row 1 (09-SECURITY.md F-09-01): createExhibit now requires a
+  // DEPUTY/CLERK/ADMIN actorUserId — every fixture needs one in scope.
+  const deputy = await prisma.user.create({
+    data: { caseId: kase.id, name: 'Deputy Fixture', role: 'DEPUTY' },
+  });
+  return { caseId: kase.id, suffix, deputyId: deputy.id };
 }
 
 describe('exhibits service', () => {
@@ -30,7 +46,7 @@ describe('exhibits service', () => {
   });
 
   it('createExhibit returns a row with a generated id; getExhibit and getExhibits find it', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const created = await createExhibit({
       caseId,
@@ -39,6 +55,7 @@ describe('exhibits service', () => {
       offeringParty: 'PROSECUTION',
       source: 'Evidence locker',
       associatedWitness: 'Det. Rivera',
+      actorUserId: deputyId,
     });
 
     expect(created.id).toBeTruthy();
@@ -67,7 +84,7 @@ describe('exhibits service', () => {
   });
 
   it('rejects a duplicate exhibitLabel within the same case with EXHIBIT_LABEL_CONFLICT', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
     const label = `Dup ${suffix}`;
 
     await createExhibit({
@@ -75,6 +92,7 @@ describe('exhibits service', () => {
       exhibitLabel: label,
       description: 'first',
       offeringParty: 'DEFENSE',
+      actorUserId: deputyId,
     });
 
     await expect(
@@ -83,6 +101,7 @@ describe('exhibits service', () => {
         exhibitLabel: label,
         description: 'second',
         offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
       }),
     ).rejects.toSatisfy(
       (err: unknown) => err instanceof ConflictError && err.code === 'EXHIBIT_LABEL_CONFLICT',
@@ -90,7 +109,7 @@ describe('exhibits service', () => {
   });
 
   it('rejects an offeringParty outside the enum before any DB write', async () => {
-    const { caseId, suffix } = fixture;
+    const { caseId, suffix, deputyId } = fixture;
 
     const before = await prisma.exhibit.count({ where: { caseId } });
 
@@ -101,6 +120,7 @@ describe('exhibits service', () => {
         description: 'bad party',
         // @ts-expect-error — intentionally invalid enum value to exercise validation.
         offeringParty: 'WITNESS',
+        actorUserId: deputyId,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
 
@@ -117,13 +137,14 @@ describe('exhibits service', () => {
     let sealedId: string;
 
     beforeEach(async () => {
-      const { caseId, suffix } = fixture;
+      const { caseId, suffix, deputyId } = fixture;
       const sealed = await createExhibit({
         caseId,
         exhibitLabel: `Sealed ${suffix}`,
         description: 'A sealed exhibit — restricted visibility',
         offeringParty: 'PROSECUTION',
         isSealed: true,
+        actorUserId: deputyId,
       });
       sealedId = sealed.id;
     });
@@ -150,12 +171,13 @@ describe('exhibits service', () => {
     let visibleId: string;
 
     beforeEach(async () => {
-      const { caseId, suffix } = fixture;
+      const { caseId, suffix, deputyId } = fixture;
       const visible = await createExhibit({
         caseId,
         exhibitLabel: `A-Visible ${suffix}`,
         description: 'An ordinary visible exhibit',
         offeringParty: 'DEFENSE',
+        actorUserId: deputyId,
       });
       visibleId = visible.id;
       const sealed = await createExhibit({
@@ -164,6 +186,7 @@ describe('exhibits service', () => {
         description: 'A sealed exhibit — restricted visibility',
         offeringParty: 'PROSECUTION',
         isSealed: true,
+        actorUserId: deputyId,
       });
       sealedId = sealed.id;
     });
@@ -190,13 +213,14 @@ describe('exhibits service', () => {
       );
     });
 
-    it('a visible exhibit with no jury package ever computed is NOT_ELIGIBLE and carries the additive booleans', async () => {
+    it('a visible exhibit with no jury package ever computed is NOT_YET_EVALUATED and carries the additive booleans', async () => {
       const list = await getExhibits(fixture.caseId, 'JUDGE');
       const row = list.find((e) => e.exhibitId === visibleId);
       expect(row).toBeDefined();
-      // No JuryPackage exists for this freshly-created case → every exhibit is
-      // NOT_ELIGIBLE (F09 §Process step 3 final branch, "no package yet").
-      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+      // No JuryPackage exists for this freshly-created case → an unsealed exhibit
+      // is NOT_YET_EVALUATED (F09 §Process step 3, Phase 9: "no member row →
+      // never assessed", NOT the structural NOT_ELIGIBLE exclusion).
+      expect(row?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
       expect(row?.hasUnresolvedObjection).toBe(false);
       expect(row?.isSealed).toBe(false);
     });
@@ -223,6 +247,7 @@ describe('exhibits service', () => {
         description: `exhibit ${label}`,
         offeringParty: 'PROSECUTION',
         isSealed,
+        actorUserId: fixture.deputyId,
       });
       return ex.id;
     }
@@ -274,14 +299,47 @@ describe('exhibits service', () => {
       expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
     });
 
-    it('exhibit absent from the computed package → NOT_ELIGIBLE', async () => {
+    it('exhibit absent from the computed package → NOT_YET_EVALUATED', async () => {
       const memberId = await makeExhibit('JP-MEMBER');
       const nonMemberId = await makeExhibit('JP-NONMEMBER');
       const pkgId = await makePackage();
-      // Only memberId is in the package; nonMemberId has no row at all.
+      // Only memberId is in the package; nonMemberId has no row at all. Phase 9:
+      // a package exists but this exhibit was never run through computation → it
+      // is NOT_YET_EVALUATED, NOT the structural NOT_ELIGIBLE.
       await addMember(pkgId, memberId, 'CLEAN');
       const nonMember = await rowFor(nonMemberId);
-      expect(nonMember?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+      expect(nonMember?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
+    });
+
+    // Phase 9 (09-06) — the four-branch precedence, asserted directly against
+    // loadJuryEligibilityByExhibit's output through getExhibits. These cover the
+    // two Phase-9-specific branches the pre-existing tests above don't: a sealed
+    // exhibit is the structural NOT_ELIGIBLE regardless of package state, and
+    // "no package ever computed" on an unsealed exhibit is NOT_YET_EVALUATED.
+
+    it('(a) no package ever computed + non-sealed → NOT_YET_EVALUATED', async () => {
+      const exId = await makeExhibit('JP-NOPACKAGE', false);
+      // Deliberately create NO JuryPackage for this case.
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('NOT_YET_EVALUATED');
+    });
+
+    it('(b) sealed exhibit → NOT_ELIGIBLE even with no package', async () => {
+      const exId = await makeExhibit('JP-SEALED-NOPKG', true);
+      const row = await rowFor(exId);
+      // Structural, permanent exclusion wins regardless of package state (sealed
+      // = F16-classification substitute). JUDGE can view the sealed row.
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
+    });
+
+    it('(b) sealed exhibit → NOT_ELIGIBLE even when it is an INCLUDED+CLEAN package member', async () => {
+      const exId = await makeExhibit('JP-SEALED-MEMBER', true);
+      const pkgId = await makePackage();
+      // Even an INCLUDED+CLEAN member row cannot promote a sealed exhibit — the
+      // sealed structural exclusion takes precedence over row existence/state.
+      await addMember(pkgId, exId, 'CLEAN');
+      const row = await rowFor(exId);
+      expect(row?.juryPackageEligibility).toBe('NOT_ELIGIBLE');
     });
 
     it('eligibility is read from the MOST RECENT package only', async () => {
@@ -342,6 +400,33 @@ describe('exhibits service', () => {
       });
       const row = await rowFor(exId);
       expect(row?.hasUnresolvedObjection).toBe(false);
+    });
+  });
+
+  // F20 row 1 / 09-SECURITY.md F-09-01 — createExhibit's new server-side role
+  // gate. Proves the ONE confirmed-exploitable write path the Phase 9 security
+  // audit found is now closed at the service layer.
+  describe('role gate (F20 row 1 / F-09-01)', () => {
+    it('rejects exhibit creation by a non-DEPUTY/CLERK/ADMIN actor (e.g. ATTORNEY) with ROLE_NOT_PERMITTED', async () => {
+      const { caseId, suffix } = fixture;
+      const attorney = await prisma.user.create({
+        data: { caseId, name: 'Attorney Fixture', role: 'ATTORNEY' },
+      });
+
+      const before = await prisma.exhibit.count({ where: { caseId } });
+
+      await expect(
+        createExhibit({
+          caseId,
+          exhibitLabel: `Blocked ${suffix}`,
+          description: 'should never be created',
+          offeringParty: 'PROSECUTION',
+          actorUserId: attorney.id,
+        }),
+      ).rejects.toBeInstanceOf(RoleNotPermittedError);
+
+      const after = await prisma.exhibit.count({ where: { caseId } });
+      expect(after).toBe(before);
     });
   });
 });

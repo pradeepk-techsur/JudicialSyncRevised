@@ -13,7 +13,7 @@ import { AttentionFeedPanel } from '@/components/command-center/AttentionFeedPan
 import { JuryPackageSummaryWidget } from '@/components/command-center/JuryPackageSummaryWidget';
 import { StatCardRow } from '@/components/command-center/StatCardRow';
 import { StatusDistributionBar } from '@/components/command-center/StatusDistributionBar';
-import { FreshnessIndicator } from '@/components/command-center/FreshnessIndicator';
+import { LiveIndicator } from '@/components/command-center/LiveIndicator';
 import { RULE_CODES } from '@/services/discrepancies';
 import type { ExhibitStatus } from '@prisma/client';
 import styles from './page.module.scss';
@@ -96,11 +96,16 @@ export default function CommandCenterPage() {
             {subtitle}
           </p>
         </div>
-        <div className={styles.headerStatus}>
-          <span className={styles.liveDot} data-testid="live-status-dot" aria-hidden="true" />
-          <FreshnessIndicator
+        <div className={styles.headerStatus} data-testid="live-status-dot">
+          {/* T-15: the labeled Live / Connection-lost indicator fully subsumes the
+              former standalone pulsing dot + "updated Xs ago" text — its own green
+              dot + "Live" IS the live signal, flipping to amber "Connection lost" +
+              Refresh once the activity query's last success exceeds 60s or errors. */}
+          <LiveIndicator
             dataUpdatedAt={activity.dataUpdatedAt}
             isFetching={activity.isFetching}
+            isError={activity.isError}
+            onRefetch={() => activity.refetch()}
           />
         </div>
       </div>

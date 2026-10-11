@@ -1,5 +1,6 @@
 // F8 Command Center — Unresolved Objections panel styles. Carbon-token-based
 // replacements for the former Tailwind utility classes.
+@use '@carbon/colors';
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
@@ -61,6 +62,10 @@
   color: $text-secondary;
 }
 
+// T-12 (09-14): the empty-state ✓ glyph darkened to green-60 (#198038, 4.56:1 on
+// the gray-10 panel — AA) rather than $support-success (green-50, 3.05:1). It is
+// aria-hidden (decorative, paired with the "No open objections" text), but
+// darkening keeps the positive signal legible for sighted users at no cost.
 .check {
-  color: $support-success;
+  color: colors.$green-60;
 }

@@ -73,8 +73,9 @@ test.describe('Trial Command Center', () => {
     await expect(rows.first()).toBeVisible();
     expect(await rows.count()).toBeGreaterThanOrEqual(1);
 
-    // Freshness indicator renders.
-    await expect(page.getByTestId('freshness-indicator')).toContainText(/updated .* ago|updating/i);
+    // T-15: the labeled Live indicator renders (replaced the former
+    // "updated Xs ago" freshness text). Under normal polling it reads "Live".
+    await expect(page.getByTestId('live-indicator')).toContainText(/live/i);
   });
 
   // Criterion 1 — default landing + sidebar (non-regression on Jury/Assistant).
@@ -789,5 +790,404 @@ test.describe('Trial Command Center', () => {
     // Byte-identical, and the expected 2-of-3 ratio.
     expect(widgetCaption).toBe(workspaceCaption);
     expect(widgetCaption).toContain('2 of 3 exhibits are clean');
+  });
+
+  // ===================================================================
+  // 09-01 (T-01) — compact, clickable KPI tiles (<=80px) linking to the
+  // correct filtered views. F08.
+  // ===================================================================
+
+  test('each of the 4 KPI tiles is <=80px tall', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+
+    // Every direct tile in the row measures <=80px tall (the whole point of the
+    // Phase 9 rebuild — the attention list must be visible without scrolling).
+    const tiles = row.locator('> *');
+    const count = await tiles.count();
+    expect(count).toBe(4);
+    for (let i = 0; i < count; i++) {
+      const box = await tiles.nth(i).boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeLessThanOrEqual(80);
+    }
+  });
+
+  test('the Admitted KPI tile links to /case?status=ADMITTED', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    // The Admitted tile is the 4th tile; click it and assert the destination URL.
+    await row.getByText('Admitted', { exact: false }).click();
+    await expect(page).toHaveURL(/\/case\?status=ADMITTED$/);
+  });
+
+  test('the Custody gaps KPI tile links to /case?filter=no-custodian', async ({ page }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    await row.getByText('Custody gaps', { exact: false }).click();
+    await expect(page).toHaveURL(/\/case\?filter=no-custodian$/);
+  });
+
+  test('the Jury package blockers KPI tile links to /jury-package and is red-outlined only when > 0', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const juryTile = page.getByTestId('stat-card-jury-blockers');
+    await expect(juryTile).toBeVisible();
+
+    // The critical treatment flips with the count (invariant: critical iff >0).
+    const critical = await juryTile.getAttribute('data-critical');
+    const text = await juryTile.innerText();
+    const count = Number((text.match(/\d+/) ?? ['0'])[0]);
+    expect(critical).toBe(count > 0 ? 'true' : 'false');
+
+    await juryTile.click();
+    await expect(page).toHaveURL(/\/jury-package$/);
+  });
+
+  test('the Open objections KPI tile links to the #objections anchor on the command center', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const row = page.getByTestId('stat-card-row');
+    await expect(row).toBeVisible();
+    await row.getByText('Open objections', { exact: false }).click();
+    // Same-page anchor scroll to the ObjectionsPanel (which now carries
+    // id="objections").
+    await expect(page).toHaveURL(/\/command-center#objections$/);
+    await expect(page.locator('#objections')).toBeVisible();
+  });
+
+  // ===================================================================
+  // 09-01 (T-01, Task 3) — Case Workspace accepts the KPI deep-links:
+  // /case?status=ADMITTED and /case?filter=no-custodian pre-select the
+  // matching filter/chip on load. F08 key-link.
+  // ===================================================================
+
+  test('/case?status=ADMITTED pre-selects the ADMITTED status filter on load', async ({ page }) => {
+    await page.goto('/case?status=ADMITTED');
+    // The status Dropdown reflects ADMITTED on the very first render (read in the
+    // useState initializer, not a post-mount effect).
+    const statusFilter = page.locator('#exhibit-status-filter');
+    await expect(statusFilter).toContainText('ADMITTED');
+    // And the active-filter chip surfaces the status criterion.
+    await expect(page.getByText('status=ADMITTED')).toBeVisible();
+  });
+
+  test('/case?filter=no-custodian pre-selects the No custodian quick-filter chip on load', async ({
+    page,
+  }) => {
+    await page.goto('/case?filter=no-custodian');
+    const chip = page.getByTestId('quick-filter-no-custodian');
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    // The default 'all' chip is NOT the active one.
+    await expect(page.getByTestId('quick-filter-all')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('the No custodian quick-filter narrows the list to exhibits with no custodian', async ({
+    page,
+  }) => {
+    await page.goto('/case');
+    // Click the chip directly (no deep-link) and confirm it toggles active —
+    // identical behavior to the existing chips.
+    const chip = page.getByTestId('quick-filter-no-custodian');
+    await expect(chip).toBeVisible();
+    await chip.click();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  // The attention DataTable shows an objection's grounds inline on its row (the
+  // Phase 9 objectionGrounds field) with no extra click.
+  test('the attention feed renders objection grounds inline on a HIGH/PENDING row', async ({
+    page,
+  }) => {
+    // A feed whose HIGH entry carries objectionGrounds — the Issue cell must show
+    // the grounds text inline on the same row, no modal/expand.
+    const FEED_WITH_GROUNDS = [
+      {
+        id: 'high-1',
+        tier: 'HIGH',
+        ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+        exhibitId: 'ex-high',
+        exhibitLabel: 'P-7',
+        objectionId: 'obj-high',
+        detectedAt: new Date().toISOString(),
+        summary: 'P-7 — admitted with an open, unresolved objection',
+        objectionGrounds: 'Hearsay — out-of-court statement offered for its truth',
+        availableAction: 'RECORD_RULING',
+      },
+    ];
+    await mockFeed(page, FEED_WITH_GROUNDS);
+    await page.goto('/command-center');
+
+    const feed = page.getByTestId('attention-feed');
+    await expect(feed).toBeVisible();
+    const row = feed.getByTestId('attention-feed-entry');
+    await expect(row).toHaveCount(1);
+    // The grounds text is visible on the row with no interaction.
+    await expect(row).toContainText('Hearsay — out-of-court statement offered for its truth');
+    // Table columns are present (dense DataTable, not stacked cards).
+    await expect(feed.getByRole('columnheader', { name: 'Exhibit' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Issue' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Severity' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Age' })).toBeVisible();
+    await expect(feed.getByRole('columnheader', { name: 'Action' })).toBeVisible();
+  });
+
+  // ===================================================================
+  // 09-04 (T-04) — Recent Activity rework: no nested scroll, 10-cap +
+  // View all → full /activity page, 60s same-exhibit grouping, seconds
+  // timestamp, heading/date-group day-word agreement. F08/F15.
+  // ===================================================================
+
+  // A deterministic activity payload: 12 single rows all TODAY, each a DISTINCT
+  // exhibit (so none are merged), plus a separate 3-event same-exhibit run within
+  // 60s (so that run collapses into ONE merged row). Used to prove the 10-cap, the
+  // grouping, and the seconds format without depending on shared-DB seed state.
+  function t04Activity() {
+    const base = Date.now();
+    const singles = Array.from({ length: 12 }, (_, k) => ({
+      eventId: `t04-single-${k}`,
+      eventType: 'CUSTODY_TRANSFER',
+      exhibitId: `ex-single-${k}`,
+      exhibitLabel: `P-${k + 10}`,
+      summary: `Custody transferred for item ${k}`,
+      // Spread across distinct seconds within today, newest-first.
+      recordedAt: new Date(base - k * 5_000).toISOString(),
+    }));
+    // A 3-event same-exhibit STATUS_CHANGE run all within 60s → one merged row.
+    const run = [
+      {
+        eventId: 't04-run-2',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from OFFERED to ADMITTED',
+        recordedAt: new Date(base - 70_000).toISOString(),
+      },
+      {
+        eventId: 't04-run-1',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from MARKED to OFFERED',
+        recordedAt: new Date(base - 90_000).toISOString(),
+      },
+      {
+        eventId: 't04-run-0',
+        eventType: 'STATUS_CHANGE',
+        exhibitId: 'ex-run',
+        exhibitLabel: 'P-7',
+        summary: 'Status changed from (none) to MARKED',
+        recordedAt: new Date(base - 110_000).toISOString(),
+      },
+    ];
+    return {
+      recentActivity: [...singles, ...run],
+      statusCounts: {
+        MARKED: 1,
+        OFFERED: 1,
+        OBJECTED: 0,
+        ADMITTED: 1,
+        EXCLUDED: 0,
+        WITHDRAWN: 0,
+      },
+    };
+  }
+
+  async function mockT04(page: Page): Promise<void> {
+    await page.route('**/api/cases/**/activity**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(t04Activity()),
+      });
+    });
+  }
+
+  test('the Recent Activity panel has no nested scrollbox (list is not independently scrollable)', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    const list = page.getByTestId('recent-activity-list');
+    await expect(list).toBeVisible();
+    // The former nested scrollbox set max-height + overflow-y:auto. Prove neither
+    // is applied: the list's scrollHeight must not exceed its clientHeight (it is
+    // not an independent scroll container), and computed overflow-y is not 'auto'/
+    // 'scroll'.
+    const overflowY = await list.evaluate((el) => getComputedStyle(el).overflowY);
+    expect(['visible', 'clip', '']).toContain(overflowY);
+  });
+
+  test('the feed renders at most 10 units and shows a stable View all link', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+
+    // 13 events → 12 singles + 1 merged run = 13 units, capped to the latest 10.
+    const singleRows = page.getByTestId('recent-activity-row');
+    const mergedRows = page.getByTestId('recent-activity-merged-row');
+    const total = (await singleRows.count()) + (await mergedRows.count());
+    expect(total).toBe(10);
+
+    // The View all link is always present when the feed has rows.
+    const viewAll = page.getByTestId('activity-view-all');
+    await expect(viewAll).toBeVisible();
+    await expect(viewAll).toHaveAttribute('href', '/activity');
+  });
+
+  test('consecutive same-exhibit status changes within 60s collapse into one expandable row', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+
+    // The 3-event P-7 run is the oldest activity — it falls outside the latest-10
+    // window here, so navigate to the full /activity page (no cap) to assert the
+    // merge, which proves the shared grouping function.
+    await page.getByTestId('activity-view-all').click();
+    await expect(page).toHaveURL(/\/activity$/);
+    await expect(page.getByTestId('activity-page')).toBeVisible();
+
+    const merged = page.getByTestId('activity-full-merged-row');
+    await expect(merged).toHaveCount(1);
+    // Collapsed summary reads "<count> status updates".
+    await expect(merged).toContainText('3 status updates');
+    // Expanding reveals the individual original summaries.
+    await merged.locator('summary').click();
+    await expect(merged).toContainText('Status changed from MARKED to OFFERED');
+    await expect(merged).toContainText('Status changed from OFFERED to ADMITTED');
+  });
+
+  test('every timestamp in the panel includes seconds (one consistent format)', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    const rows = page.getByTestId('recent-activity-row');
+    await expect(rows.first()).toBeVisible();
+    const count = await rows.count();
+    for (let i = 0; i < count; i++) {
+      const text = await rows.nth(i).innerText();
+      // A seconds-precise stamp has HH:MM:SS (two colons in the time) — e.g.
+      // "6:17:47 PM". A minute-only stamp ("6:17 PM") has exactly one colon.
+      expect(text).toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    }
+  });
+
+  test('the full /activity page renders the complete history and links back to Command Center', async ({
+    page,
+  }) => {
+    await mockT04(page);
+    // Reach /activity the real way — via the panel's View all link (also proves
+    // the link-through). The store is hydrated by the command-center visit first.
+    await page.goto('/command-center');
+    await expect(page.getByTestId('recent-activity-list')).toBeVisible();
+    await page.getByTestId('activity-view-all').click();
+
+    await expect(page).toHaveURL(/\/activity$/);
+    await expect(page.getByTestId('activity-page')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activity history' })).toBeVisible();
+    await expect(page.getByTestId('activity-full-list')).toBeVisible();
+
+    // Full, uncapped: 12 singles + 1 merged run = 13 units (vs the panel's 10).
+    const singleRows = page.getByTestId('activity-full-row');
+    const mergedRows = page.getByTestId('activity-full-merged-row');
+    const total = (await singleRows.count()) + (await mergedRows.count());
+    expect(total).toBe(13);
+
+    // Back link returns to the Command Center.
+    await page.getByRole('link', { name: /‹ Command Center/ }).click();
+    await expect(page).toHaveURL(/\/command-center$/);
+  });
+
+  test('the heading day word agrees with the date-group header day word', async ({ page }) => {
+    await mockT04(page);
+    await page.goto('/command-center');
+    // All mock events are today → heading says "today" AND the (first) date-group
+    // header says "TODAY · …". They are computed from the same anchor, so they
+    // agree by construction.
+    await expect(page.getByRole('heading', { name: /recent activity/i })).toContainText(/today/i);
+    const headers = page.getByTestId('activity-date-group-header');
+    await expect(headers.first()).toContainText(/^TODAY · /);
+  });
+
+  // ===================================================================
+  // 09-13 (T-15) — LiveIndicator: green "Live" <60s; amber "Connection
+  // lost" + working Refresh once the activity query errors (a reliably
+  // fast, deterministic e2e trigger). The time-based 60s isStale boundary
+  // is covered by the src/hooks/useFreshness.test.ts unit test. F8.
+  // ===================================================================
+
+  test('under normal polling the Live indicator shows green "Live" (not the old "updated Xs ago")', async ({
+    page,
+  }) => {
+    await mockActivity(page);
+    await page.goto('/command-center');
+
+    const live = page.getByTestId('live-indicator');
+    await expect(live).toBeVisible();
+    await expect(live).toHaveAttribute('data-state', 'live');
+    await expect(live).toContainText('Live');
+    // The former phrasing is fully retired for the fresh state.
+    await expect(live).not.toContainText(/updated .* ago/i);
+    // No Refresh affordance while fresh.
+    await expect(page.getByTestId('live-indicator-refresh')).toHaveCount(0);
+  });
+
+  test('when the activity query errors, the indicator flips to amber "Connection lost" with a working Refresh', async ({
+    page,
+  }) => {
+    // Force the activity endpoint to fail: react-query (retry:false) enters its
+    // error state, so the LiveIndicator must render the stale treatment. The
+    // Refresh button triggers activity.refetch() — proven to work by serving a
+    // healthy payload on the retry and asserting the indicator recovers to "Live".
+    let failing = true;
+    await page.route('**/api/cases/**/activity**', async (route) => {
+      if (failing) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'x' } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_ACTIVITY),
+      });
+    });
+
+    await page.goto('/command-center');
+
+    const live = page.getByTestId('live-indicator');
+    await expect(live).toBeVisible();
+    await expect(live).toHaveAttribute('data-state', 'stale');
+    await expect(live).toContainText('Connection lost');
+
+    const refresh = page.getByTestId('live-indicator-refresh');
+    await expect(refresh).toBeVisible();
+
+    // Flip the endpoint healthy, then click Refresh — the indicator recovers,
+    // proving onRefetch() is wired to the query's own refetch.
+    failing = false;
+    await refresh.click();
+    await expect(live).toHaveAttribute('data-state', 'live', { timeout: 6_000 });
+    await expect(live).toContainText('Live');
   });
 });

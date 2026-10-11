@@ -262,7 +262,7 @@ test.describe('Exhibit Detail View', () => {
     await expect(card.getByTestId('objection-thread')).toHaveCount(0);
   });
 
-  test('Objection card: P-1 renders the unresolved thread; Record-ruling trigger is JUDGE-visible, DEPUTY-absent', async ({
+  test('T-05: Objection card is DETAILS-ONLY — renders the thread but carries NO Record-ruling control (de-duplicated against the banner)', async ({
     page,
     request,
   }) => {
@@ -271,113 +271,32 @@ test.describe('Exhibit Detail View', () => {
 
     const card = page.getByTestId('exhibit-objection-card');
     await expect(card).toBeVisible();
-    // P-1 has exactly one UNRESOLVED objection (DEFENSE).
+    // P-1 has exactly one UNRESOLVED objection (DEFENSE) — the details still show.
     const thread = card.getByTestId('objection-thread');
     await expect(thread).toHaveCount(1);
     await expect(thread).toContainText('DEFENSE');
+    // The informative "Only the judge can rule." caption is kept as context.
+    await expect(thread).toContainText('Only the judge can rule.');
 
-    // Default session role is JUDGE → the per-thread Record-ruling trigger shows,
-    // scoped to THIS thread's objectionId (never ambiguous).
-    const trigger = card.getByTestId('objection-record-ruling-trigger');
-    await expect(trigger).toBeVisible();
+    // T-05: the per-thread Record-ruling button that used to live on this card is
+    // GONE for every role — it was the duplicate entry point. Even as JUDGE (who
+    // CAN rule), the card never renders a ruling trigger; the single page-wide
+    // Record-ruling entry point lives on the discrepancy banner.
+    await expect(card.getByTestId('objection-record-ruling-trigger')).toHaveCount(0);
+    await expect(card.getByTestId('record-ruling-form')).toHaveCount(0);
 
-    // Switch to DEPUTY → the trigger is ABSENT (not merely disabled): a role that
-    // cannot rule never even sees the affordance (T-08-22, absent-not-disabled).
+    // Switching role changes nothing on this now-actionless card.
     await switchRole(page, 'DEPUTY');
     await expect(card.getByTestId('objection-record-ruling-trigger')).toHaveCount(0);
-    // The thread itself still renders — only the action is gated away.
     await expect(card.getByTestId('objection-thread')).toHaveCount(1);
   });
 
-  test('Objection card: a JUDGE ruling resolves the thread → card flips to "No open objections" on refetch', async ({
-    page,
-    request,
-  }) => {
-    // Mutating real P-1 state would be non-deterministic against the shared,
-    // continuously-reseeded demo case, so this drives the UI contract with mocks
-    // (the suite's established page.route technique): the history GET reports one
-    // UNRESOLVED thread until the ruling POST fires, then flips to zero.
-    const caseId = await getCaseId(request);
-    const { exhibitId } = await getExhibitRow(request, 'P-1');
-    const OBJECTION_ID = 'obj-08-13-e2e';
-    let ruled = false;
-
-    const historyBody = () => ({
-      exhibit: {
-        id: exhibitId,
-        caseId,
-        exhibitLabel: 'P-1',
-        description: 'Objection-ruling e2e exhibit',
-        offeringParty: 'PROSECUTION',
-        associatedWitness: null,
-        isSealed: false,
-      },
-      currentStatus: 'OBJECTED',
-      currentCustodianName: null,
-      discrepancyFlags: [],
-      timeline: [],
-      objections: ruled
-        ? []
-        : [
-            {
-              objectionId: OBJECTION_ID,
-              exhibitId,
-              status: 'UNRESOLVED',
-              objectingParty: 'DEFENSE',
-              grounds: 'Foundation not established',
-              raisedEventId: 'evt-raise',
-              raisedAt: new Date().toISOString(),
-              rulingEventId: null,
-              ruledAt: null,
-            },
-          ],
-      custodyCard: { current: null, pendingTransfer: null, history: [] },
-      juryPackageChecklist: {
-        admitted: false,
-        objectionsResolved: ruled,
-        custodianOnRecord: false,
-        classificationTrial: true,
-        eligibility: 'NOT_ELIGIBLE',
-      },
-    });
-
-    await page.route('**/api/exhibits/**/history', async (route) => {
-      if (route.request().method() !== 'GET') return route.continue();
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(historyBody()),
-      });
-    });
-
-    await page.route('**/api/objections/*/ruling', async (route) => {
-      ruled = true;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ok: true }),
-      });
-    });
-
-    await page.goto(`/exhibit/${exhibitId}`);
-    const card = page.getByTestId('exhibit-objection-card');
-    await expect(card.getByTestId('objection-thread')).toHaveCount(1);
-
-    // Open the per-thread ruling form, pick a disposition, confirm. Carbon's
-    // RadioButton overlays a decorative <span> on the native <input>, which
-    // intercepts a plain click — check({ force: true }) targets the input directly.
-    await card.getByTestId('objection-record-ruling-trigger').click();
-    await page.getByLabel('Sustained').check({ force: true });
-    await Promise.all([
-      page.waitForResponse(
-        (r) => r.url().includes('/ruling') && r.request().method() === 'POST',
-      ),
-      page.getByTestId('record-ruling-confirm').click(),
-    ]);
-
-    // On the next poll the thread is gone and the card shows the empty state.
-    await expect(card.getByTestId('objection-card-empty')).toBeVisible({ timeout: 10000 });
-  });
+  // T-05: the former "a JUDGE ruling via the Objection card resolves the thread"
+  // test was removed with the card's duplicate Record-ruling control. The
+  // equivalent ruling-resolves-the-thread flow is now exercised via the SINGLE
+  // remaining entry point — the discrepancy banner's Record-ruling button — in the
+  // "live P-7: recording a ruling as JUDGE resolves the thread and the alert
+  // banner disappears" test (header-redesign block) and the T-05 block below.
 
   test('Custody card: "No custodian of record" for the custody-less P-2', async ({
     page,
@@ -968,5 +887,185 @@ test.describe('Exhibit Detail header redesign (F10/F24)', () => {
 
     // Either way, the end state is: no alert banner for a resolved P-7.
     await expect(page.getByTestId('exhibit-alert-banner')).toHaveCount(0);
+  });
+});
+
+// Phase 9 (T-05): discrepancy action buttons. The banner's Record-ruling and
+// Acknowledge triggers are now real Carbon Buttons (primary / tertiary), and the
+// Objection card's duplicate Record-ruling control is removed so there is EXACTLY
+// ONE Record-ruling entry point on the entire page. Acknowledge still requires a
+// written justification before it is accepted, and the acknowledgment is recorded
+// with the acting user + timestamp. Driven via page.route mocks (the suite's
+// established technique) for determinism against the continuously-reseeded seed.
+test.describe('T-05: discrepancy action buttons (F24)', () => {
+  test('exactly ONE Record-ruling trigger exists page-wide, and it is a real Carbon primary <button>', async ({
+    page,
+    request,
+  }) => {
+    const caseId = await getCaseId(request);
+    const { exhibitId } = await getExhibitRow(request, 'P-4');
+    // The unresolved-objection-while-admitted condition (P-7 scenario): the banner
+    // escalates and renders its Record-ruling button. The ObjectionCard also
+    // renders the same unresolved thread — but, post-T-05, with NO ruling control.
+    await mockHistory(page, {
+      exhibitId,
+      caseId,
+      label: 'P-7',
+      status: 'ADMITTED',
+      flags: [
+        {
+          ruleCode: 'UNRESOLVED_OBJECTION_JURY_ELIGIBLE',
+          status: 'OPEN',
+          label: 'Unresolved objection',
+        },
+      ],
+      objections: [{ objectionId: 'obj-t05-1', status: 'UNRESOLVED' }],
+    });
+    await page.goto(`/exhibit/${exhibitId}`);
+
+    // Default session role is JUDGE — the single banner Record-ruling trigger is
+    // present. Assert there is EXACTLY ONE such trigger anywhere on the page
+    // (proving the ObjectionCard duplicate is gone — no second entry point).
+    const triggers = page.getByTestId('exhibit-record-ruling-trigger');
+    await expect(triggers).toHaveCount(1);
+
+    // It is a real <button> carrying Carbon's primary button class — visually and
+    // semantically identical to every other primary action button in the app
+    // (not a plain underlined text link, the accidental-click risk T-05 names).
+    const trigger = triggers.first();
+    await expect(trigger).toBeVisible();
+    const tagName = await trigger.evaluate((el) => el.tagName.toLowerCase());
+    expect(tagName).toBe('button');
+    await expect(trigger).toHaveClass(/cds--btn--primary/);
+
+    // The objection-card's old per-thread trigger exists nowhere on the page.
+    await expect(page.getByTestId('objection-record-ruling-trigger')).toHaveCount(0);
+  });
+
+  test('Acknowledge is a real Carbon button; Confirm is disabled until a justification is written, and the record shows who + when', async ({
+    page,
+    request,
+  }) => {
+    const caseId = await getCaseId(request);
+    const caseRes = await request.get('/api/case');
+    const { users } = await caseRes.json();
+    // Default session role is JUDGE (an acknowledging role); use a real JUDGE user
+    // id so the client-side name/role resolution off the roster succeeds.
+    const judge = users.find((u: { role: string }) => u.role === 'JUDGE');
+    expect(judge).toBeTruthy();
+
+    const { exhibitId } = await getExhibitRow(request, 'P-4');
+    const RULE = 'ADMITTED_NO_CUSTODIAN';
+    const FLAG_ID = 'flag-t05-e2e';
+    const JUSTIFICATION = 'Custodian to be assigned at the afternoon recess';
+    let acked = false;
+
+    await page.route('**/api/exhibits/**/history', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          exhibit: {
+            id: exhibitId,
+            caseId,
+            exhibitLabel: 'P-4',
+            description: 'T-05 acknowledge test exhibit',
+            offeringParty: 'PROSECUTION',
+            associatedWitness: null,
+            isSealed: false,
+          },
+          currentStatus: 'ADMITTED',
+          currentCustodianName: null,
+          discrepancyFlags: [
+            {
+              ruleCode: RULE,
+              status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+              label: 'Admitted without a custodian on record',
+            },
+          ],
+          timeline: [],
+          objections: [],
+          custodyCard: { current: null, pendingTransfer: null, history: [] },
+          juryPackageChecklist: {
+            admitted: true,
+            objectionsResolved: true,
+            custodianOnRecord: false,
+            classificationTrial: true,
+            eligibility: 'NOT_ELIGIBLE',
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/cases/**/discrepancies', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: FLAG_ID,
+            caseId,
+            exhibitId,
+            ruleCode: RULE,
+            status: acked ? 'ACKNOWLEDGED' : 'OPEN',
+            detectedAt: new Date().toISOString(),
+            details: {},
+            acknowledgedAt: acked ? new Date().toISOString() : null,
+            acknowledgedBy: acked ? judge.id : null,
+            resolvedAt: null,
+            justification: acked ? JUSTIFICATION : undefined,
+          },
+        ]),
+      });
+    });
+
+    await page.route('**/api/discrepancies/*/acknowledge', async (route) => {
+      acked = true;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      });
+    });
+
+    await page.goto(`/exhibit/${exhibitId}`);
+
+    // The Acknowledge trigger is a real Carbon <button> (tertiary), not a text link.
+    const ackTrigger = page.getByTestId('exhibit-acknowledge-trigger').first();
+    await expect(ackTrigger).toBeVisible();
+    expect(await ackTrigger.evaluate((el) => el.tagName.toLowerCase())).toBe('button');
+    await expect(ackTrigger).toHaveClass(/cds--btn--tertiary/);
+
+    // Open the inline justification form.
+    await ackTrigger.click();
+    const textarea = page.getByTestId('acknowledge-textarea').first();
+    await expect(textarea).toBeVisible();
+
+    // Acknowledge REQUIRES a written justification: Confirm is disabled while the
+    // field is empty and enables only once non-whitespace text is entered.
+    const confirm = page.getByTestId('acknowledge-confirm').first();
+    await expect(confirm).toBeDisabled();
+    await textarea.fill('   '); // whitespace alone does not satisfy the gate
+    await expect(confirm).toBeDisabled();
+    await textarea.fill(JUSTIFICATION);
+    await expect(confirm).toBeEnabled();
+
+    // Submit the acknowledgment.
+    await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes('/acknowledge') && r.request().method() === 'POST',
+      ),
+      confirm.click(),
+    ]);
+
+    // AFTER: the acknowledgment record renders inline with the acting user's name
+    // and a timestamp — an acknowledged discrepancy shows who acknowledged it and
+    // when (history/audit record).
+    const record = page.getByTestId('discrepancy-ack-record');
+    await expect(record).toBeVisible({ timeout: 10000 });
+    await expect(record).toContainText(judge.name);
+    await expect(record).toContainText(JUSTIFICATION);
   });
 });

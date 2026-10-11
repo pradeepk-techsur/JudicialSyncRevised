@@ -243,6 +243,7 @@ export async function runSeed(): Promise<{ caseId: string; exhibitCount: number 
         offeringParty,
         associatedWitness,
         isSealed: options?.isSealed ?? false,
+        actorUserId: deputy,
       });
       return ex.id;
     };

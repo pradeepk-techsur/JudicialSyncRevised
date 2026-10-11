@@ -113,6 +113,129 @@ export async function computeJuryCandidates(
   }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// F25 — Jury Package Readiness Preview (read-only, zero writes).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One preview-blocker code (F25). Each maps 1:1 to an EXISTING F5/F6/F13
+ *  eligibility condition — no new rule is invented here. */
+export type ReadinessBlockerCode = 'UNRESOLVED_OBJECTION' | 'NO_CUSTODIAN' | 'SEALED_EXPARTE';
+
+/** One row of the readiness preview: an admitted, role-visible exhibit and
+ *  whether it is ready for the jury package (zero blockers) or — if not — every
+ *  blocker that currently applies to it (all of them, never short-circuited). */
+export interface JuryPackageReadinessRow {
+  exhibitId: string;
+  exhibitLabel: string;
+  ready: boolean;
+  blockers: Array<{ code: ReadinessBlockerCode; detail: string }>;
+}
+
+export interface JuryPackageReadinessPreview {
+  preview: JuryPackageReadinessRow[];
+  summary: { totalAdmitted: number; readyCount: number; blockedCount: number };
+}
+
+/**
+ * F25 — compute the read-only readiness preview for a case's ADMITTED exhibits.
+ *
+ * This function performs NO write under ANY circumstance: no JuryPackage or
+ * JuryPackageExhibit row is ever created, updated, or even read for computation.
+ * It derives readiness directly from Exhibit / ExhibitCurrentState /
+ * ObjectionCurrentState / CustodyCurrentState, so it is accurate even when no
+ * package has ever been started (the F11 empty-state use case).
+ *
+ * It has NO role gate of its own — unlike initiateJuryPackage/finalizeJuryPackage
+ * (which call assertJuryWriteRole), every role gets a 200 here (F25 §Validation).
+ * `requestingUserRole` applies ONLY standard sealed-exhibit visibility masking.
+ *
+ * SEALED/EX-PARTE SUBSTITUTE: F25's FRD phrases the SEALED_EXPARTE blocker as
+ * `classification != 'TRIAL'`, but that column does not exist (F16 is deferred to
+ * Phase 7.1 scope, per 09-CONTEXT). We substitute `exhibit.isSealed` as the
+ * predicate — the EXACT same substitution attentionFeed.ts's CRITICAL tier and
+ * loadJuryEligibilityByExhibit (09-06) already make.
+ *
+ * ANTI-ENUMERATION (threat T-09-14): a sealed exhibit the requesting role cannot
+ * see at all is OMITTED entirely from the list via the same canViewSealed-gated
+ * WHERE predicate every other role-scoped read uses — never shown as a
+ * masked/blocked placeholder row (the 404-masking principle in visibility.ts).
+ *
+ * The blocker conditions are the IDENTICAL projections evaluateDiscrepancies'
+ * rule registry checks (src/services/discrepancies.ts RULES / ProjectionSnapshot):
+ * `hasCustody` (CustodyCurrentState presence) and `unresolvedObjectionCount`
+ * (ObjectionCurrentState UNRESOLVED count) — not new conditions invented here.
+ */
+export async function getJuryPackageReadinessPreview(
+  caseId: string,
+  requestingUserRole: Role,
+): Promise<JuryPackageReadinessPreview> {
+  // 1. Every ADMITTED exhibit in the case, sealed-masked for this role. A sealed
+  //    exhibit the role cannot see is excluded at the query level (NOT shown as a
+  //    blocked row) — matching discrepancies.ts / getExhibits' predicate exactly.
+  const admitted = await prisma.exhibitCurrentState.findMany({
+    where: {
+      currentStatus: 'ADMITTED',
+      exhibit: {
+        caseId,
+        ...(canViewSealed(requestingUserRole) ? {} : { isSealed: false }),
+      },
+    },
+    select: {
+      exhibit: { select: { id: true, exhibitLabel: true, isSealed: true } },
+    },
+    orderBy: { exhibit: { exhibitLabel: 'asc' } },
+  });
+
+  const preview: JuryPackageReadinessRow[] = [];
+
+  for (const row of admitted) {
+    const { id: exhibitId, exhibitLabel, isSealed } = row.exhibit;
+
+    // 2. Reuse the IDENTICAL underlying conditions evaluateDiscrepancies checks:
+    //    custody presence + unresolved objection count. `isSealed` is already in
+    //    hand from step 1's query.
+    const [custody, unresolvedObjectionCount] = await Promise.all([
+      prisma.custodyCurrentState.findUnique({
+        where: { exhibitId },
+        select: { exhibitId: true },
+      }),
+      prisma.objectionCurrentState.count({
+        where: { exhibitId, status: 'UNRESOLVED' },
+      }),
+    ]);
+
+    // 3. Every applicable blocker — check ALL, never short-circuit on the first.
+    const blockers: Array<{ code: ReadinessBlockerCode; detail: string }> = [];
+    if (isSealed) {
+      blockers.push({
+        code: 'SEALED_EXPARTE',
+        detail: 'Sealed/ex parte material cannot be included in a jury package',
+      });
+    }
+    if (custody === null) {
+      blockers.push({ code: 'NO_CUSTODIAN', detail: 'No custodian of record' });
+    }
+    if (unresolvedObjectionCount > 0) {
+      blockers.push({
+        code: 'UNRESOLVED_OBJECTION',
+        detail: 'An objection on this exhibit is still unresolved',
+      });
+    }
+
+    preview.push({ exhibitId, exhibitLabel, ready: blockers.length === 0, blockers });
+  }
+
+  // 4. Summary counts over the role-visible set. No pagination (F25 §Process 5).
+  return {
+    preview,
+    summary: {
+      totalAdmitted: preview.length,
+      readyCount: preview.filter((p) => p.ready).length,
+      blockedCount: preview.filter((p) => !p.ready).length,
+    },
+  };
+}
+
 /**
  * Build the live discrepancy projection for one exhibit: its fresh
  * OPEN+ACKNOWLEDGED flags mapped to DiscrepancyFlagSummary[], plus the

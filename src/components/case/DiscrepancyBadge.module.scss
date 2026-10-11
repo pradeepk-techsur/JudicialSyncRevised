@@ -1,4 +1,5 @@
 @use '@carbon/colors';
+@use '@carbon/styles/scss/type' as *;
 
 // Warning-styled Carbon Tag for discrepancy flags. Carbon ships no literal
 // "amber/warning" Tag `type`, so — exactly as Carbon's own "Status indicators"
@@ -79,8 +80,8 @@
     overflow: visible;
     clip: auto;
     white-space: normal;
-    font-size: 0.625rem;
-    font-weight: 400;
-    line-height: 1.1;
+    // Carbon label-01 token (12px / 16px) replaces the raw 0.625rem / 1.1 detail
+    // sentence, putting this flag caption on the real type scale.
+    @include type-style('label-01');
   }
 }
