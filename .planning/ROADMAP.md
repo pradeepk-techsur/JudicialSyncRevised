@@ -252,5 +252,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 7.1 �
 | 7. Fix admission integrity and UI usability issues | 7/7 | Complete | — |
 | 7.1. Exhibit classification, state-machine hardening, custody handoff, server-side RBAC, and jury-package versioning/export (INSERTED) | 0/TBD | Not planned | — |
 | 8. UI Redesign and Write-Action Coverage | 15/15 | Complete | 2026-10-10 |
-| 9. UI tickets and typography standard | 0/TBD | In progress | — |
-**Status**: In progress
+| 9. UI tickets and typography standard | 0/TBD | Verified | — |
+**Status**: Verified
