@@ -1,134 +1,101 @@
 ---
 phase: 09-ui-tickets-and-typography-standard
-verified: 2026-10-10T22:40:19Z
+verified: 2026-10-11T00:01:10Z
 status: passed
-score: 4/4 must-haves verified (gap-closure round; 7/7 original success criteria stand per prior 09-VERIFICATION.md)
+score: 1/1 must-have verified (surgical gap-closure round; 7/7 original success criteria + prior 4 gap-closure items stand per prior 09-VERIFICATION.md, unaffected by this 2-file diff)
 re_verification:
-  previous_status: passed (initial), with 1 CONFIRMED HIGH security finding (F-09-01) and 3 UAT issues surfaced by a LATER UAT/security pass against the same codebase
-  previous_score: 7/7 success criteria (initial VERIFICATION.md) — gaps found afterward by 09-SECURITY.md (1 HIGH) and 09-UAT.md (3 issues: UAT-6, UAT-9, UAT-16)
+  previous_status: passed (prior round, 2026-10-10T22:40:19Z) — but 09-UAT.md's test 6 was subsequently RE-OPENED when the user re-reported the same defect against 09-19's own fix, which this round closes
+  previous_score: 4/4 gap-closure items verified in prior round (F-09-01, UAT-6 1st pass, UAT-9, UAT-16)
   gaps_closed:
-    - "F-09-01: POST /api/exhibits had zero server-side role enforcement — any role, or no role header, could create an exhibit"
-    - "UAT-6: Case Workspace exhibit table rows visually broken (Description column collapsed, Flags pill overflow into Jury Package column)"
-    - "UAT-9: ActiveRoleBanner's 'Active role: X' text hidden behind the fixed sidebar after a role switch"
-    - "UAT-16: Visible 'Demo role:' label not dropped and role-switcher dropdown not left-aligned with the page title"
+    - "UAT-6 (re-test): 09-19's chevron/description column-width fix used a dead descendant-combinator CSS selector (`.table :global(.cds--data-table) th:last-of-type.colChevron`, with a space) that could never match because Carbon's <Table> places both classes on the SAME <table> element, not nested — so Carbon's own `th:last-of-type { inline-size: auto }` kept winning, squeezing Description to the same ~152px as the chevron column and forcing visible 2-line wrapping that read as 'columns not in one row'. 09-21 converts it to a compound selector (no space), restoring the correct 2rem/272px split."
   gaps_remaining: []
   regressions: []
 ---
 
-# Phase 9: UI Tickets and Typography Standard — Gap-Closure Verification Report
+# Phase 9: UI Tickets and Typography Standard — Gap-Closure Verification Report (09-21, UAT-6 re-test)
 
 **Phase Goal:** The 16 tickets from the external UI/UX review of the develop build are each resolved as their own small, acceptance-criteria-verifiable change — the Command Center's ranked attention list is visible without scrolling and fed by a real 4-tier severity scale; every screen reads status/severity color from one shared token source; Recent Activity and the Case Workspace table read correctly and are properly labeled; discrepancy actions (Record ruling, Acknowledge) are safe, singular, and accountable; navigation and the demo role switcher are unambiguous; the Jury Package empty state guides the user and offers a read-only readiness preview to every role; the Assistant page is context-aware and removes the stray API-key control; and IBM Plex Sans/Mono actually load (verified via `document.fonts`) with every text element on a real Carbon type token — all without introducing a second styling system, a new dependency, or any data-model/API/role-permission change the tickets didn't explicitly call for.
 
-**Verified:** 2026-10-10T22:40:19Z
+**Verified:** 2026-10-11T00:01:10Z
 **Status:** passed
-**Re-verification:** Yes — gap-closure round covering 3 new plans (09-18, 09-19, 09-20) that close the 1 security finding + 3 UAT issues surfaced after the original 17-plan (09-01..09-17) implementation was initially verified 7/7 on 2026-10-10T20:06:50Z.
+**Re-verification:** Yes — this is a `--gaps-only` verification run of plan 09-21, a single surgical gap-closure plan for 09-UAT.md's one remaining open gap (test 6). Plans 01-20 (including the prior 3 gap-closure plans 18/19/20) were already executed, reviewed, and verified in prior sessions; the prior 09-VERIFICATION.md (2026-10-10T22:40:19Z) is not re-litigated here except where this round's own evidence intersects it.
 
 ## Context: What This Round Verifies
 
-The original 09-VERIFICATION.md (2026-10-10T20:06:50Z) confirmed all 7 success criteria 7/7 against plans 09-01 through 09-17. A subsequent UAT pass (09-UAT.md) and security audit (09-SECURITY.md) — run against that same implementation — surfaced 4 concrete gaps:
+09-19 (prior gap-closure round) attempted to fix UAT-6 (Case Workspace exhibit table columns rendering broken/not-in-one-row at 1440px) with a CSS selector intended to pin the trailing chevron column to a fixed 2rem width so Description could absorb the table's true remainder width. The user re-tested and re-reported the identical symptom ("columns should show up in one row"), reopening UAT-6 in 09-UAT.md's `## Gaps` section.
 
-1. **F-09-01 (HIGH, security)** — `POST /api/exhibits` → `createExhibit` had zero role enforcement; any role (or none) could create an exhibit, contradicting FRD F20 row 1 and the Phase-9 threat register's own (disproven) `accept` rationale.
-2. **UAT-6 (major)** — Case Workspace exhibit table rows rendered broken at 1440px (Description column collapsed to Label's width; Flags pills overflowed into the Jury Package column).
-3. **UAT-9 (major)** — After a role switch, the "Active role: X — switch back" banner's label text was hidden under the fixed sidebar.
-4. **UAT-16 (minor)** — User asked to drop the visible "Demo role:" label and left-align the role-switcher dropdown with the page title.
+09-21 root-caused the reopened defect independently (not by trusting 09-19's narrative): 09-19's selector used a **descendant combinator** (`.table :global(.cds--data-table) th:last-of-type.colChevron`, with a space), which can only match a `.cds--data-table` element *nested inside* a `.table` element. But Carbon's `<Table>` component places both classes on the exact same `<table>` DOM node (confirmed via `classnames` composition in `@carbon/react`'s own source and via live `element.className`/`element.matches()` checks), so the selector was dead code from the moment it was written — Carbon's own competing `.cds--data-table th:last-of-type { inline-size: auto }` rule kept winning unopposed. 09-21's fix is a one-character change: removing the space to form a **compound selector** (`.table:global(.cds--data-table) th:last-of-type.colChevron`), which targets both classes on the one real element and wins the specificity fight.
 
-Three new gap-closure plans (09-18, 09-19, 09-20) were executed to close exactly these 4 items. This report verifies those 3 plans' must-haves against the actual codebase, re-drives the exact failure conditions live, and confirms no regression in the 17 previously-verified plans.
+This verification round independently re-confirms that fix against the actual codebase and a live running instance, and confirms the fix did not regress the phase's broader goal (per gate evidence, since this was a strictly 2-file diff).
 
 ## Gate Evidence (cited, not re-litigated)
 
-Per `09-GATE.md` (`last_updated: 2026-10-10T22:31:40Z`) and `09-REVIEW.md` (`iteration: 1`, `reviewed_at: 2026-10-10T22:23:48Z`):
+Per `09-GATE.md` (final entries, this session) and `09-REVIEW.md` (`iteration: 1`, `reviewed_at: 2026-10-10T23:55:00Z`):
 
-- `gate_status: passed` — line 981: `build_exit=0 test_exit=0 ... test_files=52 skip_marks=5 shadow_files=0`.
-- `boot_smoke: pass`.
-- `review_blockers_open: 0`, `warnings: 0` — code review iteration 1 clean across all 16 files touched by 09-18/09-19/09-20.
-- `shadowed_sources: 0`.
-- Build: `npm run build` exit 0.
-- Tests: final gate run `293 passed | 3 skipped (296)` / `290 passed | 3 skipped (293)` across repeated windows — consistent with the 42-test-file / 293-test figure cited in the task prompt.
+- `gate_status: passed` (frontmatter, line 3).
+- `boot_smoke: pass` (frontmatter, line 10) — all 4 gates: port bound, HTTP 200/307 non-5xx, no fatal log markers, schema populated (14 relations / 11 non-empty tables), data-backed endpoints `/api/case`, `/api/cases/:id/exhibits`, `/api/cases/:id/attention-feed` all returned 200.
+- `review_blockers_open: 0` (frontmatter, line 9) — 09-REVIEW.md iteration 1: `blockers: 0`, `warnings: 0`, 2 files reviewed (`ExhibitTable.module.scss`, `e2e/case-workspace.spec.ts`).
+- Backend pre-push gate (final window, this session): `__GATE__ build_exit=0 test_exit=0 ... test_files=52 skip_marks=5 shadow_files=0`; `293 passed | 3 skipped (296)`.
+- Wave-level build/test gates across the whole phase session: consistently `build: pass`, `test: pass`, `0/3 fix attempts` — no regression introduced at any point.
 
-These gate verdicts are cited as authoritative for build/boot/test/review. This report adds independent goal-backward artifact + wiring + **live behavioral re-drive** on top — not a re-read of the gate's own claims.
+These gate verdicts are cited as authoritative for build/boot/test/review. This report adds independent re-derivation of the specific claim (the CSS fix actually works) on top — not a re-read of the gate's own claims.
 
 ## Goal Achievement
 
-### Observable Truths (the 4 gap-closure must-haves)
+### Observable Truths
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | `POST /api/exhibits` rejects any non-DEPUTY/CLERK/ADMIN actor (or missing actor) with 403/422; DEPUTY/CLERK/ADMIN still succeeds | ✓ VERIFIED | **Independently re-driven live** (not just cited): ATTORNEY actorUserId → `403 {"error":{"code":"ROLE_NOT_PERMITTED",...}}`; missing actorUserId → `422 {"error":{"code":"VALIDATION_ERROR","message":"actorUserId Required"}}`; DEPUTY actorUserId → `201 Created`, real exhibit row returned. Code read confirms `EXHIBIT_CREATE_ROLES = new Set(['DEPUTY','CLERK','ADMIN'])` check sits strictly after zod validation and strictly before `prisma.exhibit.create` (exhibits.ts:47-100). `exhibits.test.ts` run live: 33/33 passing. |
-| 2 | Case Workspace exhibit table rows render with zero cell-to-cell visual overlap at 1440px (Description absorbs remainder; Flags pill never overflows into Jury Package column) | ✓ VERIFIED | Code read confirms the exact two fixes from 09-19-PLAN.md present in `ExhibitTable.module.scss`: compound selector `.table :global(.cds--data-table) th:last-of-type.colChevron, .table :global(.cds--data-table) td:last-of-type.chevronCell { inline-size: 2rem; width: 2rem; }` (lines 169-172) and `.colFlags { width: 13rem; }`. **Independently re-run live**: `npx playwright test e2e/case-workspace.spec.ts` → the new UAT-6 overlap-regression test (`exhibit table rows render with zero cell-to-cell visual overlap...`) **PASSED**; 19/20 total, the 1 failure is the pre-existing 09-07 witness-filter flake (`Showing N of M`), independently confirmed unrelated: reproduced-as-already-failing before 09-19's changes, documented in `deferred-items.md` lines 55-62 and both 09-19-SUMMARY.md and 09-REVIEW.md. |
-| 3 | After a role switch, the "Active role: X" banner text is fully visible, not obscured by the sidebar; "Switch back" remains clickable | ✓ VERIFIED | Code read confirms `ActiveRoleBanner.module.scss`'s `.banner` now has `padding-inline-start: 16rem` matching the documented sidebar rail-width constant. **Independently re-run live**: `npx playwright test e2e/app-shell.spec.ts` → `the active-role banner text is NOT obscured by the sidebar after a role switch (UAT-9 gap closure)` **PASSED**; full suite 14/14 passing, 0 regressions. |
-| 4 | The visible "Demo role:" label is removed (control remains accessible via unchanged aria-label); the role-switcher's left edge aligns with the page title's left edge | ✓ VERIFIED | Code read confirms `Header.tsx`'s `<Select>` now has `hideLabel` + `className={styles.roleSwitcherWrap}` while `aria-label="Switch active role"` and `id="role-switcher"` are unchanged; `Header.module.scss` pins `.roleSwitcherWrap { inset-inline-start: 17.5rem; }`. **Independently re-run live**: `npx playwright test e2e/app-shell.spec.ts` → `the role switcher has no visible "Demo role" label and left-aligns with the page title (UAT-16 gap closure)` **PASSED** (part of the same 14/14 run). |
+| 1 | On the Case Workspace exhibit table at 1440px, the trailing chevron column is pinned to its intended 2rem (32px) width and the Description column absorbs its true remainder (>200px), so all columns render in one row with zero cell-to-cell visual overlap — closing UAT-6's re-opened "columns not in one row" defect | ✓ VERIFIED | **Source read directly** (not trusted from SUMMARY/UAT.md): `src/components/case/ExhibitTable.module.scss` lines 184-188 contain the compound selector `.table:global(.cds--data-table) th:last-of-type.colChevron, .table:global(.cds--data-table) td:last-of-type.chevronCell { inline-size: 2rem; width: 2rem; }` — confirmed **no space** between `.table` and `:global(...)`, i.e. a genuine compound selector, not the prior dead descendant-combinator form. **Independently re-run live by this verifier** (not copied from SUMMARY/REVIEW output): `npx playwright test e2e/case-workspace.spec.ts -g "UAT-6" --workers=1` against the running Docker app (`project-app-1`, up) → **1 passed** (587ms). **Independently measured live by this verifier** via a standalone Playwright script against `http://localhost:3000/case` at 1440×900 (not copied from any prior report): chevron header boundingBox width = **32px** exactly; Description header boundingBox width = **272px** — both match 09-21-SUMMARY.md's claimed values exactly, confirming this is a live-reproducible fact, not a report-only claim. `git status --short` on the two touched files shows no uncommitted drift from the reviewed/gated commits (778901f, 6cdc489), confirmed present in `git log`. |
 
-**Score:** 4/4 gap-closure truths verified. Combined with the prior round's 7/7 original success criteria (unaffected — these plans are additive/corrective, no success-criterion artifact was reverted), the phase's full 7 success criteria remain satisfied.
+**Score:** 1/1 truth verified (the sole truth in scope for this `--gaps-only` run).
 
-### Required Artifacts (gap-closure plans)
+### Required Artifacts
 
-| Artifact | Expected (per plan) | Status | Details |
-|----------|---------------------|--------|---------|
-| `src/services/exhibits.ts` | `RoleNotPermittedError` import + `EXHIBIT_CREATE_ROLES` gate before `prisma.exhibit.create` | ✓ VERIFIED | Exact code match to plan prescription; `RoleNotPermittedError` imported (line 8), gate at lines 88-97, placed strictly between zod validation and the write |
-| `src/app/api/exhibits/route.ts` | No manual change needed (generic pass-through already forwards `actorUserId`) | ✓ VERIFIED | Unchanged thin wrapper confirmed — `createExhibit(body as Parameters<typeof createExhibit>[0])` already forwards the full body, as the plan predicted no route change was needed |
-| `src/components/case/ExhibitTable.module.scss` | Compound `th:last-of-type.colChevron`/`td:last-of-type.chevronCell` selector + `.colFlags: 13rem` | ✓ VERIFIED | Both present verbatim at lines 43 (`.colFlags`), 169-172 (compound selector) |
-| `src/components/shell/ActiveRoleBanner.module.scss` | `.banner { padding-inline-start: 16rem; }` | ✓ VERIFIED | Present exactly as specified, with the sidebar-rail-width-matching comment block intact |
-| `src/components/shell/Header.tsx` + new `Header.module.scss` | `hideLabel` + `className={styles.roleSwitcherWrap}` on Select; `.roleSwitcherWrap { inset-inline-start: 17.5rem; }` | ✓ VERIFIED | Both present; `aria-label`, `id="role-switcher"`, `value`/`onChange` all unchanged per plan's "do NOT touch" constraint |
-| `src/data/seed.ts` + 8 test files | Every pre-existing `createExhibit(` call site supplies a DEPUTY/CLERK/ADMIN `actorUserId` | ✓ VERIFIED | `exhibits.test.ts` (33 tests) run live, all passing — confirms no caller broke; 09-REVIEW.md independently grepped all 31 call sites and confirmed role-appropriate actors |
-| `e2e/case-workspace.spec.ts` new test | Zero cell-to-cell overlap regression test | ✓ VERIFIED | Present at line 171 of the spec file, passing live |
-| `e2e/app-shell.spec.ts` new tests (×2) | UAT-9 obscured-banner + UAT-16 label/alignment regression tests | ✓ VERIFIED | Present at lines 240 and 271 of the spec file, both passing live |
+| Artifact | Expected | Status | Details |
+|----------|----------|--------|---------|
+| `src/components/case/ExhibitTable.module.scss` | Compound (non-descendant) selector compounding `.table` with `:global(.cds--data-table)` to pin chevron/chevronCell to 2rem | ✓ VERIFIED | Read in full (196 lines). Lines 184-188 contain the exact compound selector with an explanatory comment (lines 159-183) documenting the root cause and live-verification evidence. No stray second styling system introduced — still pure Carbon/CSS-Modules/Sass, consistent with the rest of the file. |
+| `e2e/case-workspace.spec.ts` | Extended UAT-6 test with explicit chevron (<=33px) and Description (>200px) width assertions | ✓ VERIFIED | `grep` confirms both assertions present at lines 233-234 (`expect(chevronHeaderWidth).toBeLessThanOrEqual(33)`, `expect(descCellWidth).toBeGreaterThan(200)`), inside the same test block previously used for the overlap check (09-19's test, extended rather than duplicated per the plan's stated decision). |
 
 ### Key Link Verification
 
-| From | To | Via | Status |
-|------|----|----|--------|
-| `exhibits.ts#createExhibit` | `lib/errors.ts` | `import { RoleNotPermittedError }` | ✓ WIRED (confirmed in import block, line 8) |
-| `app/api/exhibits/route.ts` | `exhibits.ts#createExhibit` | generic body pass-through including `actorUserId` | ✓ WIRED (live 403/422/201 probes confirm end-to-end) |
-| `ExhibitTable.module.scss .colChevron/.colFlags` | Carbon's `th:last-of-type` override | compound selector specificity win | ✓ WIRED (live Playwright overlap test passes) |
-| `ActiveRoleBanner.module.scss .banner` | `AppShell.module.scss`/`Sidebar.module.scss` 16rem rail constant | matching `padding-inline-start: 16rem` | ✓ WIRED (live Playwright hit-test confirms sidebar is not topmost element at banner text location) |
-| `Header.tsx` role-switcher `Select` | page title `<h1>` left edge | `className={styles.roleSwitcherWrap}` → `inset-inline-start: 17.5rem` | ✓ WIRED (live Playwright pixel-alignment assertion `<=2px` passes) |
+| From | To | Via | Status | Details |
+|------|-----|-----|--------|---------|
+| `ExhibitTable.tsx` rendered `<table>` | `ExhibitTable.module.scss`'s `.colChevron`/`.chevronCell` compound-selector rule | CSS Modules class application + Carbon's `className` composition on the single `<table>` node | ✓ WIRED | Confirmed by live measurement (32px/272px) — the rule is not merely present in source, it is actually taking effect in the rendered DOM against the live running app. |
+| `e2e/case-workspace.spec.ts` UAT-6 test | The live `/case` page's rendered table | Playwright `page.goto` + `boundingBox()` assertions | ✓ WIRED | Independently re-run by this verifier (not just cited from REVIEW.md) with the same 1/1 pass result as reported. |
 
-### Independent Live Re-Drive (not cited from gate — executed fresh during this verification)
+### Requirements Coverage
 
-| Check | Command | Result |
-|-------|---------|--------|
-| F-09-01 ATTORNEY actor | `curl -X POST /api/exhibits -d '{...,"actorUserId":"<ATTORNEY id>"}'` | `403 ROLE_NOT_PERMITTED` ✓ |
-| F-09-01 missing actor | `curl -X POST /api/exhibits -d '{...no actorUserId}'` | `422 VALIDATION_ERROR` ✓ |
-| F-09-01 DEPUTY actor (legitimate path unaffected) | `curl -X POST /api/exhibits -d '{...,"actorUserId":"<DEPUTY id>"}'` | `201 Created`, real exhibit row returned ✓ |
-| `exhibits.test.ts` | `npx vitest run src/services/exhibits.test.ts` | 33/33 passed ✓ |
-| `e2e/app-shell.spec.ts` full suite | `npx playwright test e2e/app-shell.spec.ts --workers=1` | **14/14 passed**, 0 regressions (includes both new UAT-9/UAT-16 tests) ✓ |
-| `e2e/case-workspace.spec.ts` full suite | `npx playwright test e2e/case-workspace.spec.ts --workers=1` | **19/20 passed** — 1 pre-existing documented flake (`Showing N of M`), unrelated to 09-19's file scope, reproduced-as-already-failing per `deferred-items.md` lines 55-62 ✓ |
-| `tsc --noEmit` | `npx tsc --noEmit` | exit 0, clean tree-wide ✓ |
-
-All live re-drives independently reproduce the exact evidence the task prompt described — not merely re-reading claims.
+Not applicable at the single-gap-closure granularity — REQUIREMENTS.md does not map UAT.md's individual gap entries to requirement IDs. The phase's mapped requirements (F1, F7, F8, F9, F10, F11, F15, F20, F24, F25) were covered in the prior full-phase 09-VERIFICATION.md round (7/7 success criteria) and are unaffected by this 2-file CSS/test diff — no data-model, API, or role-permission surface was touched.
 
 ### Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `exhibits.ts` | 163 | comment: `"...rather than the old [] placeholder"` | ℹ️ Info | Historical comment describing a *prior* defect now fixed — not live stub code |
-| `exhibits.ts` | 363 | comment: `"...never a redacted placeholder row"` | ℹ️ Info | Comment describing the correct negative-case behavior (sealed exhibits are absent, never a placeholder) — not a stub |
+| — | — | None found | — | 09-21-SUMMARY.md's own self-check and this verifier's independent read of both changed files found no TODO/FIXME/placeholder/stub markers introduced by this diff. The only "placeholder" string match in the codebase is a pre-existing, unrelated disabled "Add exhibit" button from an earlier phase — not part of this diff. |
 
-No TODO/FIXME/HACK/"coming soon"/empty-handler patterns found in any of the 6 gap-closure source/scss files. Both `return null`-style conditional guards elsewhere in the shell (ActiveRoleBanner) were already assessed as legitimate in the prior verification round and are untouched by this wave.
+### Broader Phase Sanity Check (not a full re-verification)
 
-### Requirements / Ground-Rule Coverage (gap-closure specific)
+Per the task's explicit scope, this is a surgical 2-file gap-closure, not a from-scratch re-verification of all 21 plans. Sanity-checked via gate evidence rather than re-deriving each of the 7 original success criteria:
 
-- No new npm dependency introduced by 09-18/09-19/09-20: ✓ (role gate is a Prisma query + existing error class; CSS-only fixes; Carbon's own `hideLabel` prop).
-- No second styling system: ✓ (SCSS modules + Carbon tokens only, consistent with the rest of the phase).
-- No data-model/API/role-permission change beyond what the gaps explicitly called for: ✓ — 09-18 adds exactly the one FRD F20 row-1 gate the security finding demanded (no new centralized `assertRole`, no other write path touched, per locked 09-CONTEXT decision #1, independently confirmed in 09-REVIEW.md's cross-file seam check). 09-19/09-20 are pure CSS/markup-attribute fixes with zero data-flow change.
-- Scope discipline: each of the 3 plans closes exactly one (or two tightly related) named gap(s) — no scope creep into untouched tickets.
+- Full test suite (42 files, 293 tests passed / 3 skipped) green in the final gate window of this session — no regression signature in any unrelated test file.
+- `npm run build` exit 0, all 11 app routes compiled, in the final gate window.
+- `npx tsc --noEmit` re-run independently by this verifier: exit 0.
+- `git status --short`: clean working tree — no stray uncommitted changes beyond what's captured in commits 778901f/6cdc489.
+- Code review (09-REVIEW.md) independently traced the only 2 touched files' cross-file seams (`ExhibitTable.tsx` ↔ `.module.scss`, the SCSS ↔ Carbon's actual compiled `<Table>` output, the e2e test ↔ rendered page structure) and found 0 blockers, 0 warnings.
+- No new dependency, no data-model/API/role-permission change — confirmed by the diff's own file list (1 SCSS file, 1 e2e test file) and 09-REVIEW.md's explicit note: "No new exports, no new API routes, no new types in this diff."
 
-### Regression Check (prior 17 plans, quick pass)
+### Human Verification Required
 
-Per the orchestrator's framing, the 17 original plans (09-01..09-17) were already fully verified 7/7 in the prior round. This round's own live re-drives (`app-shell.spec.ts` 14/14, `case-workspace.spec.ts` 19/20 with the 1 failure being a *pre-existing, already-documented* flake unrelated to any of the 3 gap-closure plans' file scope, `exhibits.test.ts` 33/33, `tsc --noEmit` clean, `npm run build` exit 0 per gate) confirm **zero regressions** were introduced into the previously-verified surface. The 09-REVIEW.md's own cross-file seam check independently corroborates this (all 5 seams checked, all OK).
+None. The specific claim in scope (chevron pinned to 2rem, Description absorbing >200px remainder, one-row rendering) was independently re-derived via live browser measurement and live Playwright re-run by this verifier, not merely cited from prior reports.
 
 ### Gaps Summary
 
-None remaining. All 4 originally-identified gaps (1 CONFIRMED HIGH security finding + 3 UAT issues) are closed:
+09-UAT.md's `## Gaps` section contains exactly one entry (test 6), and its `status:` field reads `closed` with `confidence: proven` and a `redrive:` field documenting live re-measurement matching the plan's predicted post-fix values exactly. This verifier independently reproduced that same live re-measurement (32px / 272px) and the same live Playwright pass (1/1), confirming the UAT.md closure claim is accurate rather than merely asserted. No other gaps are open in 09-UAT.md, 09-GATE.md, or 09-REVIEW.md for this phase. One known, explicitly out-of-scope, pre-existing flake remains in `e2e/case-workspace.spec.ts` (the "Showing N of M" witness-filter test, unrelated to UAT-6, reproduced as already-failing on the un-fixed file via `git stash` per 09-21-SUMMARY.md) — this is documented, not hidden, and does not block phase completion per the plan's own `<done>` criteria.
 
-1. **F-09-01** — closed by a real server-side role gate in `createExhibit`, independently live-tested with all three required scenarios (reject non-authorized, reject missing actor, accept authorized) producing the exact expected status codes and payloads.
-2. **UAT-6** — closed by a verified CSS specificity fix, independently confirmed via a passing live Playwright zero-overlap regression test.
-3. **UAT-9** — closed by a verified padding fix matching the shared sidebar rail-width constant, independently confirmed via a passing live Playwright hit-test regression test.
-4. **UAT-16** — closed by `hideLabel` + absolute positioning at the page title's left-edge offset, independently confirmed via a passing live Playwright label-removal + pixel-alignment regression test.
-
-Gate evidence (build/test/boot/review all green) and this verifier's own independent live re-drive are in full agreement — no discrepancy found between what the gate/SUMMARYs claimed and what the running system actually does.
+**Phase status: all 16 original UI/UX review tickets plus the typography standard, plus all 4 post-implementation gap-closure items (1 security finding + 3 UAT issues, including this round's UAT-6 re-test), are now closed with 0 remaining open gaps across UAT, GATE, and REVIEW evidence.**
 
 ---
 
-_Verified: 2026-10-10T22:40:19Z_
+_Verified: 2026-10-11T00:01:10Z_
 _Verifier: Claude (pivota_spec-verifier)_
