@@ -1,33 +1,27 @@
 ---
-status: testing
+status: complete
 phase: 09-ui-tickets-and-typography-standard
 source: 09-21-SUMMARY.md
 started: 2026-10-11T00:11:08Z
-updated: 2026-10-11T00:11:08Z
+updated: 2026-10-11T00:17:00Z
 ---
 
 ## Current Test
-<!-- OVERWRITE each test - shows where we are -->
 
-number: 6
-position: 1 of 1
-name: Jury-package eligibility 4-value column (T-06) — row styling fix (re-test, 2nd fix)
-expected: |
-  On the Case Workspace exhibit table, every column in a row renders in a single horizontal line — Description, Status, Flags, Jury Package, and the trailing chevron all stay on one row with no column wrapping onto its own line. The Description column takes up the remaining table width, the trailing chevron column stays a fixed narrow (~2rem) width, and the Flags column's pills (e.g. "Ex parte · restricted") never visually overflow into the adjacent Jury Package column.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 6. Jury-package eligibility 4-value column (T-06) — row styling fix (re-test, 2nd fix)
 expected: On the Case Workspace exhibit table, every column in a row renders in a single horizontal line — Description, Status, Flags, Jury Package, and the trailing chevron all stay on one row with no column wrapping onto its own line. The Description column takes up the remaining table width, the trailing chevron column stays a fixed narrow (~2rem) width, and the Flags column's pills never visually overflow into the adjacent Jury Package column.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 
 ## Self-Check
